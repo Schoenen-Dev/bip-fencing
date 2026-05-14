@@ -67,14 +67,7 @@ const present = todayAttendance.filter(
 const absent = todayAttendance.filter(
   a => a.status === "Absent"
 ).length;
-
-  // ── LOW STOCK: uses stockQty (from Products.jsx) and minStock threshold ──
-  // A product is "low stock" if stockQty < 10 OR stockQty <= minStock (whichever fires first)
-  const lowStock = data.products.filter(p => {
-    const qty = Number(p.stockQty);
-    const min = Number(p.minStock) || 10;
-    return qty < 10 || qty <= min;
-  });
+  const lowStock = data.products.filter(p => (p.stock || 0) < 10);
 
   // 🔷 STAT CARDS
   const statCards = [
@@ -93,6 +86,7 @@ const absent = todayAttendance.filter(
         <p>Welcome back! Here's your business overview.</p>
       </div>
 
+      {/* 🔥 SUMMARY CARDS */}
       {/* 🔥 SUMMARY CARDS */}
 <div className="row g-4 mb-4">
 
@@ -152,6 +146,7 @@ const absent = todayAttendance.filter(
               {card.label}
             </div>
 
+            {/* VALUE */}
             {/* VALUE */}
 <div
   style={{
@@ -224,11 +219,12 @@ const absent = todayAttendance.filter(
           </div>
         </div>
 
-        {/* ── RECENT QUOTATIONS ── */}
+        {/* ── RECENT QUOTATIONS — structure unchanged, content enhanced ── */}
         <div className="col-md-4">
           <div className="target-card shadow-sm p-3">
             <h6>Recent Quotations</h6>
 
+            {/* 4-stat summary strip (mirrors Quotation page) */}
             {quoteSummary.totalQuotes > 0 && (
               <div style={{
                 display: 'grid',
@@ -263,6 +259,7 @@ const absent = todayAttendance.filter(
               </div>
             )}
 
+            {/* Recent quote rows */}
             {data.quotations.length === 0 && <p style={{ color:"#aaa", fontSize:13 }}>No quotations yet</p>}
             {data.quotations.slice(-3).map((q, idx) => (
               <p key={idx} style={{ marginBottom: 4, fontSize: 13 }}>
@@ -292,62 +289,13 @@ const absent = todayAttendance.filter(
           </div>
         </div>
 
-        {/* ── LOW STOCK ALERT — reads stockQty from Products.jsx ── */}
         <div className="col-md-6">
           <div className="target-card shadow-sm p-3">
-            <h6>⚠️ Low Stock Alert</h6>
-            {lowStock.length === 0 ? (
-              <p style={{ color: '#22c55e', fontSize: 13, fontWeight: 600 }}>
-                ✅ All products are sufficiently stocked
-              </p>
-            ) : (
-              <>
-                <p style={{ fontSize: 11, color: '#9ca3af', marginBottom: 8 }}>
-                  {lowStock.length} product{lowStock.length !== 1 ? 's' : ''} below threshold
-                </p>
-                {lowStock.map((p, i) => {
-                  const qty = Number(p.stockQty);
-                  const isOut = qty === 0;
-                  return (
-                    <div
-                      key={p.id || i}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '6px 10px',
-                        marginBottom: 6,
-                        borderRadius: 7,
-                        background: isOut ? '#fee2e2' : '#fef3c7',
-                        border: `1px solid ${isOut ? '#fca5a5' : '#fde68a'}`,
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 13, color: '#1f2937' }}>
-                          {p.productName}
-                        </div>
-                        {p.sku && (
-                          <div style={{ fontSize: 11, color: '#9ca3af', fontFamily: 'monospace' }}>
-                            {p.sku}
-                          </div>
-                        )}
-                      </div>
-                      <span style={{
-                        fontSize: 12,
-                        fontWeight: 700,
-                        padding: '3px 10px',
-                        borderRadius: 20,
-                        background: isOut ? '#ef4444' : '#f59e0b',
-                        color: '#fff',
-                        whiteSpace: 'nowrap',
-                      }}>
-                        {isOut ? 'Out of Stock' : `Qty: ${qty}`}
-                      </span>
-                    </div>
-                  );
-                })}
-              </>
-            )}
+            <h6>Low Stock Alert</h6>
+            {lowStock.length === 0 && <p>No low stock</p>}
+            {lowStock.map((p, i) => (
+              <p key={i}>{p.name} - {p.stock}</p>
+            ))}
           </div>
         </div>
 
