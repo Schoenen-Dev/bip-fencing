@@ -860,6 +860,7 @@ export default function Clients() {
                 <button className="btn btn-outline-secondary btn-sm">Payment Reminder</button>
                 <button className="btn btn-outline-secondary btn-sm">Export Report</button>
                 <button className="btn btn-outline-secondary btn-sm">View Statement</button>
+                
               </div>
             </div>
           </div>
