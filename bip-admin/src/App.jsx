@@ -1,35 +1,37 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
-import ProtectedRoute from './components/ProtectedRoute';
-import AdminLayout from './components/AdminLayout';
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider } from "./context/AuthContext";
+import ProtectedRoute from "./components/ProtectedRoute";
+import AdminLayout from "./components/AdminLayout";
 
 // Auth
-import Login from './pages/Login';
+import Login from "./pages/Login";
 
 // Main
-import Dashboard from './pages/Dashboard';
+import Dashboard from "./pages/Dashboard";
 
 // Billing
-import TaxInvoice from './pages/TaxInvoice';
-import PurchaseBill from './pages/PurchaseBill';
-import Quotation from './pages/Quotation';
+import TaxInvoice from "./pages/TaxInvoice";
+import PurchaseBill from "./pages/PurchaseBill";
+import Quotation from "./pages/Quotation";
 
 // Stock Management
-import PurchaseInventory from './pages/PurchaseInventory';
-import Products from './pages/Products';
+import PurchaseInventory from "./pages/PurchaseInventory";
+import Products from "./pages/Products";
 
 // Staff Management
-import Salary from './pages/Salary';
-import Attendance from './pages/Attendance';
-import OT from './pages/OT';
+import Employee_details from "./pages/Employee_details";
+import Salary from "./pages/Salary";
+import Attendance from "./pages/Attendance";
+import OT from "./pages/OT";
 
 // CRM
-import Clients from './pages/Clients';
+import Clients from "./pages/Clients";
 
 function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+
       <Route
         path="/"
         element={
@@ -51,6 +53,7 @@ function AppRoutes() {
         <Route path="products" element={<Products />} />
 
         {/* Staff Management */}
+        <Route path="employee-details" element={<Employee_details />} />
         <Route path="salary" element={<Salary />} />
         <Route path="attendance" element={<Attendance />} />
         <Route path="ot" element={<OT />} />
@@ -58,6 +61,7 @@ function AppRoutes() {
         {/* CRM */}
         <Route path="clients" element={<Clients />} />
       </Route>
+
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );
