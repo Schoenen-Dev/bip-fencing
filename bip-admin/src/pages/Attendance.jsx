@@ -1,17 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 
 // ─── API Base URL ─────────────────────────────────────────────────────────────
-const API_BASE = 'http://localhost/attendance-api';
-
-// ─── Manual Employee List (replace with Employee.jsx DB fetch later) ──────────
-const MANUAL_EMPLOYEES = [
-  { emp_id: 'EMP-001', emp_name: 'Arun Kumar' },
-  { emp_id: 'EMP-002', emp_name: 'Priya Selvan' },
-  { emp_id: 'EMP-003', emp_name: 'Mohamed Rafiq' },
-  { emp_id: 'EMP-004', emp_name: 'Deepa Raj' },
-  { emp_id: 'EMP-005', emp_name: 'Suresh Babu' },
-  // Add more employees here until Employee.jsx is ready
-];
+const API_BASE = "http://localhost:8000";
+// ─── Employees fetched live from employees.php ────────────────────────────────
+// (replaces the old hard-coded MANUAL_EMPLOYEES list)
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STATUSES = ['Present', 'Absent', 'Half Day', 'Late', 'On Leave', 'Holiday', 'Work From Site'];
@@ -144,6 +136,11 @@ export default function Attendance() {
   const [apiError,      setApiError]      = useState('');
   const [successMsg,    setSuccessMsg]    = useState('');
 
+  // ── Employees from DB ─────────────────────────────────────────────────────
+  const [dbEmployees,     setDbEmployees]     = useState([]);
+  const [empLoading,      setEmpLoading]      = useState(false);
+  const [empError,        setEmpError]        = useState('');
+
   // ── Fetch attendance records + stats ─────────────────────────────────────────
   const fetchRecords = useCallback(async () => {
     setLoading(true);
@@ -169,6 +166,28 @@ export default function Attendance() {
 
   useEffect(() => { fetchRecords(); }, [fetchRecords]);
 
+  // ── Fetch active employees from employees.php ─────────────────────────────
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      setEmpLoading(true);
+      setEmpError('');
+      try {
+        const res  = await fetch(`${API_BASE}/employees.php`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        setDbEmployees(data.employees || []);
+      } catch (err) {
+        setEmpError(err.message || 'Failed to load employees.');
+      } finally {
+        setEmpLoading(false);
+      }
+    };
+    fetchEmployees();
+    // Re-fetch employees whenever a new employee is added from another tab
+    window.addEventListener('employees-updated', fetchEmployees);
+    return () => window.removeEventListener('employees-updated', fetchEmployees);
+  }, []);
+
   // ── Auto-calculate work hours ─────────────────────────────────────────────────
   useEffect(() => {
     const wh = calcWorkHours(form.check_in, form.check_out);
@@ -178,7 +197,7 @@ export default function Attendance() {
   // ── Employee select — auto-fills name & id ────────────────────────────────────
   const handleEmployeeSelect = (e) => {
     const empId = e.target.value;
-    const emp   = MANUAL_EMPLOYEES.find(em => em.emp_id === empId);
+    const emp   = dbEmployees.find(em => em.emp_id === empId);
     if (emp) {
       setForm(f => ({ ...f, employee_id: emp.emp_id, employee_name: emp.emp_name }));
     } else {
@@ -250,7 +269,7 @@ export default function Attendance() {
   // ── Stats — today only, from actual DB records ────────────────────────────────
   const todayStr     = new Date().toISOString().split('T')[0];
   const todayRecords = records.filter(r => r.date === todayStr);
-  const totalEmp     = MANUAL_EMPLOYEES.length;
+  const totalEmp     = dbEmployees.length;
   const todayPresent = todayRecords.filter(r => r.status === 'Present').length;
   const todayAbsent  = todayRecords.filter(r => r.status === 'Absent').length;
   const todayHalf    = todayRecords.filter(r => r.status === 'Half Day').length;
@@ -404,14 +423,22 @@ export default function Attendance() {
                     Employee Name <span className="text-danger">*</span>
                   </label>
                   <select className="form-select" style={inp}
-                    value={form.employee_id} onChange={handleEmployeeSelect} required>
-                    <option value="">Select employee...</option>
-                    {MANUAL_EMPLOYEES.map(emp => (
+                    value={form.employee_id} onChange={handleEmployeeSelect} required
+                    disabled={empLoading}>
+                    <option value="">
+                      {empLoading ? 'Loading employees…' : empError ? 'Error loading employees' : 'Select employee...'}
+                    </option>
+                    {dbEmployees.map(emp => (
                       <option key={emp.emp_id} value={emp.emp_id}>
                         {emp.emp_name} ({emp.emp_id})
                       </option>
                     ))}
                   </select>
+                  {empError && (
+                    <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>
+                      <i className="bi bi-exclamation-circle me-1" />{empError}
+                    </div>
+                  )}
                 </div>
                 <div className="col-md-3">
                   <label className="form-label" style={lbl}>Employee ID</label>

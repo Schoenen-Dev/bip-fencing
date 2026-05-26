@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 
 const AdminFeatures = () => {
-  const API_BASE = "http://localhost/Bip_billing_Backend/admin_features_api";
+const API_BASE = "http://localhost:8000";
 
   const [records, setRecords] = useState([]);
   const [formData, setFormData] = useState({
@@ -20,7 +20,7 @@ const AdminFeatures = () => {
 
   const fetchRecords = async () => {
     try {
-      const response = await fetch(`${API_BASE}/get_branch_amounts.php`);
+      const response = await fetch(`${API_BASE}/admin_feature_get_branch_amounts.php`);
       const data = await response.json();
       setRecords(data);
     } catch (error) {
@@ -37,7 +37,7 @@ const handleSubmit = async (e) => {
   e.preventDefault();
 
   try {
-    const response = await fetch(`${API_BASE}/add_branch_amount.php`, {
+    const response = await fetch(`${API_BASE}/admin_feature_add_branch_amount.php`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
