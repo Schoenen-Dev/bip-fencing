@@ -1,6 +1,9 @@
 import React, { useState } from "react";
 
 const Employee_details = () => {
+  const [activeTab, setActiveTab] = useState("add");
+  const [employees, setEmployees] = useState([]);
+
   const [formData, setFormData] = useState({
     employee_name: "",
     emp_id: "",
@@ -9,15 +12,12 @@ const Employee_details = () => {
     date_of_joining: "",
   });
 
-  const [employees, setEmployees] = useState([]);
-  const [showTable, setShowTable] = useState(false);
+  const API_BASE = "http://localhost/Bip_billing_Backend/employee_api";
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-
     setFormData({
       ...formData,
-      [name]: value,
+      [e.target.name]: e.target.value,
     });
   };
 
@@ -25,7 +25,7 @@ const Employee_details = () => {
     e.preventDefault();
 
     try {
-      const response = await fetch("http://localhost:5000/api/employees", {
+      const response = await fetch(`${API_BASE}/add_employee.php`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -47,142 +47,402 @@ const Employee_details = () => {
         alert("Failed to save employee details");
       }
     } catch (error) {
-      console.error("Error:", error);
+      console.error(error);
       alert("Server error");
     }
   };
 
-  const viewEmployeeDetails = async () => {
+  const fetchEmployees = async () => {
     try {
-      const response = await fetch("http://localhost:5000/api/employees");
+      const response = await fetch(`${API_BASE}/get_employees.php`);
       const data = await response.json();
 
       setEmployees(data);
-      setShowTable(true);
+      setActiveTab("records");
     } catch (error) {
-      console.error("Error:", error);
+      console.error(error);
       alert("Failed to fetch employee details");
     }
   };
 
   return (
-    <div style={styles.container}>
-      <h2>Employee Details</h2>
+    <div className="employee-page">
+      <div className="page-header">
+        <h2>
+          <i className="bi bi-person-badge"></i>
+          Employee Details
+        </h2>
+        <p>Manage employee records and staff information</p>
+      </div>
 
-      <form onSubmit={handleSubmit} style={styles.form}>
-        <label>Employee Name</label>
-        <input
-          type="text"
-          name="employee_name"
-          value={formData.employee_name}
-          onChange={handleChange}
-          required
-        />
-
-        <label>Employee ID</label>
-        <input
-          type="text"
-          name="emp_id"
-          value={formData.emp_id}
-          onChange={handleChange}
-          required
-        />
-
-        <label>Department</label>
-        <input
-          type="text"
-          name="department"
-          value={formData.department}
-          onChange={handleChange}
-          required
-        />
-
-        <label>Salary Type</label>
-        <select
-          name="salary_type"
-          value={formData.salary_type}
-          onChange={handleChange}
-          required
+      <div className="tabs">
+        <button
+          className={activeTab === "add" ? "tab active" : "tab"}
+          onClick={() => setActiveTab("add")}
         >
-          <option value="">Select Salary Type</option>
-          <option value="monthly">Monthly Salary</option>
-          <option value="weekly">Weekly Salary</option>
-          <option value="daily">Daily Salary</option>
-        </select>
+          <i className="bi bi-plus-circle"></i>
+          Add Employee
+        </button>
 
-        <label>Date of Joining</label>
-        <input
-          type="date"
-          name="date_of_joining"
-          value={formData.date_of_joining}
-          onChange={handleChange}
-          required
-        />
+        <button
+          className={activeTab === "records" ? "tab active" : "tab"}
+          onClick={fetchEmployees}
+        >
+          <i className="bi bi-table"></i>
+          Employee Records
+          <span>{employees.length}</span>
+        </button>
+      </div>
 
-        <button type="submit">Save Employee Details</button>
-      </form>
+      {activeTab === "add" && (
+        <form onSubmit={handleSubmit}>
+          <div className="card employee-card">
+            <h3>
+              <i className="bi bi-person-vcard"></i>
+              Employee Information
+            </h3>
 
-      <button onClick={viewEmployeeDetails} style={styles.viewButton}>
-        View Employee Details
-      </button>
+            <div className="form-grid">
+              <div className="form-group large">
+                <label>
+                  Employee Name <b>*</b>
+                </label>
+                <input
+                  type="text"
+                  name="employee_name"
+                  placeholder="Full name"
+                  value={formData.employee_name}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
 
-      {showTable && (
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              <th>Employee Name</th>
-              <th>Employee ID</th>
-              <th>Department</th>
-              <th>Salary Type</th>
-              <th>Date of Joining</th>
-            </tr>
-          </thead>
+              <div className="form-group">
+                <label>
+                  Employee ID <b>*</b>
+                </label>
+                <input
+                  type="text"
+                  name="emp_id"
+                  placeholder="EMP-001"
+                  value={formData.emp_id}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
 
-          <tbody>
-            {employees.length > 0 ? (
-              employees.map((employee) => (
-                <tr key={employee.id}>
-                  <td>{employee.employee_name}</td>
-                  <td>{employee.emp_id}</td>
-                  <td>{employee.department}</td>
-                  <td>{employee.salary_type}</td>
-                  <td>{employee.date_of_joining}</td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="5">No employee records found</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              <div className="form-group">
+                <label>
+                  Department <b>*</b>
+                </label>
+                <input
+                  type="text"
+                  name="department"
+                  placeholder="Operations"
+                  value={formData.department}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label>
+                  Salary Type <b>*</b>
+                </label>
+                <select
+                  name="salary_type"
+                  value={formData.salary_type}
+                  onChange={handleChange}
+                  required
+                >
+                  <option value="">Select Salary Type</option>
+                  <option value="monthly">Monthly Salary</option>
+                  <option value="weekly">Weekly Salary</option>
+                  <option value="daily">Daily Salary</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>
+                  Date of Joining <b>*</b>
+                </label>
+                <input
+                  type="date"
+                  name="date_of_joining"
+                  value={formData.date_of_joining}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="action-row">
+            <button type="submit" className="save-btn">
+              <i className="bi bi-check-circle"></i>
+              Save Employee
+            </button>
+          </div>
+        </form>
       )}
+
+      {activeTab === "records" && (
+        <div className="card records-card">
+          <h3>
+            <i className="bi bi-table"></i>
+            Employee Records
+          </h3>
+
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Employee Name</th>
+                  <th>Employee ID</th>
+                  <th>Department</th>
+                  <th>Salary Type</th>
+                  <th>Date of Joining</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {employees.length > 0 ? (
+                  employees.map((employee) => (
+                    <tr key={employee.id}>
+                      <td>{employee.employee_name}</td>
+                      <td>{employee.emp_id}</td>
+                      <td>{employee.department}</td>
+                      <td>{employee.salary_type}</td>
+                      <td>{employee.date_of_joining}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="5" className="empty">
+                      No employee records found
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        .employee-page {
+          padding: 0;
+          color: #0f172a;
+        }
+
+        .page-header {
+          padding-bottom: 28px;
+          border-bottom: 1px solid #d9e1ea;
+        }
+
+        .page-header h2 {
+          margin: 0 0 10px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-size: 28px;
+          font-weight: 800;
+          color: #020617;
+        }
+
+        .page-header h2 i {
+          color: #008b3e;
+          font-size: 24px;
+        }
+
+        .page-header p {
+          margin: 0;
+          color: #475569;
+          font-size: 17px;
+        }
+
+        .tabs {
+          display: flex;
+          gap: 24px;
+          border-bottom: 1px solid #d9e1ea;
+          margin-bottom: 30px;
+        }
+
+        .tab {
+          border: 0;
+          background: transparent;
+          padding: 18px 0 16px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 16px;
+          font-weight: 700;
+          color: #475569;
+          cursor: pointer;
+          border-bottom: 2px solid transparent;
+        }
+
+        .tab.active {
+          color: #008b3e;
+          border-bottom-color: #008b3e;
+        }
+
+        .tab span {
+          min-width: 26px;
+          height: 26px;
+          padding: 0 8px;
+          border-radius: 999px;
+          background: #d7f7e4;
+          color: #008b3e;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 13px;
+        }
+
+        .card {
+          background: #ffffff;
+          border: 1px solid #dbe3ec;
+          border-radius: 12px;
+          box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+          padding: 26px;
+        }
+
+        .employee-card {
+          max-width: 875px;
+        }
+
+        .card h3 {
+          margin: 0 0 26px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-size: 20px;
+          font-weight: 800;
+        }
+
+        .card h3 i {
+          color: #008b3e;
+        }
+
+        .form-grid {
+          display: grid;
+          grid-template-columns: 2fr 1fr 1fr;
+          gap: 24px 20px;
+        }
+
+        .form-group {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .form-group label {
+          font-size: 16px;
+          font-weight: 800;
+          color: #0f172a;
+        }
+
+        .form-group label b {
+          color: #ef233c;
+        }
+
+        .form-group input,
+        .form-group select {
+          height: 50px;
+          border: 1px solid #cbd5e1;
+          border-radius: 9px;
+          padding: 0 17px;
+          font-size: 18px;
+          color: #334155;
+          background: #ffffff;
+          outline: none;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+          border-color: #008b3e;
+          box-shadow: 0 0 0 3px rgba(0, 139, 62, 0.12);
+        }
+
+        .action-row {
+          max-width: 875px;
+          display: flex;
+          justify-content: flex-end;
+          margin-top: 22px;
+        }
+
+        .save-btn {
+          border: 0;
+          background: #008b3e;
+          color: #ffffff;
+          min-height: 46px;
+          padding: 0 22px;
+          border-radius: 8px;
+          font-size: 16px;
+          font-weight: 800;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          cursor: pointer;
+        }
+
+        .records-card {
+          max-width: 1000px;
+        }
+
+        .table-wrap {
+          overflow-x: auto;
+        }
+
+        table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+
+        th,
+        td {
+          padding: 14px 16px;
+          text-align: left;
+          border-bottom: 1px solid #e2e8f0;
+          font-size: 15px;
+        }
+
+        th {
+          background: #f8fafc;
+          font-weight: 800;
+          color: #334155;
+        }
+
+        td {
+          color: #475569;
+        }
+
+        .empty {
+          text-align: center;
+          padding: 28px;
+          color: #64748b;
+        }
+
+        @media (max-width: 900px) {
+          .form-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .employee-card,
+          .records-card,
+          .action-row {
+            max-width: 100%;
+          }
+
+          .tabs {
+            gap: 18px;
+            overflow-x: auto;
+          }
+        }
+      `}</style>
     </div>
   );
-};
-
-const styles = {
-  container: {
-    width: "600px",
-    margin: "40px auto",
-    padding: "20px",
-    border: "1px solid #ccc",
-    borderRadius: "8px",
-    fontFamily: "Arial",
-  },
-  form: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "10px",
-  },
-  viewButton: {
-    marginTop: "20px",
-  },
-  table: {
-    width: "100%",
-    marginTop: "20px",
-    borderCollapse: "collapse",
-  },
 };
 
 export default Employee_details;
