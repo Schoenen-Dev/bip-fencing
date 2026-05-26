@@ -101,6 +101,9 @@ export default function Sidebar() {
         <div className="nav-section-label">HR</div>
 
         <DropdownItem label="Staff Management" icon="bi-people">
+          <NavLink to="/admin-features" className={({ isActive }) => `nav-item-link ${isActive ? 'active' : ''}`}>
+            <i className="bi bi-shield-lock"></i><span>Admin Features</span>
+          </NavLink>
            <NavLink to="/employee-details" className={({ isActive }) => `nav-item-link ${isActive ? 'active' : ''}`}>
             <i className="bi bi-person-vcard"></i><span>Employee Details</span>
           </NavLink>

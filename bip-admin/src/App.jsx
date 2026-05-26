@@ -19,6 +19,7 @@ import PurchaseInventory from "./pages/PurchaseInventory";
 import Products from "./pages/Products";
 
 // Staff Management
+import AdminFeatures from "./pages/AdminFeatures";
 import Employee_details from "./pages/Employee_details";
 import Salary from "./pages/Salary";
 import Attendance from "./pages/Attendance";
@@ -53,6 +54,7 @@ function AppRoutes() {
         <Route path="products" element={<Products />} />
 
         {/* Staff Management */}
+        <Route path="admin-features" element={<AdminFeatures />} />
         <Route path="employee-details" element={<Employee_details />} />
         <Route path="salary" element={<Salary />} />
         <Route path="attendance" element={<Attendance />} />
