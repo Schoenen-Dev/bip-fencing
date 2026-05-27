@@ -16,15 +16,15 @@ $action = $_GET['action'] ?? '';
 /*
 |--------------------------------------------------------------------------
 | 1. Get Employee List  →  salary_api.php?action=employees
-|    Reads: employees.emp_id, employees.emp_name
+|    Reads: employees.emp_id, employees.employee_name
 |--------------------------------------------------------------------------
 */
 if ($action === "employees") {
 
     $result = $conn->query("
-        SELECT emp_id, emp_name AS emp_name
+        SELECT emp_id, employee_name AS emp_name
         FROM employees
-        ORDER BY emp_name
+        ORDER BY employee_name
     ");
 
     $employees = [];

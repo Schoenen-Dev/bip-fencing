@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-const API = 'http://localhost/backend/salary_api.php';
+const API = 'http://localhost:8000/salary_api.php';
 const emptyForm = {
   employeeName: '',
   employeeId: '',
