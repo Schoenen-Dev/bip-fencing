@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 
 const AdminFeatures = () => {
 const API_BASE = "http://localhost:8000";
-
   const [records, setRecords] = useState([]);
   const [formData, setFormData] = useState({
     branch_name: "",

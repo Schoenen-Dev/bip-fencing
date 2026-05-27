@@ -2,7 +2,7 @@
 header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json");
 
-include "/db.php";
+include __DIR__ . "/db.php";
 
 $sql = "SELECT * FROM branch_amounts ORDER BY id ASC";
 $result = $conn->query($sql);

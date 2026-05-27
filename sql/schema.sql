@@ -1,7 +1,6 @@
 -- =============================================================
---  BIP Fencing — Database Schema
+--  BIP Fencing — Database Schema (updated)
 --  Database: bipfencing
---  Place this file in XAMPP and run via phpMyAdmin or CLI
 -- =============================================================
 
 CREATE DATABASE IF NOT EXISTS bipfencing
@@ -12,8 +11,6 @@ USE bipfencing;
 
 -- -------------------------------------------------------------
 -- Table: employees
--- Populated by Employee_details.jsx → add_employee.php
--- Read by Attendance.jsx → employees.php
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS employees (
   id               INT UNSIGNED    NOT NULL AUTO_INCREMENT,
@@ -30,8 +27,6 @@ CREATE TABLE IF NOT EXISTS employees (
 
 -- -------------------------------------------------------------
 -- Table: attendance
--- Populated by Attendance.jsx → attendance.php (POST/PUT)
--- Read by Attendance.jsx → attendance.php (GET)
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS attendance (
   id             INT UNSIGNED   NOT NULL AUTO_INCREMENT,
@@ -65,8 +60,6 @@ CREATE TABLE IF NOT EXISTS attendance (
 
 -- -------------------------------------------------------------
 -- Table: branch_amounts
--- Populated by admin feature → admin_feature_add_branch_amount.php
--- Read by admin feature    → admin_feature_get_branch_amounts.php
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS branch_amounts (
   id            INT(11)        NOT NULL AUTO_INCREMENT,
@@ -79,4 +72,31 @@ CREATE TABLE IF NOT EXISTS branch_amounts (
   PRIMARY KEY (id),
   KEY idx_branch_name  (branch_name),
   KEY idx_payment_date (payment_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------
+-- Table: salaries
+-- Populated by Salary.jsx → salary_api.php?action=save
+-- Read     by Salary.jsx → salary_api.php?action=records
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS salaries (
+  id            INT UNSIGNED    NOT NULL AUTO_INCREMENT,
+  employeeName  VARCHAR(150)    NOT NULL,
+  employeeId    VARCHAR(50)     NOT NULL,
+  salary        DECIMAL(10,2)   NOT NULL DEFAULT 0,
+  paid          DECIMAL(10,2)   NOT NULL DEFAULT 0,
+  balance       DECIMAL(10,2)   NOT NULL DEFAULT 0,
+  type          VARCHAR(50)     NOT NULL,
+  salary_date   DATE            NOT NULL,
+  created_at    TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  PRIMARY KEY (id),
+  KEY idx_emp_id   (employeeId),
+  KEY idx_sal_date (salary_date),
+
+  CONSTRAINT fk_sal_emp
+    FOREIGN KEY (employeeId)
+    REFERENCES employees (emp_id)
+    ON UPDATE CASCADE
+    ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
