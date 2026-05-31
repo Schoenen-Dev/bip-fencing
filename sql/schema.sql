@@ -101,3 +101,21 @@ CREATE TABLE IF NOT EXISTS salaries (
     ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+
+-- -------------------------------------------------------------
+-- Table: OT Table
+-- -------------------------------------------------------------
+
+DROP TABLE IF EXISTS ot_details;
+
+CREATE TABLE ot_details (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  emp_name VARCHAR(100) NOT NULL,
+  emp_id VARCHAR(50) NOT NULL,
+  salary_type VARCHAR(50) NOT NULL,
+  start_time VARCHAR(20) NOT NULL,
+  end_time VARCHAR(20) NOT NULL,
+  total_ot_hours DECIMAL(10,2) NOT NULL,
+  ot_date DATE NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
