@@ -118,7 +118,16 @@ $stmt->bind_param(
     $description
 );
 
-$stmt->execute();
+try {
+    $stmt->execute();
+} catch (mysqli_sql_exception $e) {
+
+    if ($e->getCode() == 1062) {
+        respond(409, ['error' => 'SKU already exists']);
+    }
+
+    respond(500, ['error' => $e->getMessage()]);
+}
 
 $newId = $conn->insert_id;
 
@@ -177,7 +186,16 @@ $stmt->bind_param(
     $id
 );
 
-$stmt->execute();
+try {
+    $stmt->execute();
+} catch (mysqli_sql_exception $e) {
+
+    if ($e->getCode() == 1062) {
+        respond(409, ['error' => 'SKU already exists']);
+    }
+
+    respond(500, ['error' => $e->getMessage()]);
+}
 
 $result = $conn->query("SELECT * FROM products WHERE id = $id");
 $updated = $result->fetch_assoc();
