@@ -6,14 +6,15 @@ const Employee_details = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const [formData, setFormData] = useState({
-    employee_name: "",
-    emp_id: "",
-    department: "",
-    salary_type: "",
-    date_of_joining: "",
-  });
-
+const [formData, setFormData] = useState({
+  employee_name: "",
+  emp_id: "",
+  department: "",
+  phoneNumber: "",
+  address: "",
+  salary_type: "",
+  date_of_joining: "",
+});
 const API_BASE = "http://localhost:8000";
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -107,6 +108,29 @@ const API_BASE = "http://localhost:8000";
                 <input type="text" name="department" placeholder="Operations"
                   value={formData.department} onChange={handleChange} required />
               </div>
+             <div className="form-group">
+  <label>Phone Number <b>*</b></label>
+  <input
+    type="tel"
+    name="phoneNumber"
+    placeholder="Enter Phone Number"
+    value={formData.phoneNumber}
+    onChange={handleChange}
+    required
+  />
+</div>
+
+<div className="form-group">
+  <label>Address <b>*</b></label>
+  <input
+    type="text"
+    name="address"
+    placeholder="Enter Address"
+    value={formData.address}
+    onChange={handleChange}
+    required
+  />
+</div>
               <div className="form-group">
                 <label>Salary Type <b>*</b></label>
                 <select name="salary_type" value={formData.salary_type} onChange={handleChange} required>

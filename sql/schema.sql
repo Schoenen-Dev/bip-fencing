@@ -12,19 +12,20 @@ USE bipfencing;
 -- -------------------------------------------------------------
 -- Table: employees
 -- -------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS employees (
-  id               INT UNSIGNED    NOT NULL AUTO_INCREMENT,
-  employee_name    VARCHAR(150)    NOT NULL,
-  emp_id           VARCHAR(50)     NOT NULL,
-  department       VARCHAR(100)    NOT NULL,
+CREATE TABLE employees (
+  id               INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  employee_name    VARCHAR(150) NOT NULL,
+  emp_id           VARCHAR(50) NOT NULL,
+  department       VARCHAR(100) NOT NULL,
+  phone_number     VARCHAR(15) NOT NULL,
+  address          TEXT NOT NULL,
   salary_type      ENUM('monthly','weekly','daily') NOT NULL,
-  date_of_joining  DATE            NOT NULL,
-  created_at       TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  date_of_joining  DATE NOT NULL,
+  created_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
   PRIMARY KEY (id),
   UNIQUE KEY uq_emp_id (emp_id)
-) ENGINE=InnoDB;
-
+);
 -- -------------------------------------------------------------
 -- Table: attendance
 -- -------------------------------------------------------------
