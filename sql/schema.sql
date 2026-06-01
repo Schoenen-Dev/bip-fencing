@@ -169,6 +169,29 @@ CREATE TABLE IF NOT EXISTS sessions (
   KEY idx_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- -------------------------------------------------------------
+-- Table: products
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS products (
+  id            INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  product_name  VARCHAR(255) NOT NULL,
+  sku           VARCHAR(100) UNIQUE DEFAULT NULL,
+  category      VARCHAR(100) DEFAULT NULL,
+  unit          VARCHAR(50) NOT NULL DEFAULT 'Pcs',
+  selling_price DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  stock_qty     INT NOT NULL DEFAULT 0,
+  min_stock     INT NOT NULL DEFAULT 0,
+  description   TEXT DEFAULT NULL,
+  created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                ON UPDATE CURRENT_TIMESTAMP,
+
+  PRIMARY KEY (id),
+  KEY idx_product_name (product_name),
+  KEY idx_category (category),
+  KEY idx_sku (sku)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ── Add branch_id to existing tables ─────────────────────────
 ALTER TABLE employees  ADD COLUMN IF NOT EXISTS branch_id INT UNSIGNED DEFAULT NULL;
 ALTER TABLE attendance ADD COLUMN IF NOT EXISTS branch_id INT UNSIGNED DEFAULT NULL;

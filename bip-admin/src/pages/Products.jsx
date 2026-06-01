@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-const API_URL = 'http://localhost/inventory/api/products.php';
+const API_URL = 'http://localhost:8000/products.php';
 
 const emptyForm = {
   productName: '', sku: '', category: '', unit: 'Pcs',
