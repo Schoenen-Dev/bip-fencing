@@ -5,28 +5,31 @@ const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(
-    () => localStorage.getItem('isAuthenticated') === 'true'
+    () => !!localStorage.getItem('token')  // ← check token not isAuthenticated
   );
+
   const navigate = useNavigate();
 
-  const login = (username, password) => {
-    if (username === 'admin' && password === 'admin123') {
-      localStorage.setItem('isAuthenticated', 'true');
-      setIsAuthenticated(true);
-      navigate('/dashboard');
-      return true;
-    }
-    return false;
-  };
-
   const logout = () => {
-    localStorage.removeItem('isAuthenticated');
+    // call logout.php to destroy session
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch('http://localhost:8000/logout.php', {
+        method:  'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      }).catch(() => {});
+    }
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
     setIsAuthenticated(false);
     navigate('/login');
   };
 
+  // called by Login.jsx after successful PHP login
+  const setAuth = () => setIsAuthenticated(true);
+
   return (
-    <AuthContext.Provider value={{ isAuthenticated, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, setAuth, logout }}>
       {children}
     </AuthContext.Provider>
   );

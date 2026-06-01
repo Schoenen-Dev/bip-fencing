@@ -19,7 +19,7 @@ const API_BASE = "http://localhost:8000";
 
   const fetchRecords = async () => {
     try {
-      const response = await fetch(`${API_BASE}/admin_feature_get_branch_amounts.php`);
+      const response = await fetch(`${API_BASE}/admin_feature_get_branch_amounts.php`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
       const data = await response.json();
       setRecords(data);
     } catch (error) {
@@ -39,7 +39,7 @@ const handleSubmit = async (e) => {
     const response = await fetch(`${API_BASE}/admin_feature_add_branch_amount.php`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type": "application/json", 'Authorization': `Bearer ${localStorage.getItem('token')}`
       },
       body: JSON.stringify(formData),
     });

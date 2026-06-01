@@ -24,7 +24,8 @@ const API_BASE = "http://localhost:8000";
     try {
       const response = await fetch(`${API_BASE}/add_employee.php`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json",
+          'Authorization': `Bearer ${localStorage.getItem('token')}` },
         body: JSON.stringify(formData),
       });
       if (response.ok) {
@@ -43,7 +44,7 @@ const API_BASE = "http://localhost:8000";
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(`${API_BASE}/get_employees.php`);
+      const response = await fetch(`${API_BASE}/get_employees.php`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
       const data = await response.json();
       // handle both array response and {employees:[...]} shape
       const list = Array.isArray(data) ? data : (data.employees || data.data || []);

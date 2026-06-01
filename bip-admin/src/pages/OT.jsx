@@ -20,7 +20,7 @@ const OT = () => {
 
   const fetchEmployees = async () => {
     try {
-      const response = await fetch(`${API_BASE}/get_employees.php`);
+      const response = await fetch(`${API_BASE}/get_employees.php`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
       const data = await response.json();
       setEmployees(Array.isArray(data) ? data : []);
     } catch (error) {
@@ -31,7 +31,7 @@ const OT = () => {
 
   const fetchOTRecords = async () => {
     try {
-      const response = await fetch(`${API_BASE}/get_ot_details.php`);
+      const response = await fetch(`${API_BASE}/get_ot_details.php`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
       const data = await response.json();
       setOtRecords(Array.isArray(data) ? data : []);
     } catch (error) {
@@ -127,7 +127,7 @@ const OT = () => {
       const response = await fetch(`${API_BASE}/add_ot_details.php`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
+          "Content-Type": "application/json", 'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
         body: JSON.stringify(payload),
       });

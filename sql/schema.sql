@@ -119,3 +119,58 @@ CREATE TABLE ot_details (
   ot_date DATE NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+
+-- ── branches ─────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS branches (
+  id         INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  name       VARCHAR(100)  NOT NULL,
+  code       VARCHAR(20)   NOT NULL,
+  is_active  TINYINT(1)    NOT NULL DEFAULT 1,
+  created_at DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_code (code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT IGNORE INTO branches (id, name, code) VALUES
+  (1, 'Branch A', 'BRA'),
+  (2, 'Branch B', 'BRB'),
+  (3, 'Branch C', 'BRC');
+
+-- ── users ─────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS users (
+  id         INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  username   VARCHAR(60)   NOT NULL,
+  password   VARCHAR(255)  NOT NULL,
+  full_name  VARCHAR(120)  NOT NULL DEFAULT '',
+  role       ENUM('admin','branch_user') NOT NULL DEFAULT 'branch_user',
+  branch_id  INT UNSIGNED  DEFAULT NULL,
+  is_active  TINYINT(1)    NOT NULL DEFAULT 1,
+  created_at DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_username (username),
+  KEY idx_branch (branch_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT IGNORE INTO users (username, password, full_name, role, branch_id) VALUES
+  ('admin',    'Admin@123',    'Administrator', 'admin',       NULL),
+  ('branch_a', 'BranchA@123', 'Branch A User', 'branch_user', 1),
+  ('branch_b', 'BranchB@123', 'Branch B User', 'branch_user', 2),
+  ('branch_c', 'BranchC@123', 'Branch C User', 'branch_user', 3);
+
+-- ── sessions ─────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS sessions (
+  id          VARCHAR(64)   NOT NULL,
+  user_id     INT UNSIGNED  NOT NULL,
+  ip_address  VARCHAR(45)   DEFAULT NULL,
+  user_agent  TEXT          DEFAULT NULL,
+  created_at  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ── Add branch_id to existing tables ─────────────────────────
+ALTER TABLE employees  ADD COLUMN IF NOT EXISTS branch_id INT UNSIGNED DEFAULT NULL;
+ALTER TABLE attendance ADD COLUMN IF NOT EXISTS branch_id INT UNSIGNED DEFAULT NULL;
+ALTER TABLE salaries   ADD COLUMN IF NOT EXISTS branch_id INT UNSIGNED DEFAULT NULL;
+ALTER TABLE ot_details ADD COLUMN IF NOT EXISTS branch_id INT UNSIGNED DEFAULT NULL;

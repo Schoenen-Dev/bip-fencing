@@ -1,39 +1,33 @@
 <?php
 // =============================================================
-//  get_employees.php
-//  Called by: Employee_details.jsx → fetchEmployees (GET)
-//  Returns all employee records for the "Employee Records" tab.
+//  get_employees.php — with branch auth
 // =============================================================
 
-require_once __DIR__ . '/cors.php';
+require_once __DIR__ . '/auth_middleware.php';
 require_once __DIR__ . '/db.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
-    http_response_code(405);
-    echo json_encode(['error' => 'Method not allowed']);
-    exit;
+    http_response_code(405); echo json_encode(['error' => 'Method not allowed']); exit;
 }
 
-$db     = getDB();
-$result = $db->query(
-    'SELECT id, employee_name, emp_id, department, salary_type, date_of_joining, created_at
-     FROM employees
-     ORDER BY created_at DESC'
-);
+$db = getDB();
 
-if (!$result) {
-    http_response_code(500);
-    echo json_encode(['error' => 'Query failed: ' . $db->error]);
-    $db->close();
-    exit;
+$sql    = 'SELECT id, employee_name, emp_id, department, salary_type, date_of_joining, created_at FROM employees';
+$params = [];
+$types  = '';
+
+if ($authUser['role'] !== 'admin') {
+    $sql   .= ' WHERE branch_id = ?';
+    $params = [(int)$authUser['branch_id']];
+    $types  = 'i';
 }
 
-$employees = [];
-while ($row = $result->fetch_assoc()) {
-    $employees[] = $row;
-}
+$sql .= ' ORDER BY created_at DESC';
+$stmt = $db->prepare($sql);
+if ($params) $stmt->bind_param($types, ...$params);
+$stmt->execute();
+$employees = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
-echo json_encode($employees);   // plain array — matches what Employee_details.jsx expects
-
-$result->free();
+echo json_encode($employees);
+$stmt->close();
 $db->close();

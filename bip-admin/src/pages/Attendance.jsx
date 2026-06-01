@@ -152,7 +152,7 @@ export default function Attendance() {
       if (search)       params.set('search', search);
       if (activeTab !== 'all') params.set('tab', activeTab);
 
-      const res  = await fetch(`${API_BASE}/attendance.php?${params}`);
+      const res  = await fetch(`${API_BASE}/attendance.php?${params}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       setRecords(data.records || []);
@@ -172,7 +172,7 @@ export default function Attendance() {
       setEmpLoading(true);
       setEmpError('');
       try {
-        const res  = await fetch(`${API_BASE}/employees.php`);
+        const res  = await fetch(`${API_BASE}/employees.php`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         setDbEmployees(data.employees || []);
@@ -216,7 +216,7 @@ export default function Attendance() {
       const method = editingId ? 'PUT' : 'POST';
       const res    = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
         body:    JSON.stringify(form),
       });
       const data = await res.json();
@@ -253,7 +253,7 @@ export default function Attendance() {
   // ── Delete ────────────────────────────────────────────────────────────────────
   const handleDelete = async (id) => {
     try {
-      const res  = await fetch(`${API_BASE}/attendance.php?id=${id}`, { method: 'DELETE' });
+      const res  = await fetch(`${API_BASE}/attendance.php?id=${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       setDeleteConfirm(null);

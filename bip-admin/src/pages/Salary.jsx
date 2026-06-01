@@ -25,7 +25,7 @@ export default function Salary() {
   /* ── Fetch employees (name + id) from DB ─────────────────── */
   useEffect(() => {
     setEmpLoading(true);
-    fetch(`${API}?action=employees`)
+    fetch(`${API}?action=employees`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } })
       .then((r) => r.json())
       .then((data) => setEmployees(data))
       .catch(() => setEmployees([]))
@@ -35,7 +35,7 @@ export default function Salary() {
   /* ── Fetch salary records from DB ────────────────────────── */
   const fetchRecords = () => {
     setLoading(true);
-    fetch(`${API}?action=records`)
+    fetch(`${API}?action=records`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } })
       .then((r) => r.json())
       .then((data) => setRecords(data))
       .catch(() => setRecords([]))
@@ -78,7 +78,7 @@ export default function Salary() {
     try {
       const response = await fetch(`${API}?action=save`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
         body: JSON.stringify(form),
       });
       const data = await response.json();

@@ -1,56 +1,26 @@
 <?php
-ini_set("display_errors", 0);
-error_reporting(E_ALL);
+require_once __DIR__ . '/auth_middleware.php';
+require_once __DIR__ . '/db.php';
 
-header("Access-Control-Allow-Origin: http://localhost:5173");
-header("Access-Control-Allow-Headers: Content-Type");
-header("Access-Control-Allow-Methods: GET, OPTIONS");
-header("Content-Type: application/json");
-
-if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") {
-    http_response_code(200);
-    exit();
+if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+    http_response_code(405); echo json_encode(['message' => 'Method not allowed']); exit;
 }
 
-include "db.php";
+$sql    = 'SELECT id, emp_name, emp_id, salary_type, start_time, end_time, total_ot_hours, ot_date, created_at FROM ot_details';
+$params = []; $types = '';
 
-if (!isset($conn)) {
-    http_response_code(500);
-    echo json_encode(["message" => "Database connection variable conn not found"]);
-    exit();
+if ($authUser['role'] !== 'admin') {
+    $sql .= ' WHERE branch_id = ?';
+    $params = [(int)$authUser['branch_id']];
+    $types  = 'i';
 }
+$sql .= ' ORDER BY id DESC';
 
-$sql = "SELECT 
-          id,
-          emp_name,
-          emp_id,
-          salary_type,
-          start_time,
-          end_time,
-          total_ot_hours,
-          ot_date,
-          created_at
-        FROM ot_details
-        ORDER BY id DESC";
-
-$result = $conn->query($sql);
-
-if (!$result) {
-    http_response_code(500);
-    echo json_encode([
-        "message" => "Query failed",
-        "error" => $conn->error
-    ]);
-    exit();
-}
-
-$records = [];
-
-while ($row = $result->fetch_assoc()) {
-    $records[] = $row;
-}
+$stmt = $conn->prepare($sql);
+if ($params) $stmt->bind_param($types, ...$params);
+$stmt->execute();
+$records = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
 
 echo json_encode($records);
-
 $conn->close();
-?>
