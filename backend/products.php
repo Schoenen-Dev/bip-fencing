@@ -1,227 +1,133 @@
 <?php
-// ============================================================
-//  File: api/products.php
-//  Place this inside: C:\xampp\htdocs\inventory\api\products.php
-//
-//  Endpoints:
-//    GET    /api/products.php          → list all products
-//    POST   /api/products.php          → create a product
-//    PUT    /api/products.php?id=X     → update product by ID
-//    DELETE /api/products.php?id=X     → delete product by ID
-// ============================================================
-
-// ── CORS: allow your React dev server (localhost:5173 or :3000) ──
-header('Access-Control-Allow-Origin: *');
-// For any local origin during development, use:
-// header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
-header('Content-Type: application/json; charset=utf-8');
-
-// Handle OPTIONS preflight request
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit;
-}
-
+require_once __DIR__ . '/cors.php';
+require_once __DIR__ . '/auth_middleware.php';
 require_once __DIR__ . '/db.php';
 
-$conn = getDB();
-
+$conn   = getDB();
 $method = $_SERVER['REQUEST_METHOD'];
-$id     = isset($_GET['id']) ? (int) $_GET['id'] : null;
+$id     = isset($_GET['id']) ? (int)$_GET['id'] : null;
 
-// ── Helper: send JSON response ──
 function respond(int $code, $data): void {
     http_response_code($code);
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
 
-// ── Helper: read JSON body ──
 function getBody(): array {
-    $raw = file_get_contents('php://input');
-    $data = json_decode($raw, true);
+    $data = json_decode(file_get_contents('php://input'), true);
     if (!is_array($data)) respond(400, ['error' => 'Invalid JSON body']);
     return $data;
 }
 
-// ── Compute margin string ──
-// function calcMargin($cost, $sell): string {
-//     $cost = (float) $cost;
-//     $sell = (float) $sell;
-//     if ($cost <= 0) return '0%';
-//     return round((($sell - $cost) / $cost) * 100, 1) . '%';
-// }
-
-// ════════════════════════════════════════════
-//  GET — List all products
-// ════════════════════════════════════════════
+// ── GET ───────────────────────────────────────────────────────
 if ($method === 'GET') {
-    $result = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
-
-$rows = [];
-
-while ($row = $result->fetch_assoc()) {
-    $rows[] = $row;
+    if ($authUser['role'] === 'admin') {
+        $result = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
+    } else {
+        $stmt = $conn->prepare("SELECT * FROM products WHERE branch_id = ? ORDER BY created_at DESC");
+        $stmt->bind_param('i', $authUser['branch_id']);
+        $stmt->execute();
+        $result = $stmt->get_result();
+    }
+    $rows = [];
+    while ($row = $result->fetch_assoc()) $rows[] = $row;
+    respond(200, $rows);
 }
 
-respond(200, $rows);
-}
-
-// ════════════════════════════════════════════
-//  POST — Create a new product
-// ════════════════════════════════════════════
+// ── POST ──────────────────────────────────────────────────────
 if ($method === 'POST') {
     $d = getBody();
+    if (empty($d['productName'])) respond(422, ['error' => 'productName is required']);
 
-    // Validate required field
-    if (empty($d['productName'])) {
-        respond(422, ['error' => 'productName is required']);
-    }
-
-    
+    $branchId    = $authUser['role'] === 'admin'
+        ? (int)($d['branch_id'] ?? $authUser['branch_id'])
+        : (int)$authUser['branch_id'];
+    $productName = $d['productName'];
+    $sku         = $d['sku']          ?? '';
+    $category    = $d['category']     ?? '';
+    $unit        = $d['unit']         ?? 'Pcs';
+    $sellingPrice= $d['sellingPrice'] ?? 0;
+    $stockQty    = $d['stockQty']     ?? 0;
+    $minStock    = $d['minStock']     ?? 0;
+    $description = $d['description']  ?? '';
 
     $stmt = $conn->prepare("
-    INSERT INTO products
-    (
-        product_name,
-        sku,
-        category,
-        unit,
-        selling_price,
-        stock_qty,
-        min_stock,
-        description
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-");
+        INSERT INTO products (product_name, sku, category, unit, selling_price, stock_qty, min_stock, description, branch_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ");
+    $stmt->bind_param('ssssdissi', $productName, $sku, $category, $unit, $sellingPrice, $stockQty, $minStock, $description, $branchId);
 
-$productName = $d['productName'];
-$sku         = $d['sku'] ?? '';
-$category    = $d['category'] ?? '';
-$unit        = $d['unit'] ?? 'Pcs';
-$sellingPrice= $d['sellingPrice'] ?? 0;
-$stockQty    = $d['stockQty'] ?? 0;
-$minStock    = $d['minStock'] ?? 0;
-$description = $d['description'] ?? '';
-
-$stmt->bind_param(
-    "ssssdiss",
-    $productName,
-    $sku,
-    $category,
-    $unit,
-    $sellingPrice,
-    $stockQty,
-    $minStock,
-    $description
-);
-
-try {
-    $stmt->execute();
-} catch (mysqli_sql_exception $e) {
-
-    if ($e->getCode() == 1062) {
-        respond(409, ['error' => 'SKU already exists']);
+    try {
+        $stmt->execute();
+    } catch (mysqli_sql_exception $e) {
+        if ($e->getCode() == 1062) respond(409, ['error' => 'SKU already exists']);
+        respond(500, ['error' => $e->getMessage()]);
     }
 
-    respond(500, ['error' => $e->getMessage()]);
+    $newId  = $conn->insert_id;
+    $result = $conn->query("SELECT * FROM products WHERE id = $newId");
+    respond(201, $result->fetch_assoc());
 }
 
-$newId = $conn->insert_id;
-
-$result = $conn->query("SELECT * FROM products WHERE id = $newId");
-$newProduct = $result->fetch_assoc();
-
-respond(201, $newProduct);
-}
-
-// ════════════════════════════════════════════
-//  PUT — Update a product by ID
-// ════════════════════════════════════════════
+// ── PUT ───────────────────────────────────────────────────────
 if ($method === 'PUT') {
     if (!$id) respond(400, ['error' => 'Missing ?id=']);
-
     $d = getBody();
+    if (empty($d['productName'])) respond(422, ['error' => 'productName is required']);
 
-    if (empty($d['productName'])) {
-        respond(422, ['error' => 'productName is required']);
+    // Branch user can only edit their own branch's products
+    if ($authUser['role'] !== 'admin') {
+        $chk = $conn->prepare("SELECT id FROM products WHERE id = ? AND branch_id = ?");
+        $chk->bind_param('ii', $id, $authUser['branch_id']);
+        $chk->execute();
+        if (!$chk->get_result()->fetch_assoc()) respond(403, ['error' => 'Access denied']);
     }
 
-    
+    $productName = $d['productName'];
+    $sku         = $d['sku']          ?? '';
+    $category    = $d['category']     ?? '';
+    $unit        = $d['unit']         ?? 'Pcs';
+    $sellingPrice= $d['sellingPrice'] ?? 0;
+    $stockQty    = $d['stockQty']     ?? 0;
+    $minStock    = $d['minStock']     ?? 0;
+    $description = $d['description']  ?? '';
 
     $stmt = $conn->prepare("
-    UPDATE products SET
-        product_name = ?,
-        sku = ?,
-        category = ?,
-        unit = ?,
-        selling_price = ?,
-        stock_qty = ?,
-        min_stock = ?,
-        description = ?
-    WHERE id = ?
-");
+        UPDATE products SET
+            product_name=?, sku=?, category=?, unit=?,
+            selling_price=?, stock_qty=?, min_stock=?, description=?
+        WHERE id=?
+    ");
+    $stmt->bind_param('ssssdissi', $productName, $sku, $category, $unit, $sellingPrice, $stockQty, $minStock, $description, $id);
 
-$productName = $d['productName'];
-$sku         = $d['sku'] ?? '';
-$category    = $d['category'] ?? '';
-$unit        = $d['unit'] ?? 'Pcs';
-$sellingPrice= $d['sellingPrice'] ?? 0;
-$stockQty    = $d['stockQty'] ?? 0;
-$minStock    = $d['minStock'] ?? 0;
-$description = $d['description'] ?? '';
-
-$stmt->bind_param(
-    "ssssdissi",
-    $productName,
-    $sku,
-    $category,
-    $unit,
-    $sellingPrice,
-    $stockQty,
-    $minStock,
-    $description,
-    $id
-);
-
-try {
-    $stmt->execute();
-} catch (mysqli_sql_exception $e) {
-
-    if ($e->getCode() == 1062) {
-        respond(409, ['error' => 'SKU already exists']);
+    try {
+        $stmt->execute();
+    } catch (mysqli_sql_exception $e) {
+        if ($e->getCode() == 1062) respond(409, ['error' => 'SKU already exists']);
+        respond(500, ['error' => $e->getMessage()]);
     }
 
-    respond(500, ['error' => $e->getMessage()]);
+    $result = $conn->query("SELECT * FROM products WHERE id = $id");
+    respond(200, $result->fetch_assoc());
 }
 
-$result = $conn->query("SELECT * FROM products WHERE id = $id");
-$updated = $result->fetch_assoc();
-
-respond(200, $updated);
-}
-
-// ════════════════════════════════════════════
-//  DELETE — Delete a product by ID
-// ════════════════════════════════════════════
+// ── DELETE ────────────────────────────────────────────────────
 if ($method === 'DELETE') {
     if (!$id) respond(400, ['error' => 'Missing ?id=']);
 
-    $stmt = $conn->prepare("DELETE FROM products WHERE id = ?");
-    $stmt->bind_param("i", $id);
-    $stmt->execute();
-
-    if ($stmt->affected_rows === 0) {
-        respond(404, ['error' => 'Product not found']);
+    // Branch user can only delete their own branch's products
+    if ($authUser['role'] !== 'admin') {
+        $chk = $conn->prepare("SELECT id FROM products WHERE id = ? AND branch_id = ?");
+        $chk->bind_param('ii', $id, $authUser['branch_id']);
+        $chk->execute();
+        if (!$chk->get_result()->fetch_assoc()) respond(403, ['error' => 'Access denied']);
     }
 
-    respond(200, [
-        'message' => 'Product deleted',
-        'id' => $id
-    ]);
+    $stmt = $conn->prepare("DELETE FROM products WHERE id = ?");
+    $stmt->bind_param('i', $id);
+    $stmt->execute();
+    if ($stmt->affected_rows === 0) respond(404, ['error' => 'Product not found']);
+    respond(200, ['message' => 'Product deleted', 'id' => $id]);
 }
 
-// ── Fallback ──
 respond(405, ['error' => 'Method not allowed']);
