@@ -25,6 +25,9 @@ export default function Login() {
       const data = await res.json();
       if (data.success) {
         localStorage.setItem('token', data.token);
+        // i will added for the one line bellow
+        localStorage.setItem('role', data.user.role);
+
         localStorage.setItem('user',  JSON.stringify(data.user));
         setAuth();               // ← tell AuthContext we're logged in
         navigate('/dashboard');

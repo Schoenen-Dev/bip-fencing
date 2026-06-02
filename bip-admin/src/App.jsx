@@ -29,6 +29,13 @@ import OT from "./pages/OT";
 import Clients from "./pages/Clients";
 
 function AppRoutes() {
+  // Add this helper at the top
+// const user = JSON.parse(localStorage.getItem('user') || '{}');
+// i will add this funtion on four lines bellow
+function AdminRoute({ children }) {
+  const role = localStorage.getItem('role');
+  return role === 'admin' ? children : <Navigate to="/dashboard" replace />;
+}
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
@@ -54,7 +61,13 @@ function AppRoutes() {
         <Route path="products" element={<Products />} />
 
         {/* Staff Management */}
-        <Route path="admin-features" element={<AdminFeatures />} />
+        {/* <Route path="admin-features" element={<AdminFeatures />} /> */}
+{/* i will added the below one line of router */}
+<Route path="admin-features" element={
+  <AdminRoute>
+    <AdminFeatures />
+  </AdminRoute>
+} />
         <Route path="employee-details" element={<Employee_details />} />
         <Route path="salary" element={<Salary />} />
         <Route path="attendance" element={<Attendance />} />
