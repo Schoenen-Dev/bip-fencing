@@ -13,14 +13,50 @@ const OT = () => {
     emp_name: "",
     emp_id: "",
     salary_type: "",
-    start_time: "",
-    end_time: "",
+    start_time_hour: "12",
+    start_time_minute: "00",
+    start_time_ampm: "AM",
+    end_time_hour: "12",
+    end_time_minute: "00",
+    end_time_ampm: "AM",
     ot_date: "",
   });
 
+  const convertTo24Hour = (hour, minute, ampm) => {
+    let hour24 = parseInt(hour);
+    if (ampm === "PM" && hour24 !== 12) {
+      hour24 += 12;
+    } else if (ampm === "AM" && hour24 === 12) {
+      hour24 = 0;
+    }
+    return `${String(hour24).padStart(2, "0")}:${minute.padStart(2, "0")}`;
+  };
+
+  const getFormattedTime = (hour, minute, ampm) => {
+    return `${hour}:${minute.padStart(2, "0")} ${ampm}`;
+  };
+
+  const getStartTimeFormatted = () => {
+    return getFormattedTime(
+      formData.start_time_hour,
+      formData.start_time_minute,
+      formData.start_time_ampm,
+    );
+  };
+
+  const getEndTimeFormatted = () => {
+    return getFormattedTime(
+      formData.end_time_hour,
+      formData.end_time_minute,
+      formData.end_time_ampm,
+    );
+  };
+
   const fetchEmployees = async () => {
     try {
-      const response = await fetch(`${API_BASE}/get_employees.php`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+      const response = await fetch(`${API_BASE}/get_employees.php`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
       const data = await response.json();
       setEmployees(Array.isArray(data) ? data : []);
     } catch (error) {
@@ -31,7 +67,9 @@ const OT = () => {
 
   const fetchOTRecords = async () => {
     try {
-      const response = await fetch(`${API_BASE}/get_ot_details.php`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+      const response = await fetch(`${API_BASE}/get_ot_details.php`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
       const data = await response.json();
       setOtRecords(Array.isArray(data) ? data : []);
     } catch (error) {
@@ -47,11 +85,9 @@ const OT = () => {
 
   const handleEmployeeChange = (e) => {
     const selectedEmployeeId = e.target.value;
-
     const selectedEmployee = employees.find(
       (employee) => String(employee.id) === String(selectedEmployeeId),
     );
-
     setFormData({
       ...formData,
       selected_employee: selectedEmployeeId,
@@ -66,37 +102,45 @@ const OT = () => {
   };
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+  };
+
+  const handleMinuteChange = (field, value) => {
+    let minute = parseInt(value);
+    if (isNaN(minute)) minute = 0;
+    minute = Math.min(59, Math.max(0, minute));
+    setFormData({ ...formData, [field]: minute.toString().padStart(2, "0") });
   };
 
   const totalOTHours = useMemo(() => {
-    if (!formData.start_time || !formData.end_time) return 0;
+    const startTime24 = convertTo24Hour(
+      formData.start_time_hour,
+      formData.start_time_minute,
+      formData.start_time_ampm,
+    );
+    const endTime24 = convertTo24Hour(
+      formData.end_time_hour,
+      formData.end_time_minute,
+      formData.end_time_ampm,
+    );
+    if (!startTime24 || !endTime24) return 0;
 
-    const start = new Date(`2000-01-01T${formData.start_time}`);
-    let end = new Date(`2000-01-01T${formData.end_time}`);
-
+    const start = new Date(`2000-01-01T${startTime24}`);
+    let end = new Date(`2000-01-01T${endTime24}`);
     if (end < start) {
-      end = new Date(`2000-01-02T${formData.end_time}`);
+      end = new Date(`2000-01-02T${endTime24}`);
     }
-
     const diff = (end - start) / (1000 * 60 * 60);
     return Number(diff.toFixed(2));
-  }, [formData.start_time, formData.end_time]);
-
-  const formatTime = (time) => {
-    if (!time) return "";
-
-    const [hourValue, minute] = time.split(":");
-    let hour = Number(hourValue);
-    const ampm = hour >= 12 ? "PM" : "AM";
-
-    hour = hour % 12 || 12;
-
-    return `${String(hour).padStart(2, "0")}:${minute} ${ampm}`;
-  };
+  }, [
+    formData.start_time_hour,
+    formData.start_time_minute,
+    formData.start_time_ampm,
+    formData.end_time_hour,
+    formData.end_time_minute,
+    formData.end_time_ampm,
+  ]);
 
   const resetForm = () => {
     setFormData({
@@ -104,36 +148,37 @@ const OT = () => {
       emp_name: "",
       emp_id: "",
       salary_type: "",
-      start_time: "",
-      end_time: "",
+      start_time_hour: "12",
+      start_time_minute: "00",
+      start_time_ampm: "AM",
+      end_time_hour: "12",
+      end_time_minute: "00",
+      end_time_ampm: "AM",
       ot_date: "",
     });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     const payload = {
       emp_name: formData.emp_name,
       emp_id: formData.emp_id,
       salary_type: formData.salary_type,
-      start_time: formatTime(formData.start_time),
-      end_time: formatTime(formData.end_time),
+      start_time: getStartTimeFormatted(),
+      end_time: getEndTimeFormatted(),
       total_ot_hours: totalOTHours,
       ot_date: formData.ot_date,
     };
-
     try {
       const response = await fetch(`${API_BASE}/add_ot_details.php`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json", 'Authorization': `Bearer ${localStorage.getItem('token')}`
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
         body: JSON.stringify(payload),
       });
-
       const result = await response.json();
-
       if (response.ok) {
         alert(result.message || "OT details saved successfully");
         resetForm();
@@ -158,7 +203,6 @@ const OT = () => {
 
   const filteredRecords = otRecords.filter((record) => {
     const search = searchTerm.toLowerCase();
-
     return (
       String(record.emp_name || "")
         .toLowerCase()
@@ -176,27 +220,29 @@ const OT = () => {
   });
 
   const totalEntries = otRecords.length;
-
   const totalSavedHours = otRecords.reduce(
     (sum, record) => sum + Number(record.total_ot_hours || 0),
     0,
   );
-
   const totalEmployees = new Set(
     otRecords.map((record) => record.emp_id).filter(Boolean),
   ).size;
+
+  const hourOptions = Array.from({ length: 12 }, (_, i) => {
+    const hour = i + 1;
+    const hourStr = String(hour).padStart(2, "0");
+    return { value: hourStr, label: hourStr };
+  });
 
   return (
     <div className="ot-page">
       <div className="page-header">
         <div>
           <h2>
-            <i className="bi bi-clock-history"></i>
-            OT Details
+            <i className="bi bi-clock-history"></i> OT Details
           </h2>
           <p>Manage employee overtime records</p>
         </div>
-
         <button type="button" className="view-btn" onClick={handleToggleView}>
           <i
             className={viewMode === "add" ? "bi bi-table" : "bi bi-plus-circle"}
@@ -212,12 +258,10 @@ const OT = () => {
               <span>Entries</span>
               <strong>{totalEntries}</strong>
             </div>
-
             <div className="summary-box">
               <span>Total Hours</span>
               <strong>{totalSavedHours.toFixed(1)} hrs</strong>
             </div>
-
             <div className="summary-box">
               <span>Employees</span>
               <strong>{totalEmployees}</strong>
@@ -226,10 +270,8 @@ const OT = () => {
 
           <form onSubmit={handleSubmit} className="card form-card">
             <h3>
-              <i className="bi bi-plus-circle"></i>
-              Add OT Entry
+              <i className="bi bi-plus-circle"></i> Add OT Entry
             </h3>
-
             <div className="form-grid">
               <div className="form-group wide">
                 <label>
@@ -252,53 +294,107 @@ const OT = () => {
                   ))}
                 </select>
               </div>
-
               <div className="form-group">
                 <label>Name</label>
                 <input type="text" value={formData.emp_name} readOnly />
               </div>
-
               <div className="form-group">
                 <label>ID</label>
                 <input type="text" value={formData.emp_id} readOnly />
               </div>
-
               <div className="form-group">
                 <label>Salary Type</label>
                 <input type="text" value={formData.salary_type} readOnly />
               </div>
 
+              {/* Start Time - Compact */}
               <div className="form-group">
                 <label>
                   Start Time <b>*</b>
                 </label>
-                <input
-                  type="time"
-                  name="start_time"
-                  value={formData.start_time}
-                  onChange={handleChange}
-                  required
-                />
+                <div className="time-picker">
+                  <select
+                    name="start_time_hour"
+                    value={formData.start_time_hour}
+                    onChange={handleChange}
+                    className="time-hour"
+                  >
+                    {hourOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="time-separator">:</span>
+                  <input
+                    type="number"
+                    className="time-minute-input"
+                    value={parseInt(formData.start_time_minute)}
+                    onChange={(e) =>
+                      handleMinuteChange("start_time_minute", e.target.value)
+                    }
+                    min="0"
+                    max="59"
+                    step="1"
+                  />
+                  <select
+                    name="start_time_ampm"
+                    value={formData.start_time_ampm}
+                    onChange={handleChange}
+                    className="time-ampm"
+                  >
+                    <option value="AM">AM</option>
+                    <option value="PM">PM</option>
+                  </select>
+                </div>
               </div>
 
+              {/* End Time - Compact */}
               <div className="form-group">
                 <label>
                   End Time <b>*</b>
                 </label>
-                <input
-                  type="time"
-                  name="end_time"
-                  value={formData.end_time}
-                  onChange={handleChange}
-                  required
-                />
+                <div className="time-picker">
+                  <select
+                    name="end_time_hour"
+                    value={formData.end_time_hour}
+                    onChange={handleChange}
+                    className="time-hour"
+                  >
+                    {hourOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="time-separator">:</span>
+                  <input
+                    type="number"
+                    className="time-minute-input"
+                    value={parseInt(formData.end_time_minute)}
+                    onChange={(e) =>
+                      handleMinuteChange("end_time_minute", e.target.value)
+                    }
+                    min="0"
+                    max="59"
+                    step="1"
+                  />
+                  <select
+                    name="end_time_ampm"
+                    value={formData.end_time_ampm}
+                    onChange={handleChange}
+                    className="time-ampm"
+                  >
+                    <option value="AM">AM</option>
+                    <option value="PM">PM</option>
+                  </select>
+                </div>
               </div>
 
               <div className="form-group">
                 <label>Total Hours</label>
                 <input type="text" value={`${totalOTHours} hrs`} readOnly />
               </div>
-
               <div className="form-group">
                 <label>
                   Date <b>*</b>
@@ -312,11 +408,9 @@ const OT = () => {
                 />
               </div>
             </div>
-
             <div className="action-row">
               <button type="submit">
-                <i className="bi bi-check-circle"></i>
-                Save OT Details
+                <i className="bi bi-check-circle"></i> Save OT Details
               </button>
             </div>
           </form>
@@ -327,10 +421,8 @@ const OT = () => {
         <div className="card records-card">
           <div className="records-top">
             <h3>
-              <i className="bi bi-table"></i>
-              OT Records
+              <i className="bi bi-table"></i> OT Records
             </h3>
-
             <input
               type="search"
               placeholder="Search name, ID, date, hours..."
@@ -338,7 +430,6 @@ const OT = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-
           <div className="table-wrap">
             <table>
               <thead>
@@ -352,7 +443,6 @@ const OT = () => {
                   <th>Date</th>
                 </tr>
               </thead>
-
               <tbody>
                 {filteredRecords.length > 0 ? (
                   filteredRecords.map((record) => (
@@ -376,7 +466,6 @@ const OT = () => {
               </tbody>
             </table>
           </div>
-
           <div className="records-footer">
             Showing {filteredRecords.length} of {otRecords.length} records
           </div>
@@ -384,234 +473,47 @@ const OT = () => {
       )}
 
       <style>{`
-        .ot-page {
-          color: #0f172a;
-        }
-
-        .page-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 16px;
-          padding-bottom: 18px;
-          margin-bottom: 18px;
-          border-bottom: 1px solid #d9e1ea;
-        }
-
-        .page-header h2 {
-          margin: 0 0 6px;
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          font-size: 26px;
-          font-weight: 800;
-        }
-
-        .page-header h2 i,
-        .card h3 i {
-          color: #008b3e;
-        }
-
-        .page-header p {
-          margin: 0;
-          color: #475569;
-          font-size: 15px;
-        }
-
-        .view-btn,
-        .action-row button {
-          border: 0;
-          background: #008b3e;
-          color: #ffffff;
-          min-height: 42px;
-          padding: 0 16px;
-          border-radius: 7px;
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          font-size: 15px;
-          font-weight: 800;
-          cursor: pointer;
-          white-space: nowrap;
-        }
-
-        .summary-row {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 14px;
-          margin-bottom: 18px;
-        }
-
-        .summary-box {
-          background: #ffffff;
-          border: 1px solid #dbe3ec;
-          border-radius: 8px;
-          padding: 14px 16px;
-          box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
-        }
-
-        .summary-box span {
-          display: block;
-          color: #475569;
-          font-size: 14px;
-          font-weight: 700;
-          margin-bottom: 6px;
-        }
-
-        .summary-box strong {
-          color: #0f172a;
-          font-size: 24px;
-          font-weight: 800;
-        }
-
-        .card {
-          background: #ffffff;
-          border: 1px solid #dbe3ec;
-          border-radius: 8px;
-          box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
-          padding: 18px;
-          margin-bottom: 20px;
-        }
-
-        .card h3 {
-          margin: 0 0 16px;
-          display: flex;
-          align-items: center;
-          gap: 9px;
-          font-size: 19px;
-          font-weight: 800;
-        }
-
-        .form-grid {
-          display: grid;
-          grid-template-columns: 1.5fr repeat(3, 1fr);
-          gap: 14px;
-        }
-
-        .form-group {
-          display: flex;
-          flex-direction: column;
-          gap: 7px;
-        }
-
-        .form-group label {
-          font-size: 14px;
-          font-weight: 800;
-        }
-
-        .form-group label b {
-          color: #ef233c;
-        }
-
-        .form-group input,
-        .form-group select,
-        .records-top input {
-          height: 42px;
-          border: 1px solid #cbd5e1;
-          border-radius: 7px;
-          padding: 0 12px;
-          font-size: 15px;
-          color: #334155;
-          outline: none;
-          background: #ffffff;
-        }
-
-        .form-group input[readonly] {
-          background: #f8fafc;
-          cursor: not-allowed;
-        }
-
-        .form-group input:focus,
-        .form-group select:focus,
-        .records-top input:focus {
-          border-color: #008b3e;
-          box-shadow: 0 0 0 3px rgba(0, 139, 62, 0.12);
-        }
-
-        .action-row {
-          display: flex;
-          justify-content: flex-end;
-          margin-top: 16px;
-        }
-
-        .records-top {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 14px;
-          margin-bottom: 14px;
-        }
-
-        .records-top h3 {
-          margin: 0;
-        }
-
-        .records-top input {
-          width: 320px;
-        }
-
-        .table-wrap {
-          overflow-x: auto;
-          border: 1px solid #e2e8f0;
-          border-radius: 7px;
-        }
-
-        table {
-          width: 100%;
-          border-collapse: collapse;
-        }
-
-        th,
-        td {
-          padding: 11px 12px;
-          text-align: left;
-          border-bottom: 1px solid #e2e8f0;
-          font-size: 14px;
-        }
-
-        th {
-          background: #f8fafc;
-          font-weight: 800;
-          color: #334155;
-        }
-
-        tr:last-child td {
-          border-bottom: 0;
-        }
-
-        .empty {
-          text-align: center;
-          padding: 24px;
-          color: #64748b;
-        }
-
-        .records-footer {
-          padding-top: 12px;
-          color: #475569;
-          font-size: 14px;
-        }
-
-        @media (max-width: 1100px) {
-          .form-grid {
-            grid-template-columns: repeat(2, 1fr);
-          }
-        }
-
+        .ot-page { color: #0f172a; }
+        .page-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 18px; margin-bottom: 18px; border-bottom: 1px solid #d9e1ea; }
+        .page-header h2 { margin: 0 0 6px; display: flex; align-items: center; gap: 10px; font-size: 26px; font-weight: 800; }
+        .page-header h2 i, .card h3 i { color: #008b3e; }
+        .page-header p { margin: 0; color: #475569; font-size: 15px; }
+        .view-btn, .action-row button { border: 0; background: #008b3e; color: #fff; min-height: 42px; padding: 0 16px; border-radius: 7px; display: inline-flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 800; cursor: pointer; white-space: nowrap; }
+        .summary-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
+        .summary-box { background: #fff; border: 1px solid #dbe3ec; border-radius: 8px; padding: 14px 16px; box-shadow: 0 2px 6px rgba(15,23,42,0.08); }
+        .summary-box span { display: block; color: #475569; font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+        .summary-box strong { color: #0f172a; font-size: 24px; font-weight: 800; }
+        .card { background: #fff; border: 1px solid #dbe3ec; border-radius: 8px; box-shadow: 0 2px 6px rgba(15,23,42,0.08); padding: 18px; margin-bottom: 20px; }
+        .card h3 { margin: 0 0 16px; display: flex; align-items: center; gap: 9px; font-size: 19px; font-weight: 800; }
+        .form-grid { display: grid; grid-template-columns: 1.5fr repeat(3, 1fr); gap: 14px; }
+        .form-group { display: flex; flex-direction: column; gap: 7px; }
+        .form-group label { font-size: 14px; font-weight: 800; }
+        .form-group label b { color: #ef233c; }
+        .form-group input, .form-group select, .records-top input { height: 42px; border: 1px solid #cbd5e1; border-radius: 7px; padding: 0 12px; font-size: 15px; color: #334155; outline: none; background: #fff; }
+        .time-picker { display: flex; align-items: center; gap: 6px; }
+        .time-picker select, .time-minute-input { height: 42px; border: 1px solid #cbd5e1; border-radius: 7px; padding: 0 8px; font-size: 14px; color: #334155; background: #fff; }
+        .time-hour { flex: 2; min-width: 65px; }
+        .time-minute-input { flex: 2; min-width: 70px; text-align: center; -moz-appearance: textfield; }
+        .time-minute-input::-webkit-inner-spin-button, .time-minute-input::-webkit-outer-spin-button { opacity: 0.5; }
+        .time-ampm { flex: 1; min-width: 70px; }
+        .time-separator { font-size: 20px; font-weight: 600; color: #64748b; }
+        .form-group input[readonly] { background: #f8fafc; cursor: not-allowed; }
+        .action-row { display: flex; justify-content: flex-end; margin-top: 16px; }
+        .records-top { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
+        .records-top input { width: 320px; }
+        .table-wrap { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 7px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 11px 12px; text-align: left; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
+        th { background: #f8fafc; font-weight: 800; color: #334155; }
+        .empty { text-align: center; padding: 24px; color: #64748b; }
+        .records-footer { padding-top: 12px; color: #475569; font-size: 14px; }
+        @media (max-width: 1100px) { .form-grid { grid-template-columns: repeat(2, 1fr); } }
         @media (max-width: 700px) {
-          .page-header,
-          .records-top {
-            align-items: stretch;
-            flex-direction: column;
-          }
-
-          .summary-row,
-          .form-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .records-top input {
-            width: 100%;
-          }
+          .page-header, .records-top { flex-direction: column; align-items: stretch; }
+          .summary-row, .form-grid { grid-template-columns: 1fr; }
+          .records-top input { width: 100%; }
+          .time-picker { flex-wrap: wrap; }
+          .time-hour, .time-minute-input, .time-ampm { flex: 1; min-width: auto; }
         }
       `}</style>
     </div>
@@ -619,3 +521,4 @@ const OT = () => {
 };
 
 export default OT;
+  
