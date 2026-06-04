@@ -3,7 +3,7 @@
 //  auth_middleware.php
 //  Include at top of every protected backend file.
 //  Sets: $authUser = [ id, username, role, branch_id, ... ]
-//  Helper: branchFilter($authUser) → [$whereClause, $params]
+//  Also sets $authUser['view_branch_id'] for admin impersonation
 // =============================================================
 
 require_once __DIR__ . '/cors.php';
@@ -47,21 +47,34 @@ if (!$authUser || !$authUser['is_active']) {
     exit;
 }
 
-// ── Branch filter helper ──────────────────────────────────────
-// Returns [WHERE clause string, params array] for use in queries.
-// Admin → no filter (sees all branches)
-// Branch user → WHERE branch_id = their branch
-function branchFilter(array $user): array {
-    if ($user['role'] === 'admin') {
-        return ['', []];
+// ── Admin branch impersonation ─────────────────────────────────
+// If admin, read X-Branch-ID header to decide which branch to view
+$authUser['view_branch_id'] = null;
+if ($authUser['role'] === 'admin') {
+    $headers = getallheaders();
+    $viewBranch = $headers['X-Branch-ID'] ?? '';
+    if ($viewBranch && is_numeric($viewBranch)) {
+        $authUser['view_branch_id'] = (int)$viewBranch;
     }
-    return ['WHERE branch_id = ?', [(int)$user['branch_id']]];
+} else {
+    // Non-admin always sees only their own branch
+    $authUser['view_branch_id'] = $authUser['branch_id'];
+}
+
+// ── Branch filter helpers (now use view_branch_id) ────────────
+// Returns [WHERE clause string, params array] for use in queries.
+function branchFilter(array $user): array {
+    if ($user['role'] === 'admin' && $user['view_branch_id'] === null) {
+        return ['', []]; // admin with no branch selected → all branches
+    }
+    return ['WHERE branch_id = ?', [(int)$user['view_branch_id']]];
 }
 
 // Same but for queries that already have a WHERE clause
 function branchAnd(array $user): array {
-    if ($user['role'] === 'admin') {
+    if ($user['role'] === 'admin' && $user['view_branch_id'] === null) {
         return ['', []];
     }
-    return ['AND branch_id = ?', [(int)$user['branch_id']]];
+    return ['AND branch_id = ?', [(int)$user['view_branch_id']]];
 }
+?>

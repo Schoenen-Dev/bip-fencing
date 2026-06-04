@@ -5,6 +5,7 @@ import AdminLayout from "./components/AdminLayout";
 
 // Auth
 import Login from "./pages/Login";
+import BranchSelection from "./pages/BranchSelection";
 
 // Main
 import Dashboard from "./pages/Dashboard";
@@ -39,6 +40,7 @@ function AdminRoute({ children }) {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/branch-selection" element={<BranchSelection />} />
 
       <Route
         path="/"
@@ -62,12 +64,15 @@ function AdminRoute({ children }) {
 
         {/* Staff Management */}
         {/* <Route path="admin-features" element={<AdminFeatures />} /> */}
-{/* i will added the below one line of router */}
-<Route path="admin-features" element={
-  <AdminRoute>
-    <AdminFeatures />
-  </AdminRoute>
-} />
+        {/* i will added the below one line of router */}
+        <Route
+          path="admin-features"
+          element={
+            <AdminRoute>
+              <AdminFeatures />
+            </AdminRoute>
+          }
+        />
         <Route path="employee-details" element={<Employee_details />} />
         <Route path="salary" element={<Salary />} />
         <Route path="attendance" element={<Attendance />} />

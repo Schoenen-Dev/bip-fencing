@@ -1,5 +1,21 @@
 import React, { useState } from "react";
 
+// ─── Helper to get headers with admin branch selection ──────────────────────
+const getHeaders = () => {
+  const headers = {
+    Authorization: `Bearer ${localStorage.getItem("token")}`,
+    "Content-Type": "application/json",
+  };
+  const role = localStorage.getItem("role");
+  if (role === "admin") {
+    const viewBranch = localStorage.getItem("admin_view_branch");
+    if (viewBranch) {
+      headers["X-Branch-ID"] = viewBranch;
+    }
+  }
+  return headers;
+};
+
 const Employee_details = () => {
   const [activeTab, setActiveTab] = useState("add");
   const [employees, setEmployees] = useState([]);
@@ -14,7 +30,8 @@ const Employee_details = () => {
     date_of_joining: "",
   });
 
-const API_BASE = "http://localhost:8000";
+  const API_BASE = "http://localhost:8000";
+
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -24,13 +41,18 @@ const API_BASE = "http://localhost:8000";
     try {
       const response = await fetch(`${API_BASE}/add_employee.php`, {
         method: "POST",
-        headers: { "Content-Type": "application/json",
-          'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        headers: getHeaders(),
         body: JSON.stringify(formData),
       });
       if (response.ok) {
         alert("Employee details saved successfully");
-        setFormData({ employee_name: "", emp_id: "", department: "", salary_type: "", date_of_joining: "" });
+        setFormData({
+          employee_name: "",
+          emp_id: "",
+          department: "",
+          salary_type: "",
+          date_of_joining: "",
+        });
       } else {
         alert("Failed to save employee details");
       }
@@ -44,22 +66,26 @@ const API_BASE = "http://localhost:8000";
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(`${API_BASE}/get_employees.php`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+      const response = await fetch(`${API_BASE}/get_employees.php`, {
+        headers: getHeaders(),
+      });
       const data = await response.json();
-      // handle both array response and {employees:[...]} shape
-      const list = Array.isArray(data) ? data : (data.employees || data.data || []);
+      const list = Array.isArray(data)
+        ? data
+        : data.employees || data.data || [];
       setEmployees(list);
       setActiveTab("records");
     } catch (err) {
       console.error(err);
-      setError("Failed to fetch employee details. Check if get_employees.php exists.");
+      setError(
+        "Failed to fetch employee details. Check if get_employees.php exists.",
+      );
       setActiveTab("records");
     } finally {
       setLoading(false);
     }
   };
 
-  // helper: read either employee_name or emp_name from DB row
   const getName = (emp) => emp.employee_name || emp.emp_name || "—";
 
   return (
@@ -73,11 +99,17 @@ const API_BASE = "http://localhost:8000";
       </div>
 
       <div className="tabs">
-        <button className={activeTab === "add" ? "tab active" : "tab"} onClick={() => setActiveTab("add")}>
+        <button
+          className={activeTab === "add" ? "tab active" : "tab"}
+          onClick={() => setActiveTab("add")}
+        >
           <i className="bi bi-plus-circle"></i>
           Add Employee
         </button>
-        <button className={activeTab === "records" ? "tab active" : "tab"} onClick={fetchEmployees}>
+        <button
+          className={activeTab === "records" ? "tab active" : "tab"}
+          onClick={fetchEmployees}
+        >
           <i className="bi bi-table"></i>
           Employee Records
           <span>{employees.length}</span>
@@ -93,23 +125,54 @@ const API_BASE = "http://localhost:8000";
             </h3>
             <div className="form-grid">
               <div className="form-group large">
-                <label>Employee Name <b>*</b></label>
-                <input type="text" name="employee_name" placeholder="Full name"
-                  value={formData.employee_name} onChange={handleChange} required />
+                <label>
+                  Employee Name <b>*</b>
+                </label>
+                <input
+                  type="text"
+                  name="employee_name"
+                  placeholder="Full name"
+                  value={formData.employee_name}
+                  onChange={handleChange}
+                  required
+                />
               </div>
               <div className="form-group">
-                <label>Employee ID <b>*</b></label>
-                <input type="text" name="emp_id" placeholder="EMP-001"
-                  value={formData.emp_id} onChange={handleChange} required />
+                <label>
+                  Employee ID <b>*</b>
+                </label>
+                <input
+                  type="text"
+                  name="emp_id"
+                  placeholder="EMP-001"
+                  value={formData.emp_id}
+                  onChange={handleChange}
+                  required
+                />
               </div>
               <div className="form-group">
-                <label>Department <b>*</b></label>
-                <input type="text" name="department" placeholder="Operations"
-                  value={formData.department} onChange={handleChange} required />
+                <label>
+                  Department <b>*</b>
+                </label>
+                <input
+                  type="text"
+                  name="department"
+                  placeholder="Operations"
+                  value={formData.department}
+                  onChange={handleChange}
+                  required
+                />
               </div>
               <div className="form-group">
-                <label>Salary Type <b>*</b></label>
-                <select name="salary_type" value={formData.salary_type} onChange={handleChange} required>
+                <label>
+                  Salary Type <b>*</b>
+                </label>
+                <select
+                  name="salary_type"
+                  value={formData.salary_type}
+                  onChange={handleChange}
+                  required
+                >
                   <option value="">Select Salary Type</option>
                   <option value="monthly">Monthly Salary</option>
                   <option value="weekly">Weekly Salary</option>
@@ -117,9 +180,16 @@ const API_BASE = "http://localhost:8000";
                 </select>
               </div>
               <div className="form-group">
-                <label>Date of Joining <b>*</b></label>
-                <input type="date" name="date_of_joining"
-                  value={formData.date_of_joining} onChange={handleChange} required />
+                <label>
+                  Date of Joining <b>*</b>
+                </label>
+                <input
+                  type="date"
+                  name="date_of_joining"
+                  value={formData.date_of_joining}
+                  onChange={handleChange}
+                  required
+                />
               </div>
             </div>
           </div>
@@ -139,12 +209,23 @@ const API_BASE = "http://localhost:8000";
             Employee Records
           </h3>
 
-          {loading && <p style={{ color: "#475569", fontSize: 15 }}>Loading...</p>}
-
+          {loading && (
+            <p style={{ color: "#475569", fontSize: 15 }}>Loading...</p>
+          )}
           {error && (
-            <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8,
-              padding: "12px 16px", color: "#dc2626", fontSize: 14, marginBottom: 16 }}>
-              <i className="bi bi-exclamation-circle me-2"></i>{error}
+            <div
+              style={{
+                background: "#fef2f2",
+                border: "1px solid #fecaca",
+                borderRadius: 8,
+                padding: "12px 16px",
+                color: "#dc2626",
+                fontSize: 14,
+                marginBottom: 16,
+              }}
+            >
+              <i className="bi bi-exclamation-circle me-2"></i>
+              {error}
             </div>
           )}
 
@@ -173,7 +254,9 @@ const API_BASE = "http://localhost:8000";
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="5" className="empty">No employee records found</td>
+                      <td colSpan="5" className="empty">
+                        No employee records found
+                      </td>
                     </tr>
                   )}
                 </tbody>

@@ -1,68 +1,117 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 
-const API = 'http://localhost:8000/salary_api.php';
+const API = "http://localhost:8000/salary_api.php";
+
+// ─── Helper to get headers with admin branch selection ──────────────────────
+const getHeaders = () => {
+  const headers = {
+    Authorization: `Bearer ${localStorage.getItem("token")}`,
+    "Content-Type": "application/json",
+  };
+  const role = localStorage.getItem("role");
+  if (role === "admin") {
+    const viewBranch = localStorage.getItem("admin_view_branch");
+    if (viewBranch) {
+      headers["X-Branch-ID"] = viewBranch;
+    }
+  }
+  return headers;
+};
+
 const emptyForm = {
-  employeeName: '',
-  employeeId: '',
-  salary: '',
-  paid: '',
-  balance: '',
-  type: 'Days',
-  date: '',
+  employeeName: "",
+  employeeId: "",
+  salary: "",
+  paid: "",
+  balance: "",
+  type: "Days",
+  date: "",
 };
 
 export default function Salary() {
-  const [records, setRecords]     = useState([]);
+  const [records, setRecords] = useState([]);
   const [employees, setEmployees] = useState([]);
-  const [form, setForm]           = useState(emptyForm);
-  const [view, setView]           = useState('table');
-  const [editId, setEditId]       = useState(null);
-  const [search, setSearch]       = useState('');
+  const [form, setForm] = useState(emptyForm);
+  const [view, setView] = useState("table");
+  const [editId, setEditId] = useState(null);
+  const [search, setSearch] = useState("");
   const [viewRecord, setViewRecord] = useState(null);
-  const [loading, setLoading]     = useState(false);
+  const [loading, setLoading] = useState(false);
   const [empLoading, setEmpLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [budget, setBudget] = useState({
+    total_branch_amount: 0,
+    total_paid_salaries: 0,
+    available_balance: 0,
+  });
+  const [budgetLoading, setBudgetLoading] = useState(false);
+  const [hasBranchSelected, setHasBranchSelected] = useState(false);
 
-  /* ── Fetch employees (name + id) from DB ─────────────────── */
+  // ── Fetch budget summary ──────────────────────────────────
+  const fetchBudget = async () => {
+    setBudgetLoading(true);
+    try {
+      const res = await fetch(`${API}?action=branch_total`, {
+        headers: getHeaders(),
+      });
+      const data = await res.json();
+      if (!data.error) setBudget(data);
+    } catch (err) {
+      console.error("Failed to fetch budget", err);
+    } finally {
+      setBudgetLoading(false);
+    }
+  };
+
+  // ── Fetch employees & check branch selection ──────────────
   useEffect(() => {
+    // Check if a specific branch is selected
+    const branchId = localStorage.getItem("admin_view_branch");
+    setHasBranchSelected(!!branchId);
+
     setEmpLoading(true);
-    fetch(`${API}?action=employees`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } })
+    fetch(`${API}?action=employees`, { headers: getHeaders() })
       .then((r) => r.json())
-      .then((data) => setEmployees(data))
+      .then((data) => setEmployees(Array.isArray(data) ? data : []))
       .catch(() => setEmployees([]))
       .finally(() => setEmpLoading(false));
   }, []);
 
-  /* ── Fetch salary records from DB ────────────────────────── */
+  // ── Fetch salary records ──────────────────────────────────
   const fetchRecords = () => {
     setLoading(true);
-    fetch(`${API}?action=records`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } })
+    setError("");
+    fetch(`${API}?action=records`, { headers: getHeaders() })
       .then((r) => r.json())
-      .then((data) => setRecords(data))
-      .catch(() => setRecords([]))
+      .then((data) => setRecords(Array.isArray(data) ? data : []))
+      .catch((err) => {
+        console.error(err);
+        setError("Failed to load records");
+        setRecords([]);
+      })
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     fetchRecords();
+    fetchBudget();
   }, []);
 
-  /* ── Handle employee dropdown selection ──────────────────── */
   const handleEmployeeSelect = (e) => {
     const selectedEmpId = e.target.value;
     const emp = employees.find((em) => em.emp_id === selectedEmpId);
     setForm((prev) => ({
       ...prev,
-      employeeId: emp ? emp.emp_id : '',
-      employeeName: emp ? emp.emp_name : '',
+      employeeId: emp ? emp.emp_id : "",
+      employeeName: emp ? emp.emp_name : "",
     }));
   };
 
-  /* ── Handle form field changes ───────────────────────────── */
   const handleChange = (e) => {
     const { name, value } = e.target;
     const updatedForm = { ...form, [name]: value };
-    const salary  = Number(updatedForm.salary) || 0;
-    const paid    = Number(updatedForm.paid)   || 0;
+    const salary = Number(updatedForm.salary) || 0;
+    const paid = Number(updatedForm.paid) || 0;
     updatedForm.balance = salary - paid;
     setForm(updatedForm);
   };
@@ -70,52 +119,71 @@ export default function Salary() {
   const resetForm = () => {
     setForm(emptyForm);
     setEditId(null);
+    setError("");
   };
 
-  /* ── Save salary to DB ───────────────────────────────────── */
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
+
+    if (!hasBranchSelected) {
+      setError(
+        "Please select a specific branch from the topbar before adding a salary.",
+      );
+      return;
+    }
+
+    const paidAmount = Number(form.paid) || 0;
+    if (paidAmount > budget.available_balance) {
+      setError(
+        `Insufficient branch budget. Available: ₹${budget.available_balance.toFixed(2)}`,
+      );
+      return;
+    }
+
     try {
       const response = await fetch(`${API}?action=save`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        method: "POST",
+        headers: getHeaders(),
         body: JSON.stringify(form),
       });
       const data = await response.json();
       if (data.success) {
-        alert('Salary Saved Successfully');
+        alert("Salary Saved Successfully");
         resetForm();
-        setView('table');
+        setView("table");
         fetchRecords();
+        fetchBudget();
       } else {
-        alert(data.message || 'Save Failed');
+        setError(data.message || "Save Failed");
       }
     } catch (error) {
       console.error(error);
-      alert('Server Error');
+      setError("Server Error");
     }
   };
 
   const handleEdit = (rec) => {
     setForm({
       employeeName: rec.employeeName,
-      employeeId:   rec.employeeId,
-      salary:       rec.salary,
-      paid:         rec.paid,
-      balance:      rec.balance,
-      type:         rec.type,
-      date:         rec.salary_date ?? rec.date ?? '',
+      employeeId: rec.employeeId,
+      salary: rec.salary,
+      paid: rec.paid,
+      balance: rec.balance,
+      type: rec.type,
+      date: rec.salary_date ?? rec.date ?? "",
     });
     setEditId(rec.id);
-    setView('form');
+    setView("form");
   };
 
-  const filtered = records.filter((r) =>
-    r.employeeName?.toLowerCase().includes(search.toLowerCase()) ||
-    r.employeeId?.toLowerCase().includes(search.toLowerCase())
+  const filtered = records.filter(
+    (r) =>
+      r.employeeName?.toLowerCase().includes(search.toLowerCase()) ||
+      r.employeeId?.toLowerCase().includes(search.toLowerCase()),
   );
 
-  const inr = (v) => `₹${Number(v).toLocaleString('en-IN')}`;
+  const inr = (v) => `₹${Number(v).toLocaleString("en-IN")}`;
 
   return (
     <>
@@ -188,28 +256,94 @@ export default function Salary() {
         .emp-select-hint {
           font-size: 12px; color: #6b7280; margin-top: 4px;
         }
+        .error-text {
+          color: #dc2626; font-size: 13px; margin-top: 8px;
+        }
       `}</style>
 
       {/* ── Page Header ── */}
       <div className="page-header">
         <h1>
-          <i className="bi bi-cash-stack me-2" style={{ color: '#15803d' }}></i>
+          <i className="bi bi-cash-stack me-2" style={{ color: "#15803d" }}></i>
           Salary
         </h1>
         <p>Employee Salary Management</p>
       </div>
 
+      {/* ── Budget Summary Row ── */}
+      <div className="row g-3 mb-4">
+        <div className="col-md-4">
+          <div className="salary-card" style={{ height: "100%" }}>
+            <p
+              className="text-muted mb-1"
+              style={{ fontSize: 12, fontWeight: 600 }}
+            >
+              Total Branch Budget
+            </p>
+            <h3 className="mb-0" style={{ color: "#0f172a", fontWeight: 800 }}>
+              {inr(budget.total_branch_amount)}
+            </h3>
+          </div>
+        </div>
+        <div className="col-md-4">
+          <div className="salary-card" style={{ height: "100%" }}>
+            <p
+              className="text-muted mb-1"
+              style={{ fontSize: 12, fontWeight: 600 }}
+            >
+              Total Paid Salaries
+            </p>
+            <h3 className="mb-0" style={{ color: "#dc2626", fontWeight: 800 }}>
+              {inr(budget.total_paid_salaries)}
+            </h3>
+          </div>
+        </div>
+        <div className="col-md-4">
+          <div
+            className="salary-card"
+            style={{
+              height: "100%",
+              background: "#f0fdf4",
+              borderColor: "#bbf7d0",
+            }}
+          >
+            <p
+              className="text-muted mb-1"
+              style={{ fontSize: 12, fontWeight: 600, color: "#15803d" }}
+            >
+              Available Balance
+            </p>
+            <h3 className="mb-0" style={{ color: "#15803d", fontWeight: 800 }}>
+              {inr(budget.available_balance)}
+            </h3>
+          </div>
+        </div>
+      </div>
+
       {/* ── Tab Buttons ── */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+      <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
         <button
-          className={`salary-btn ${view === 'form' ? 'salary-btn-green' : 'salary-btn-gray'}`}
-          onClick={() => { resetForm(); setView('form'); }}
+          className={`salary-btn ${view === "form" ? "salary-btn-green" : "salary-btn-gray"}`}
+          onClick={() => {
+            if (!hasBranchSelected) {
+              alert(
+                "Please select a specific branch from the topbar before adding a salary.",
+              );
+              return;
+            }
+            resetForm();
+            setView("form");
+          }}
+          disabled={!hasBranchSelected}
+          style={
+            !hasBranchSelected ? { opacity: 0.5, cursor: "not-allowed" } : {}
+          }
         >
           Add Salary
         </button>
         <button
-          className={`salary-btn ${view === 'table' ? 'salary-btn-green' : 'salary-btn-gray'}`}
-          onClick={() => setView('table')}
+          className={`salary-btn ${view === "table" ? "salary-btn-green" : "salary-btn-gray"}`}
+          onClick={() => setView("table")}
         >
           Salary Records
         </button>
@@ -218,16 +352,14 @@ export default function Salary() {
       {/* ════════════════════════════════════════
           ADD / EDIT SALARY FORM
       ════════════════════════════════════════ */}
-      {view === 'form' && (
+      {view === "form" && (
         <form onSubmit={handleSubmit}>
           <div className="salary-card">
             <div className="row g-3">
-
-              {/* Employee Dropdown — pulls from employees table */}
               <div className="col-md-6">
                 <label className="form-label">Select Employee</label>
                 {empLoading ? (
-                  <div className="form-control" style={{ color: '#9ca3af' }}>
+                  <div className="form-control" style={{ color: "#9ca3af" }}>
                     Loading employees…
                   </div>
                 ) : (
@@ -245,10 +377,11 @@ export default function Salary() {
                     ))}
                   </select>
                 )}
-                <p className="emp-select-hint">Name &amp; ID auto-filled from database</p>
+                <p className="emp-select-hint">
+                  Name & ID auto-filled from database
+                </p>
               </div>
 
-              {/* Employee ID — read-only, filled by dropdown */}
               <div className="col-md-6">
                 <label className="form-label">Employee ID</label>
                 <input
@@ -257,11 +390,10 @@ export default function Salary() {
                   name="employeeId"
                   value={form.employeeId}
                   readOnly
-                  style={{ background: '#f9fafb' }}
+                  style={{ background: "#f9fafb" }}
                 />
               </div>
 
-              {/* Salary */}
               <div className="col-md-4">
                 <label className="form-label">Salary</label>
                 <input
@@ -274,7 +406,6 @@ export default function Salary() {
                 />
               </div>
 
-              {/* Paid */}
               <div className="col-md-4">
                 <label className="form-label">Paid</label>
                 <input
@@ -285,9 +416,11 @@ export default function Salary() {
                   onChange={handleChange}
                   required
                 />
+                <small className="text-muted">
+                  Available: {inr(budget.available_balance)}
+                </small>
               </div>
 
-              {/* Balance — auto-calculated */}
               <div className="col-md-4">
                 <label className="form-label">Balance</label>
                 <input
@@ -296,11 +429,10 @@ export default function Salary() {
                   name="balance"
                   value={form.balance}
                   readOnly
-                  style={{ background: '#f9fafb' }}
+                  style={{ background: "#f9fafb" }}
                 />
               </div>
 
-              {/* Type */}
               <div className="col-md-4">
                 <label className="form-label">Type</label>
                 <select
@@ -315,7 +447,6 @@ export default function Salary() {
                 </select>
               </div>
 
-              {/* Date */}
               <div className="col-md-4">
                 <label className="form-label">Date</label>
                 <input
@@ -328,18 +459,27 @@ export default function Salary() {
                 />
               </div>
 
-              {/* Buttons */}
               <div className="col-12">
-                <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                {error && <div className="error-text">{error}</div>}
+                <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
                   <button type="submit" className="salary-btn salary-btn-green">
-                    {editId !== null ? 'Update Salary' : 'Save Salary'}
+                    {editId !== null ? "Update Salary" : "Save Salary"}
                   </button>
-                  <button type="button" className="salary-btn salary-btn-gray" onClick={resetForm}>
+                  <button
+                    type="button"
+                    className="salary-btn salary-btn-gray"
+                    onClick={resetForm}
+                  >
                     Reset
                   </button>
                 </div>
+                {editId !== null && (
+                  <p className="emp-select-hint" style={{ marginTop: 8 }}>
+                    Note: Update functionality is not yet implemented in the
+                    backend.
+                  </p>
+                )}
               </div>
-
             </div>
           </div>
         </form>
@@ -348,9 +488,18 @@ export default function Salary() {
       {/* ════════════════════════════════════════
           SALARY RECORDS TABLE
       ════════════════════════════════════════ */}
-      {view === 'table' && (
+      {view === "table" && (
         <div className="salary-card">
-          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div
+            style={{
+              marginBottom: 16,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 10,
+            }}
+          >
             <input
               type="text"
               className="form-control"
@@ -359,13 +508,36 @@ export default function Salary() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-            <button className="salary-btn salary-btn-green" onClick={() => { resetForm(); setView('form'); }}>
+            <button
+              className="salary-btn salary-btn-green"
+              onClick={() => {
+                if (!hasBranchSelected) {
+                  alert(
+                    "Please select a specific branch from the topbar before adding a salary.",
+                  );
+                  return;
+                }
+                resetForm();
+                setView("form");
+              }}
+              disabled={!hasBranchSelected}
+              style={
+                !hasBranchSelected
+                  ? { opacity: 0.5, cursor: "not-allowed" }
+                  : {}
+              }
+            >
               Add New
             </button>
           </div>
 
+          {error && (
+            <div className="error-text" style={{ marginBottom: 10 }}>
+              {error}
+            </div>
+          )}
           {loading ? (
-            <div style={{ textAlign: 'center', padding: 40, color: '#6b7280' }}>
+            <div style={{ textAlign: "center", padding: 40, color: "#6b7280" }}>
               Loading records…
             </div>
           ) : (
@@ -381,7 +553,7 @@ export default function Salary() {
                     <th>Balance</th>
                     <th>Type</th>
                     <th>Date</th>
-                    <th style={{ textAlign: 'right' }}>Actions</th>
+                    <th style={{ textAlign: "right" }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -396,7 +568,10 @@ export default function Salary() {
                       <td>{rec.type}</td>
                       <td>{rec.salary_date ?? rec.date}</td>
                       <td>
-                        <div className="salary-actions" style={{ justifyContent: 'flex-end' }}>
+                        <div
+                          className="salary-actions"
+                          style={{ justifyContent: "flex-end" }}
+                        >
                           <button
                             type="button"
                             className="salary-small-btn salary-view"
@@ -417,7 +592,14 @@ export default function Salary() {
                   ))}
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan="9" style={{ textAlign: 'center', padding: 30, color: '#6b7280' }}>
+                      <td
+                        colSpan="9"
+                        style={{
+                          textAlign: "center",
+                          padding: 30,
+                          color: "#6b7280",
+                        }}
+                      >
                         No Records Found
                       </td>
                     </tr>
@@ -433,7 +615,10 @@ export default function Salary() {
           VIEW RECORD MODAL
       ════════════════════════════════════════ */}
       {viewRecord && (
-        <div className="salary-modal-backdrop" onClick={() => setViewRecord(null)}>
+        <div
+          className="salary-modal-backdrop"
+          onClick={() => setViewRecord(null)}
+        >
           <div className="salary-modal" onClick={(e) => e.stopPropagation()}>
             <div className="salary-modal-header">
               <h3 style={{ margin: 0 }}>{viewRecord.employeeName}</h3>
@@ -441,22 +626,38 @@ export default function Salary() {
             </div>
             <div className="salary-modal-body">
               <div className="salary-view-row">
-                <strong>Salary</strong>   <span>{inr(viewRecord.salary)}</span>
+                <strong>Salary</strong> <span>{inr(viewRecord.salary)}</span>
               </div>
               <div className="salary-view-row">
-                <strong>Paid</strong>     <span className="salary-paid">{inr(viewRecord.paid)}</span>
+                <strong>Paid</strong>{" "}
+                <span className="salary-paid">{inr(viewRecord.paid)}</span>
               </div>
               <div className="salary-view-row">
-                <strong>Balance</strong>  <span style={{ color: '#dc2626' }}>{inr(viewRecord.balance)}</span>
+                <strong>Balance</strong>{" "}
+                <span style={{ color: "#dc2626" }}>
+                  {inr(viewRecord.balance)}
+                </span>
               </div>
               <div className="salary-view-row">
-                <strong>Type</strong>     <span>{viewRecord.type}</span>
+                <strong>Type</strong> <span>{viewRecord.type}</span>
               </div>
               <div className="salary-view-row">
-                <strong>Date</strong>     <span>{viewRecord.salary_date ?? viewRecord.date}</span>
+                <strong>Date</strong>{" "}
+                <span>{viewRecord.salary_date ?? viewRecord.date}</span>
               </div>
-              <div style={{ marginTop: 20, display: 'flex', justifyContent: 'flex-end' }}>
-                <button className="salary-close-btn" onClick={() => setViewRecord(null)}>Close</button>
+              <div
+                style={{
+                  marginTop: 20,
+                  display: "flex",
+                  justifyContent: "flex-end",
+                }}
+              >
+                <button
+                  className="salary-close-btn"
+                  onClick={() => setViewRecord(null)}
+                >
+                  Close
+                </button>
               </div>
             </div>
           </div>

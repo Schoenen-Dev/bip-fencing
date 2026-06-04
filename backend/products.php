@@ -1,4 +1,8 @@
 <?php
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+header('Content-Type: application/json');
+
 require_once __DIR__ . '/cors.php';
 require_once __DIR__ . '/auth_middleware.php';
 require_once __DIR__ . '/db.php';
@@ -19,16 +23,36 @@ function getBody(): array {
     return $data;
 }
 
+function getEffectiveBranchId($user): ?int {
+    if ($user['role'] === 'admin' && isset($user['view_branch_id']) && $user['view_branch_id'] !== null) {
+        return (int)$user['view_branch_id'];
+    }
+    if ($user['role'] !== 'admin' && isset($user['branch_id']) && $user['branch_id'] !== null) {
+        return (int)$user['branch_id'];
+    }
+    return null;
+}
+
+$effectiveBranch = getEffectiveBranchId($authUser);
+
 // ── GET ───────────────────────────────────────────────────────
 if ($method === 'GET') {
-    if ($authUser['role'] === 'admin') {
-        $result = $conn->query("SELECT * FROM products ORDER BY created_at DESC");
-    } else {
-        $stmt = $conn->prepare("SELECT * FROM products WHERE branch_id = ? ORDER BY created_at DESC");
-        $stmt->bind_param('i', $authUser['branch_id']);
-        $stmt->execute();
-        $result = $stmt->get_result();
+    $sql = "SELECT * FROM products";
+    $params = [];
+    $types = '';
+
+    if ($effectiveBranch !== null) {
+        $sql .= " WHERE branch_id = ?";
+        $params[] = $effectiveBranch;
+        $types = 'i';
     }
+    $sql .= " ORDER BY created_at DESC";
+
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) respond(500, ['error' => 'Prepare failed: ' . $conn->error]);
+    if ($params) $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $result = $stmt->get_result();
     $rows = [];
     while ($row = $result->fetch_assoc()) $rows[] = $row;
     respond(200, $rows);
@@ -39,14 +63,17 @@ if ($method === 'POST') {
     $d = getBody();
     if (empty($d['productName'])) respond(422, ['error' => 'productName is required']);
 
-    $branchId    = $authUser['role'] === 'admin'
-        ? (int)($d['branch_id'] ?? $authUser['branch_id'])
-        : (int)$authUser['branch_id'];
+    $branchId = $effectiveBranch;
+    if ($branchId === null && $authUser['role'] === 'admin') {
+        $branchId = (int)($d['branch_id'] ?? 0);
+    }
+    if (!$branchId) respond(400, ['error' => 'No branch selected. Please select a branch.']);
+
     $productName = $d['productName'];
     $sku         = $d['sku']          ?? '';
     $category    = $d['category']     ?? '';
     $unit        = $d['unit']         ?? 'Pcs';
-    $sellingPrice= $d['sellingPrice'] ?? 0;
+    $sellingPrice = $d['sellingPrice'] ?? 0;
     $stockQty    = $d['stockQty']     ?? 0;
     $minStock    = $d['minStock']     ?? 0;
     $description = $d['description']  ?? '';
@@ -64,7 +91,7 @@ if ($method === 'POST') {
         respond(500, ['error' => $e->getMessage()]);
     }
 
-    $newId  = $conn->insert_id;
+    $newId = $conn->insert_id;
     $result = $conn->query("SELECT * FROM products WHERE id = $newId");
     respond(201, $result->fetch_assoc());
 }
@@ -75,12 +102,12 @@ if ($method === 'PUT') {
     $d = getBody();
     if (empty($d['productName'])) respond(422, ['error' => 'productName is required']);
 
-    // Branch user can only edit their own branch's products
-    if ($authUser['role'] !== 'admin') {
+    // Permission check
+    if ($effectiveBranch !== null) {
         $chk = $conn->prepare("SELECT id FROM products WHERE id = ? AND branch_id = ?");
-        $chk->bind_param('ii', $id, $authUser['branch_id']);
+        $chk->bind_param('ii', $id, $effectiveBranch);
         $chk->execute();
-        if (!$chk->get_result()->fetch_assoc()) respond(403, ['error' => 'Access denied']);
+        if (!$chk->get_result()->fetch_assoc()) respond(403, ['error' => 'Access denied – product not in your branch']);
     }
 
     $productName = $d['productName'];
@@ -115,12 +142,11 @@ if ($method === 'PUT') {
 if ($method === 'DELETE') {
     if (!$id) respond(400, ['error' => 'Missing ?id=']);
 
-    // Branch user can only delete their own branch's products
-    if ($authUser['role'] !== 'admin') {
+    if ($effectiveBranch !== null) {
         $chk = $conn->prepare("SELECT id FROM products WHERE id = ? AND branch_id = ?");
-        $chk->bind_param('ii', $id, $authUser['branch_id']);
+        $chk->bind_param('ii', $id, $effectiveBranch);
         $chk->execute();
-        if (!$chk->get_result()->fetch_assoc()) respond(403, ['error' => 'Access denied']);
+        if (!$chk->get_result()->fetch_assoc()) respond(403, ['error' => 'Access denied – product not in your branch']);
     }
 
     $stmt = $conn->prepare("DELETE FROM products WHERE id = ?");
@@ -131,3 +157,4 @@ if ($method === 'DELETE') {
 }
 
 respond(405, ['error' => 'Method not allowed']);
+?>

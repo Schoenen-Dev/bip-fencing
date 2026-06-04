@@ -198,3 +198,36 @@ ALTER TABLE attendance ADD COLUMN IF NOT EXISTS branch_id INT UNSIGNED DEFAULT N
 ALTER TABLE salaries   ADD COLUMN IF NOT EXISTS branch_id INT UNSIGNED DEFAULT NULL;
 ALTER TABLE ot_details ADD COLUMN IF NOT EXISTS branch_id INT UNSIGNED DEFAULT NULL;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS branch_id INT UNSIGNED DEFAULT NULL;
+
+-- ── BRANCH AMOUNTS ─────────────────────────
+
+DROP TABLE IF EXISTS branch_amounts;
+
+CREATE TABLE branch_amounts (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    branch_id INT UNSIGNED NOT NULL,
+    branch_name VARCHAR(255) NOT NULL,
+    amount DECIMAL(12,2) NOT NULL,
+    payment_date DATE NOT NULL,
+    note TEXT DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_branch_id ON branch_amounts(branch_id);
+
+CREATE TABLE IF NOT EXISTS `purchase_bills` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `company_name` varchar(255) NOT NULL,
+  `product_name` varchar(255) NOT NULL,
+  `product_id` varchar(100) DEFAULT NULL,
+  `quantity` decimal(12,2) NOT NULL,
+  `rate` decimal(12,2) NOT NULL,
+  `invoice_no` varchar(100) NOT NULL,
+  `total_amount` decimal(12,2) NOT NULL,
+  `branch_id` int(10) unsigned NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `branch_id` (`branch_id`),
+  CONSTRAINT `fk_purchase_bills_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -11,18 +11,27 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405); echo json_encode(['message' => 'Method not allowed']); exit;
 }
 
-$data         = json_decode(file_get_contents('php://input'), true);
-$branch_name  = $data['branch_name']  ?? '';
-$amount       = $data['amount']       ?? '';
-$payment_date = $data['payment_date'] ?? '';
-$note         = $data['note']         ?? '';
+$data = json_decode(file_get_contents('php://input'), true);
+$branch_id   = (int)($data['branch_id'] ?? 0);
+$branch_name = trim($data['branch_name'] ?? '');   // for display if needed, but we use branch_id
+$amount      = $data['amount'] ?? '';
+$payment_date= $data['payment_date'] ?? '';
+$note        = $data['note'] ?? '';
 
-if (empty($branch_name) || $amount === '' || empty($payment_date)) {
-    http_response_code(400); echo json_encode(['message' => 'Branch name, amount and date are required']); exit;
+if (!$branch_id || $amount === '' || empty($payment_date)) {
+    http_response_code(400); echo json_encode(['message' => 'Branch ID, amount and date are required']); exit;
 }
 
-$stmt = $conn->prepare('INSERT INTO branch_amounts (branch_name, amount, payment_date, note) VALUES (?, ?, ?, ?)');
-$stmt->bind_param('sdss', $branch_name, $amount, $payment_date, $note);
+// Optional: validate branch_id exists
+$check = $conn->prepare("SELECT id FROM branches WHERE id = ?");
+$check->bind_param('i', $branch_id);
+$check->execute();
+if (!$check->get_result()->fetch_assoc()) {
+    http_response_code(400); echo json_encode(['message' => 'Invalid branch ID']); exit;
+}
+
+$stmt = $conn->prepare('INSERT INTO branch_amounts (branch_id, branch_name, amount, payment_date, note) VALUES (?, ?, ?, ?, ?)');
+$stmt->bind_param('isdss', $branch_id, $branch_name, $amount, $payment_date, $note);
 
 if ($stmt->execute()) {
     echo json_encode(['message' => 'Branch amount saved successfully']);
@@ -31,3 +40,4 @@ if ($stmt->execute()) {
 }
 $stmt->close();
 $conn->close();
+?>

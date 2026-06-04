@@ -35,10 +35,24 @@ if (empty($emp_name) || empty($emp_id) || empty($salary_type) ||
     exit;
 }
 
-$branchId = $authUser['role'] === 'admin'
-    ? (int)($data['branch_id'] ?? $authUser['branch_id'])
-    : (int)$authUser['branch_id'];
+// 🔧 Get branch_id from employees table using emp_id (or emp_name as fallback)
+$branchId = null;
+$stmtEmp = $conn->prepare("SELECT branch_id FROM employees WHERE emp_id = ? OR employee_name = ? LIMIT 1");
+$stmtEmp->bind_param('ss', $emp_id, $emp_name);
+$stmtEmp->execute();
+$resultEmp = $stmtEmp->get_result();
+if ($row = $resultEmp->fetch_assoc()) {
+    $branchId = (int)$row['branch_id'];
+}
+$stmtEmp->close();
 
+if (!$branchId) {
+    http_response_code(400);
+    echo json_encode(['message' => 'Employee not found or branch not assigned']);
+    exit;
+}
+
+// Insert OT record
 $stmt = $conn->prepare(
     'INSERT INTO ot_details (emp_name, emp_id, salary_type, start_time, end_time, total_ot_hours, ot_date, branch_id)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)'

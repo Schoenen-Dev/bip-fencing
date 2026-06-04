@@ -1,8 +1,7 @@
 <?php
 // =============================================================
-//  attendance.php  — with branch-level auth
-//  Branch user → sees/writes only their branch data
-//  Admin       → sees/writes all branches
+//  attendance.php  — with admin branch impersonation
+//  Uses $authUser['view_branch_id'] set by auth_middleware.php
 // =============================================================
 
 require_once __DIR__ . '/auth_middleware.php'; // sets $authUser, $pdo
@@ -26,11 +25,21 @@ function cleanTime(?string $t): ?string {
     return $t;
 }
 
-// Branch filter for mysqli: returns [extra WHERE conditions string, params array, types string]
-function attendanceBranchFilter(array $user): array {
-    if ($user['role'] === 'admin') return ['', [], ''];
-    return ['AND a.branch_id = ?', [(int)$user['branch_id']], 'i'];
+// Helper: get effective branch ID for filtering / insertion
+function getEffectiveBranchId(array $user): ?int {
+    // Admin with a view branch (from X-Branch-ID header) → use that branch
+    if ($user['role'] === 'admin' && $user['view_branch_id'] !== null) {
+        return (int)$user['view_branch_id'];
+    }
+    // Non‑admin → use their own branch
+    if ($user['role'] !== 'admin' && $user['branch_id'] !== null) {
+        return (int)$user['branch_id'];
+    }
+    // Admin without view branch → NULL (means all branches)
+    return null;
 }
+
+$effectiveBranch = getEffectiveBranchId($authUser);
 
 // ── GET ───────────────────────────────────────────────────────
 if ($method === 'GET') {
@@ -39,9 +48,9 @@ if ($method === 'GET') {
     $types  = '';
 
     // Branch restriction
-    if ($authUser['role'] !== 'admin') {
+    if ($effectiveBranch !== null) {
         $where[]  = 'a.branch_id = ?';
-        $params[] = (int)$authUser['branch_id'];
+        $params[] = $effectiveBranch;
         $types   .= 'i';
     }
 
@@ -72,8 +81,8 @@ if ($method === 'GET') {
     $records = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
 
-    // Stats scoped to branch
-    $branchWhere = $authUser['role'] === 'admin' ? '' : "AND branch_id = {$authUser['branch_id']}";
+    // Stats scoped to effective branch
+    $branchWhere = $effectiveBranch !== null ? "AND branch_id = $effectiveBranch" : '';
     $today   = [];
     $allTime = [];
     $res = $db->query("SELECT status, COUNT(*) AS cnt FROM attendance WHERE date = CURDATE() $branchWhere GROUP BY status");
@@ -81,7 +90,7 @@ if ($method === 'GET') {
     $res = $db->query("SELECT status, COUNT(*) AS cnt FROM attendance WHERE 1 $branchWhere GROUP BY status");
     while ($r = $res->fetch_assoc()) $allTime[$r['status']] = (int)$r['cnt'];
 
-    $empWhere = $authUser['role'] === 'admin' ? '' : "WHERE branch_id = {$authUser['branch_id']}";
+    $empWhere = $effectiveBranch !== null ? "WHERE branch_id = $effectiveBranch" : '';
     $totalEmp = (int)$db->query("SELECT COUNT(*) AS c FROM employees $empWhere")->fetch_assoc()['c'];
 
     echo json_encode(['records' => $records, 'stats' => ['total_employees' => $totalEmp, 'today' => $today, 'all_time' => $allTime]]);
@@ -101,10 +110,17 @@ if ($method === 'POST') {
     $checkOut= cleanTime($body['check_out'] ?? null);
     $wh      = is_numeric($body['work_hours'] ?? '') ? (float)$body['work_hours'] : null;
 
-    // Always write to user's own branch (admin can override via body)
-    $branchId = $authUser['role'] === 'admin'
-        ? (int)($body['branch_id'] ?? $authUser['branch_id'])
-        : (int)$authUser['branch_id'];
+    // Determine branch for the new record
+    $branchId = $effectiveBranch;
+    if ($branchId === null && $authUser['role'] === 'admin') {
+        // Admin without a view branch → may provide branch_id in body
+        $branchId = (int)($body['branch_id'] ?? 0);
+    }
+    if (!$branchId) {
+        http_response_code(400);
+        echo json_encode(['error' => 'No branch selected (admin must set X-Branch-ID or provide branch_id)']);
+        exit;
+    }
 
     if (!$empId || !$empName || !$date) {
         http_response_code(422);
@@ -134,6 +150,24 @@ if ($method === 'PUT') {
     $id   = (int)($_GET['id'] ?? 0);
     if (!$id) { http_response_code(400); echo json_encode(['error' => 'id required']); exit; }
 
+    // Permission check: only records belonging to the effective branch can be edited
+    $checkSql = "SELECT id FROM attendance WHERE id = ?";
+    $checkParams = [$id];
+    $checkTypes = 'i';
+    if ($effectiveBranch !== null) {
+        $checkSql .= " AND branch_id = ?";
+        $checkParams[] = $effectiveBranch;
+        $checkTypes .= 'i';
+    }
+    $checkStmt = $db->prepare($checkSql);
+    $checkStmt->bind_param($checkTypes, ...$checkParams);
+    $checkStmt->execute();
+    if (!$checkStmt->get_result()->fetch_assoc()) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Access denied – record not in your branch view']);
+        exit;
+    }
+
     $body    = readBody();
     $empId   = trim($body['employee_id']   ?? '');
     $empName = trim($body['employee_name'] ?? '');
@@ -143,16 +177,6 @@ if ($method === 'PUT') {
     $checkIn = cleanTime($body['check_in']  ?? null);
     $checkOut= cleanTime($body['check_out'] ?? null);
     $wh      = is_numeric($body['work_hours'] ?? '') ? (float)$body['work_hours'] : null;
-
-    // Branch users can only edit their own branch's records
-    $branchCheck = $authUser['role'] === 'admin' ? 'WHERE id=?' : 'WHERE id=? AND branch_id=?';
-    $checkStmt   = $db->prepare("SELECT id FROM attendance $branchCheck");
-    if ($authUser['role'] === 'admin') { $checkStmt->bind_param('i', $id); }
-    else { $checkStmt->bind_param('ii', $id, $authUser['branch_id']); }
-    $checkStmt->execute();
-    if (!$checkStmt->get_result()->fetch_assoc()) {
-        http_response_code(403); echo json_encode(['error' => 'Access denied']); exit;
-    }
 
     $stmt = $db->prepare('UPDATE attendance SET employee_id=?, employee_name=?, date=?, status=?, leave_type=?, check_in=?, check_out=?, work_hours=? WHERE id=?');
     $stmt->bind_param('sssssssdi', $empId, $empName, $date, $status, $leave, $checkIn, $checkOut, $wh, $id);
@@ -167,13 +191,22 @@ if ($method === 'DELETE') {
     $id = (int)($_GET['id'] ?? 0);
     if (!$id) { http_response_code(400); echo json_encode(['error' => 'id required']); exit; }
 
-    $branchCheck = $authUser['role'] === 'admin' ? 'WHERE id=?' : 'WHERE id=? AND branch_id=?';
-    $checkStmt   = $db->prepare("SELECT id FROM attendance $branchCheck");
-    if ($authUser['role'] === 'admin') { $checkStmt->bind_param('i', $id); }
-    else { $checkStmt->bind_param('ii', $id, $authUser['branch_id']); }
+    // Permission check same as PUT
+    $checkSql = "SELECT id FROM attendance WHERE id = ?";
+    $checkParams = [$id];
+    $checkTypes = 'i';
+    if ($effectiveBranch !== null) {
+        $checkSql .= " AND branch_id = ?";
+        $checkParams[] = $effectiveBranch;
+        $checkTypes .= 'i';
+    }
+    $checkStmt = $db->prepare($checkSql);
+    $checkStmt->bind_param($checkTypes, ...$checkParams);
     $checkStmt->execute();
     if (!$checkStmt->get_result()->fetch_assoc()) {
-        http_response_code(403); echo json_encode(['error' => 'Access denied']); exit;
+        http_response_code(403);
+        echo json_encode(['error' => 'Access denied – record not in your branch view']);
+        exit;
     }
 
     $stmt = $db->prepare('DELETE FROM attendance WHERE id = ?');
@@ -185,3 +218,4 @@ if ($method === 'DELETE') {
 
 http_response_code(405);
 echo json_encode(['error' => 'Method not allowed']);
+?>

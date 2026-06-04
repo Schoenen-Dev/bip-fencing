@@ -1,6 +1,6 @@
 <?php
 // =============================================================
-//  get_employees.php — with branch auth
+//  get_employees.php — with admin branch impersonation
 // =============================================================
 
 require_once __DIR__ . '/auth_middleware.php';
@@ -12,22 +12,18 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 
 $db = getDB();
 
-$sql    = 'SELECT id, employee_name, emp_id, department, salary_type, date_of_joining, created_at FROM employees';
-$params = [];
-$types  = '';
+list($whereClause, $params) = branchFilter($authUser);
 
-if ($authUser['role'] !== 'admin') {
-    $sql   .= ' WHERE branch_id = ?';
-    $params = [(int)$authUser['branch_id']];
-    $types  = 'i';
-}
+$sql = "SELECT id, employee_name, emp_id, department, salary_type, date_of_joining, created_at FROM employees $whereClause ORDER BY created_at DESC";
 
-$sql .= ' ORDER BY created_at DESC';
 $stmt = $db->prepare($sql);
-if ($params) $stmt->bind_param($types, ...$params);
+if ($params) {
+    $stmt->bind_param(str_repeat('i', count($params)), ...$params);
+}
 $stmt->execute();
 $employees = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
 echo json_encode($employees);
 $stmt->close();
 $db->close();
+?>

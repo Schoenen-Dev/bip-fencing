@@ -22,40 +22,47 @@ const OT = () => {
     ot_date: "",
   });
 
+  // Helper to get headers with admin branch selection
+  const getHeaders = () => {
+    const headers = {
+      Authorization: `Bearer ${localStorage.getItem("token")}`,
+    };
+    const role = localStorage.getItem("role");
+    if (role === "admin") {
+      const viewBranch = localStorage.getItem("admin_view_branch");
+      if (viewBranch) {
+        headers["X-Branch-ID"] = viewBranch;
+      }
+    }
+    return headers;
+  };
+
   const convertTo24Hour = (hour, minute, ampm) => {
     let hour24 = parseInt(hour);
-    if (ampm === "PM" && hour24 !== 12) {
-      hour24 += 12;
-    } else if (ampm === "AM" && hour24 === 12) {
-      hour24 = 0;
-    }
+    if (ampm === "PM" && hour24 !== 12) hour24 += 12;
+    else if (ampm === "AM" && hour24 === 12) hour24 = 0;
     return `${String(hour24).padStart(2, "0")}:${minute.padStart(2, "0")}`;
   };
 
-  const getFormattedTime = (hour, minute, ampm) => {
-    return `${hour}:${minute.padStart(2, "0")} ${ampm}`;
-  };
-
-  const getStartTimeFormatted = () => {
-    return getFormattedTime(
+  const getFormattedTime = (hour, minute, ampm) =>
+    `${hour}:${minute.padStart(2, "0")} ${ampm}`;
+  const getStartTimeFormatted = () =>
+    getFormattedTime(
       formData.start_time_hour,
       formData.start_time_minute,
       formData.start_time_ampm,
     );
-  };
-
-  const getEndTimeFormatted = () => {
-    return getFormattedTime(
+  const getEndTimeFormatted = () =>
+    getFormattedTime(
       formData.end_time_hour,
       formData.end_time_minute,
       formData.end_time_ampm,
     );
-  };
 
   const fetchEmployees = async () => {
     try {
       const response = await fetch(`${API_BASE}/get_employees.php`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        headers: getHeaders(),
       });
       const data = await response.json();
       setEmployees(Array.isArray(data) ? data : []);
@@ -68,7 +75,7 @@ const OT = () => {
   const fetchOTRecords = async () => {
     try {
       const response = await fetch(`${API_BASE}/get_ot_details.php`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        headers: getHeaders(),
       });
       const data = await response.json();
       setOtRecords(Array.isArray(data) ? data : []);
@@ -92,20 +99,14 @@ const OT = () => {
       ...formData,
       selected_employee: selectedEmployeeId,
       emp_name:
-        selectedEmployee?.emp_name ||
-        selectedEmployee?.employee_name ||
-        selectedEmployee?.name ||
-        "",
+        selectedEmployee?.emp_name || selectedEmployee?.employee_name || "",
       emp_id: selectedEmployee?.emp_id || "",
       salary_type: selectedEmployee?.salary_type || "",
     });
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
-  };
-
+  const handleChange = (e) =>
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   const handleMinuteChange = (field, value) => {
     let minute = parseInt(value);
     if (isNaN(minute)) minute = 0;
@@ -114,25 +115,21 @@ const OT = () => {
   };
 
   const totalOTHours = useMemo(() => {
-    const startTime24 = convertTo24Hour(
+    const start24 = convertTo24Hour(
       formData.start_time_hour,
       formData.start_time_minute,
       formData.start_time_ampm,
     );
-    const endTime24 = convertTo24Hour(
+    const end24 = convertTo24Hour(
       formData.end_time_hour,
       formData.end_time_minute,
       formData.end_time_ampm,
     );
-    if (!startTime24 || !endTime24) return 0;
-
-    const start = new Date(`2000-01-01T${startTime24}`);
-    let end = new Date(`2000-01-01T${endTime24}`);
-    if (end < start) {
-      end = new Date(`2000-01-02T${endTime24}`);
-    }
-    const diff = (end - start) / (1000 * 60 * 60);
-    return Number(diff.toFixed(2));
+    if (!start24 || !end24) return 0;
+    let start = new Date(`2000-01-01T${start24}`);
+    let end = new Date(`2000-01-01T${end24}`);
+    if (end < start) end = new Date(`2000-01-02T${end24}`);
+    return Number(((end - start) / (1000 * 60 * 60)).toFixed(2));
   }, [
     formData.start_time_hour,
     formData.start_time_minute,
@@ -142,7 +139,7 @@ const OT = () => {
     formData.end_time_ampm,
   ]);
 
-  const resetForm = () => {
+  const resetForm = () =>
     setFormData({
       selected_employee: "",
       emp_name: "",
@@ -156,7 +153,6 @@ const OT = () => {
       end_time_ampm: "AM",
       ot_date: "",
     });
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -174,7 +170,7 @@ const OT = () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          ...getHeaders(),
         },
         body: JSON.stringify(payload),
       });
@@ -221,13 +217,11 @@ const OT = () => {
 
   const totalEntries = otRecords.length;
   const totalSavedHours = otRecords.reduce(
-    (sum, record) => sum + Number(record.total_ot_hours || 0),
+    (sum, r) => sum + Number(r.total_ot_hours || 0),
     0,
   );
-  const totalEmployees = new Set(
-    otRecords.map((record) => record.emp_id).filter(Boolean),
-  ).size;
-
+  const totalEmployees = new Set(otRecords.map((r) => r.emp_id).filter(Boolean))
+    .size;
   const hourOptions = Array.from({ length: 12 }, (_, i) => {
     const hour = i + 1;
     const hourStr = String(hour).padStart(2, "0");
@@ -284,12 +278,9 @@ const OT = () => {
                   required
                 >
                   <option value="">Select employee</option>
-                  {employees.map((employee) => (
-                    <option key={employee.id} value={employee.id}>
-                      {employee.emp_name ||
-                        employee.employee_name ||
-                        employee.name}{" "}
-                      - {employee.emp_id}
+                  {employees.map((emp) => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.emp_name || emp.employee_name} - {emp.emp_id}
                     </option>
                   ))}
                 </select>
@@ -307,7 +298,6 @@ const OT = () => {
                 <input type="text" value={formData.salary_type} readOnly />
               </div>
 
-              {/* Start Time - Compact */}
               <div className="form-group">
                 <label>
                   Start Time <b>*</b>
@@ -349,7 +339,6 @@ const OT = () => {
                 </div>
               </div>
 
-              {/* End Time - Compact */}
               <div className="form-group">
                 <label>
                   End Time <b>*</b>
@@ -425,7 +414,7 @@ const OT = () => {
             </h3>
             <input
               type="search"
-              placeholder="Search name, ID, date, hours..."
+              placeholder="Search..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -444,19 +433,18 @@ const OT = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredRecords.length > 0 ? (
-                  filteredRecords.map((record) => (
-                    <tr key={record.id}>
-                      <td>{record.emp_name}</td>
-                      <td>{record.emp_id}</td>
-                      <td>{record.salary_type}</td>
-                      <td>{record.start_time}</td>
-                      <td>{record.end_time}</td>
-                      <td>{record.total_ot_hours} hrs</td>
-                      <td>{record.ot_date}</td>
-                    </tr>
-                  ))
-                ) : (
+                {filteredRecords.map((rec) => (
+                  <tr key={rec.id}>
+                    <td>{rec.emp_name}</td>
+                    <td>{rec.emp_id}</td>
+                    <td>{rec.salary_type}</td>
+                    <td>{rec.start_time}</td>
+                    <td>{rec.end_time}</td>
+                    <td>{rec.total_ot_hours} hrs</td>
+                    <td>{rec.ot_date}</td>
+                  </tr>
+                ))}
+                {filteredRecords.length === 0 && (
                   <tr>
                     <td colSpan="7" className="empty">
                       No OT records found
@@ -521,4 +509,3 @@ const OT = () => {
 };
 
 export default OT;
-  
