@@ -1,6 +1,6 @@
 <?php
-error_reporting(0);
-ini_set('display_errors', 0);
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/auth_middleware.php';
@@ -51,6 +51,8 @@ if (empty($company_name) || empty($product_name) || $quantity <= 0 || $rate <= 0
 }
 
 $conn = getDB();
+
+// 1. Insert into purchase_bills
 $stmt = $conn->prepare("
     INSERT INTO purchase_bills 
     (company_name, product_name, product_id, quantity, rate, invoice_no, total_amount, branch_id)
@@ -61,20 +63,50 @@ if (!$stmt) {
     echo json_encode(['message' => 'Prepare failed: ' . $conn->error]);
     exit;
 }
-
-// 8 parameters: 
-// 1 string (company_name), 2 string (product_name), 3 string (product_id),
-// 4 double (quantity), 5 double (rate), 6 string (invoice_no),
-// 7 double (total_amount), 8 int (branch_id)
-// Type string: s s s d d s d i  -> "sssddsdi"
+// 8 placeholders: s,s,s,d,d,s,d,i => 'sssddsdi'
 $stmt->bind_param('sssddsdi', $company_name, $product_name, $product_id, $quantity, $rate, $invoice_no, $total_amount, $branchId);
-
-if ($stmt->execute()) {
-    echo json_encode(['message' => 'Purchase bill saved successfully']);
-} else {
+if (!$stmt->execute()) {
     http_response_code(500);
-    echo json_encode(['message' => 'Execute failed: ' . $stmt->error]);
+    echo json_encode(['message' => 'Insert failed: ' . $stmt->error]);
+    exit;
 }
 $stmt->close();
+
+// 2. Update or insert product_stock
+$check = $conn->prepare("SELECT id, total_purchased, current_stock, rate FROM product_stock WHERE product_id = ? AND branch_id = ?");
+$check->bind_param('si', $product_id, $branchId);
+$check->execute();
+$existing = $check->get_result()->fetch_assoc();
+$check->close();
+
+if ($existing) {
+    $old_total = (float)$existing['total_purchased'];
+    $old_stock = (float)$existing['current_stock'];
+    $old_rate = (float)$existing['rate'];
+    $new_total = $old_total + $quantity;
+    $new_stock = $old_stock + $quantity;
+    $new_rate = ($old_total * $old_rate + $quantity * $rate) / $new_total;
+    $update = $conn->prepare("UPDATE product_stock SET total_purchased = ?, current_stock = ?, rate = ? WHERE product_id = ? AND branch_id = ?");
+    // 5 placeholders: d,d,d,s,i => 'dddsi'
+    $update->bind_param('dddsi', $new_total, $new_stock, $new_rate, $product_id, $branchId);
+    if (!$update->execute()) {
+        http_response_code(500);
+        echo json_encode(['message' => 'Update product_stock failed: ' . $update->error]);
+        exit;
+    }
+    $update->close();
+} else {
+    $insert = $conn->prepare("INSERT INTO product_stock (product_id, product_name, total_purchased, current_stock, rate, branch_id) VALUES (?, ?, ?, ?, ?, ?)");
+    // 6 placeholders: s,s,d,d,d,i => 'ssdddi'
+    $insert->bind_param('ssdddi', $product_id, $product_name, $quantity, $quantity, $rate, $branchId);
+    if (!$insert->execute()) {
+        http_response_code(500);
+        echo json_encode(['message' => 'Insert product_stock failed: ' . $insert->error]);
+        exit;
+    }
+    $insert->close();
+}
+
+echo json_encode(['message' => 'Purchase bill saved and stock updated successfully']);
 $conn->close();
 ?>

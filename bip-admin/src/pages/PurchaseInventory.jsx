@@ -17,262 +17,249 @@ const getHeaders = () => {
   return headers;
 };
 
-const emptyForm = {
-  company_name: "",
-  product_name: "",
-  product_id: "",
-  quantity: "",
-  rate: "",
-  invoice_no: "",
-  total_amount: "",
-};
-
 export default function PurchaseInventory() {
-  const [records, setRecords] = useState([]);
-  const [form, setForm] = useState(emptyForm);
+  const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [selectedProduct, setSelectedProduct] = useState("");
+  const [deductQty, setDeductQty] = useState("");
+  const [deductNote, setDeductNote] = useState("");
+  const [branchSelected, setBranchSelected] = useState(true);
 
-  // Fetch purchase bills from backend
-  const fetchRecords = async () => {
+  const fetchProducts = async () => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API_BASE}/get_purchase_bills.php`, {
+      const res = await fetch(`${API_BASE}/get_inventory_products.php`, {
         headers: getHeaders(),
       });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to fetch inventory");
+      }
       const data = await res.json();
-      setRecords(Array.isArray(data) ? data : []);
+      setProducts(Array.isArray(data) ? data : []);
+      // Check if branch is selected – if response includes error about no branch, handle it
+      if (data.error && data.error.includes("No branch selected")) {
+        setBranchSelected(false);
+        setError(
+          "Please select a specific branch from the topbar to manage stock.",
+        );
+      } else {
+        setBranchSelected(true);
+      }
     } catch (err) {
       console.error(err);
-      setError("Failed to load purchase bills");
+      setError(err.message || "Failed to load inventory");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchRecords();
+    fetchProducts();
   }, []);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    const updated = { ...form, [name]: value };
-    // Auto‑calculate total amount
-    const qty = parseFloat(updated.quantity) || 0;
-    const rate = parseFloat(updated.rate) || 0;
-    updated.total_amount = (qty * rate).toFixed(2);
-    setForm(updated);
-  };
-
-  const resetForm = () => {
-    setForm(emptyForm);
-    setError("");
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-
-    // Validate required fields
-    if (
-      !form.company_name ||
-      !form.product_name ||
-      !form.quantity ||
-      !form.rate ||
-      !form.invoice_no
-    ) {
-      setError("Please fill all required fields (*)");
+  const handleDeduct = async () => {
+    if (!branchSelected) {
+      setError(
+        "Please select a specific branch from the topbar to deduct stock.",
+      );
       return;
     }
-
+    if (!selectedProduct) {
+      setError("Select a product first");
+      return;
+    }
+    const qty = parseFloat(deductQty);
+    if (isNaN(qty) || qty <= 0) {
+      setError("Enter a valid deduction quantity");
+      return;
+    }
     try {
-      const res = await fetch(`${API_BASE}/add_purchase_bill.php`, {
+      const res = await fetch(`${API_BASE}/deduct_stock.php`, {
         method: "POST",
         headers: getHeaders(),
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          product_id: selectedProduct,
+          deduct_qty: qty,
+          note: deductNote,
+        }),
       });
       const data = await res.json();
-      if (res.ok) {
-        alert(data.message || "Purchase bill saved successfully");
-        resetForm();
-        fetchRecords(); // refresh the list
-      } else {
-        setError(data.message || "Save failed");
+      if (!res.ok) {
+        throw new Error(data.error || "Deduction failed");
       }
+      alert(`Stock deducted. New stock: ${data.new_stock}`);
+      setDeductQty("");
+      setDeductNote("");
+      fetchProducts();
     } catch (err) {
-      console.error(err);
-      setError("Server error");
+      setError(err.message);
     }
   };
 
-  const inr = (v) => `₹${Number(v).toLocaleString("en-IN")}`;
+  const selectedProductData = products.find(
+    (p) => p.product_id === selectedProduct,
+  );
 
   return (
-    <div className="purchase-inventory-page">
+    <div className="inventory-page">
       <div className="page-header">
         <h1>
           <i
-            className="bi bi-cart-plus-fill me-2"
+            className="bi bi-box-seam-fill me-2"
             style={{ color: "#8250df" }}
           ></i>
           Purchase Inventory
         </h1>
         <p>
-          Manage purchase bills – product details, quantities, rates, and totals
+          Manage product stock – view total purchased, current stock, and deduct
+          usage
         </p>
       </div>
 
-      {/* ── ADD PURCHASE BILL FORM ── */}
-      <form onSubmit={handleSubmit} className="card form-card">
+      {/* Product Selection & Deduction */}
+      <div className="card deduction-card">
         <h3>
-          <i className="bi bi-plus-circle"></i> Add Purchase Bill
+          <i className="bi bi-arrow-down-circle"></i> Deduct Stock
         </h3>
-        <div className="form-grid">
-          <div className="form-group">
-            <label>
-              Company Name <b>*</b>
-            </label>
-            <input
-              type="text"
-              name="company_name"
-              placeholder="Supplier / Company name"
-              value={form.company_name}
-              onChange={handleChange}
-              required
-            />
+        {!branchSelected && (
+          <div
+            className="info-message"
+            style={{
+              background: "#fff3cd",
+              border: "1px solid #ffeeba",
+              borderRadius: 8,
+              padding: "12px 16px",
+              marginBottom: 16,
+              color: "#856404",
+            }}
+          >
+            <i className="bi bi-info-circle me-2"></i>
+            To deduct stock, please select a specific branch from the topbar
+            (e.g., Branch A, Branch B, or Branch C).
           </div>
+        )}
+        <div className="deduction-grid">
           <div className="form-group">
-            <label>
-              Product Name <b>*</b>
-            </label>
-            <input
-              type="text"
-              name="product_name"
-              placeholder="Product name"
-              value={form.product_name}
-              onChange={handleChange}
-              required
-            />
+            <label>Select Product</label>
+            <select
+              value={selectedProduct}
+              onChange={(e) => setSelectedProduct(e.target.value)}
+              disabled={!branchSelected}
+            >
+              <option value="">-- Choose Product --</option>
+              {products.map((p) => (
+                <option key={p.product_id} value={p.product_id}>
+                  {p.product_name} (ID: {p.product_id}) – Stock:{" "}
+                  {p.current_stock}
+                </option>
+              ))}
+            </select>
           </div>
-          <div className="form-group">
-            <label>Product ID</label>
-            <input
-              type="text"
-              name="product_id"
-              placeholder="SKU / Product code"
-              value={form.product_id}
-              onChange={handleChange}
-            />
-          </div>
-          <div className="form-group">
-            <label>
-              Quantity <b>*</b>
-            </label>
-            <input
-              type="number"
-              name="quantity"
-              placeholder="0"
-              min="0"
-              step="any"
-              value={form.quantity}
-              onChange={handleChange}
-              required
-            />
-          </div>
-          <div className="form-group">
-            <label>
-              Rate (₹) <b>*</b>
-            </label>
-            <input
-              type="number"
-              name="rate"
-              placeholder="0.00"
-              min="0"
-              step="any"
-              value={form.rate}
-              onChange={handleChange}
-              required
-            />
-          </div>
-          <div className="form-group">
-            <label>
-              Invoice No. <b>*</b>
-            </label>
-            <input
-              type="text"
-              name="invoice_no"
-              placeholder="INV-001"
-              value={form.invoice_no}
-              onChange={handleChange}
-              required
-            />
-          </div>
-          <div className="form-group">
-            <label>Total Amount</label>
-            <input
-              type="text"
-              value={form.total_amount ? `₹ ${form.total_amount}` : "₹ 0.00"}
-              readOnly
-              style={{ background: "#f8fafc", cursor: "default" }}
-            />
-          </div>
+          {selectedProductData && (
+            <>
+              <div className="form-group">
+                <label>Current Stock</label>
+                <input
+                  type="text"
+                  value={selectedProductData.current_stock}
+                  readOnly
+                />
+              </div>
+              <div className="form-group">
+                <label>Avg. Rate (₹)</label>
+                <input
+                  type="text"
+                  value={`₹ ${parseFloat(selectedProductData.rate).toFixed(2)}`}
+                  readOnly
+                />
+              </div>
+              <div className="form-group">
+                <label>Quantity to Deduct *</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={deductQty}
+                  onChange={(e) => setDeductQty(e.target.value)}
+                  placeholder="e.g., 5"
+                  disabled={!branchSelected}
+                />
+              </div>
+              <div className="form-group">
+                <label>Reason / Note</label>
+                <input
+                  type="text"
+                  value={deductNote}
+                  onChange={(e) => setDeductNote(e.target.value)}
+                  placeholder="Optional (e.g., issued to site)"
+                  disabled={!branchSelected}
+                />
+              </div>
+            </>
+          )}
         </div>
-
         {error && <div className="error-message">{error}</div>}
-
         <div className="action-row">
-          <button type="submit" className="save-btn">
-            <i className="bi bi-check-circle"></i> Save Purchase Bill
-          </button>
-          <button type="button" className="reset-btn" onClick={resetForm}>
-            <i className="bi bi-arrow-counterclockwise"></i> Reset
+          <button
+            className="deduct-btn"
+            onClick={handleDeduct}
+            disabled={!branchSelected}
+          >
+            <i className="bi bi-dash-circle"></i> Deduct Stock
           </button>
         </div>
-      </form>
+      </div>
 
-      {/* ── RECORDS TABLE ── */}
-      <div className="card records-card">
+      {/* Inventory List */}
+      <div className="card inventory-card">
         <h3>
-          <i className="bi bi-table"></i> Purchase Bill Records
+          <i className="bi bi-list-ul"></i> Product Inventory
         </h3>
-
-        {loading && <p className="loading-text">Loading...</p>}
-        {error && !loading && <div className="error-message">{error}</div>}
-
-        {!loading && !error && (
+        {loading ? (
+          <p className="loading-text">Loading...</p>
+        ) : error && !branchSelected ? (
+          <div
+            className="info-message"
+            style={{ textAlign: "center", padding: 28, color: "#856404" }}
+          >
+            <i className="bi bi-building me-2"></i>
+            Viewing all branches. Select a specific branch from the topbar to
+            see branch‑wise stock.
+          </div>
+        ) : error ? (
+          <div className="error-message">{error}</div>
+        ) : (
           <div className="table-wrap">
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Invoice No</th>
-                  <th>Company Name</th>
-                  <th>Product Name</th>
                   <th>Product ID</th>
-                  <th>Quantity</th>
-                  <th>Rate (₹)</th>
-                  <th>Total (₹)</th>
+                  <th>Product Name</th>
+                  <th>Total Purchased</th>
+                  <th>Current Stock</th>
+                  <th>Avg. Rate (₹)</th>
                 </tr>
               </thead>
               <tbody>
-                {records.length > 0 ? (
-                  records.map((rec) => (
-                    <tr key={rec.id}>
-                      <td>{rec.invoice_no}</td>
-                      <td>{rec.company_name}</td>
-                      <td>{rec.product_name}</td>
-                      <td>{rec.product_id || "—"}</td>
-                      <td>{rec.quantity}</td>
-                      <td>{inr(rec.rate)}</td>
-                      <td>{inr(rec.total_amount)}</td>
-                    </tr>
-                  ))
-                ) : (
+                {products.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="empty">
-                      No purchase bill records found
+                    <td colSpan="5" className="empty">
+                      No products found
                     </td>
                   </tr>
+                ) : (
+                  products.map((p) => (
+                    <tr key={p.product_id}>
+                      <td>{p.product_id}</td>
+                      <td>{p.product_name}</td>
+                      <td>{parseFloat(p.total_purchased).toLocaleString()}</td>
+                      <td>{parseFloat(p.current_stock).toLocaleString()}</td>
+                      <td>₹ {parseFloat(p.rate).toFixed(2)}</td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
@@ -281,150 +268,27 @@ export default function PurchaseInventory() {
       </div>
 
       <style>{`
-        .purchase-inventory-page {
-          color: #0f172a;
-        }
-        .page-header {
-          padding-bottom: 24px;
-          border-bottom: 1px solid #d9e1ea;
-          margin-bottom: 28px;
-        }
-        .page-header h1 {
-          margin: 0 0 8px;
-          font-size: 28px;
-          font-weight: 800;
-        }
-        .page-header p {
-          margin: 0;
-          color: #475569;
-          font-size: 16px;
-        }
-        .card {
-          background: #ffffff;
-          border: 1px solid #dbe3ec;
-          border-radius: 12px;
-          box-shadow: 0 2px 6px rgba(15,23,42,0.08);
-          padding: 24px;
-          margin-bottom: 28px;
-        }
-        .card h3 {
-          margin: 0 0 20px;
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          font-size: 20px;
-          font-weight: 800;
-        }
-        .card h3 i {
-          color: #8250df;
-        }
-        .form-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 20px;
-        }
-        .form-group {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-        .form-group label {
-          font-size: 15px;
-          font-weight: 700;
-        }
-        .form-group label b {
-          color: #dc2626;
-        }
-        .form-group input {
-          height: 44px;
-          border: 1px solid #cbd5e1;
-          border-radius: 8px;
-          padding: 0 12px;
-          font-size: 15px;
-          color: #1e293b;
-          background: #fff;
-        }
-        .form-group input:focus {
-          border-color: #8250df;
-          box-shadow: 0 0 0 3px rgba(130,80,223,0.12);
-          outline: none;
-        }
-        .action-row {
-          display: flex;
-          gap: 12px;
-          justify-content: flex-end;
-          margin-top: 16px;
-        }
-        .save-btn, .reset-btn {
-          border: none;
-          border-radius: 8px;
-          padding: 10px 22px;
-          font-size: 14px;
-          font-weight: 700;
-          cursor: pointer;
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-        }
-        .save-btn {
-          background: #8250df;
-          color: #fff;
-        }
-        .save-btn:hover {
-          background: #6b21c5;
-        }
-        .reset-btn {
-          background: #f1f5f9;
-          color: #1e293b;
-          border: 1px solid #cbd5e1;
-        }
-        .error-message {
-          background: #fef2f2;
-          border: 1px solid #fecaca;
-          border-radius: 8px;
-          padding: 10px 16px;
-          color: #dc2626;
-          font-size: 14px;
-          margin: 16px 0 0;
-        }
-        .loading-text {
-          text-align: center;
-          padding: 20px;
-          color: #64748b;
-        }
-        .table-wrap {
-          overflow-x: auto;
-        }
-        .data-table {
-          width: 100%;
-          border-collapse: collapse;
-        }
-        .data-table th, .data-table td {
-          padding: 12px 14px;
-          text-align: left;
-          border-bottom: 1px solid #e2e8f0;
-          font-size: 14px;
-        }
-        .data-table th {
-          background: #f8fafc;
-          font-weight: 800;
-          color: #1e293b;
-        }
-        .empty {
-          text-align: center;
-          padding: 28px;
-          color: #64748b;
-        }
-        @media (max-width: 1000px) {
-          .form-grid {
-            grid-template-columns: repeat(2, 1fr);
-          }
-        }
-        @media (max-width: 700px) {
-          .form-grid {
-            grid-template-columns: 1fr;
-          }
-        }
+        .inventory-page { color: #0f172a; }
+        .page-header { padding-bottom: 24px; border-bottom: 1px solid #d9e1ea; margin-bottom: 28px; }
+        .page-header h1 { margin: 0 0 8px; font-size: 28px; font-weight: 800; }
+        .card { background: #fff; border: 1px solid #dbe3ec; border-radius: 12px; padding: 24px; margin-bottom: 28px; }
+        .card h3 { margin: 0 0 20px; display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 800; }
+        .card h3 i { color: #8250df; }
+        .deduction-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 20px; }
+        .form-group { display: flex; flex-direction: column; gap: 8px; }
+        .form-group label { font-size: 14px; font-weight: 700; }
+        .form-group input, .form-group select { height: 44px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 0 12px; font-size: 14px; background: #fff; }
+        .action-row { display: flex; justify-content: flex-end; }
+        .deduct-btn { background: #dc2626; color: #fff; border: none; border-radius: 8px; padding: 10px 22px; font-size: 14px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+        .deduct-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .error-message, .info-message { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 10px 16px; color: #dc2626; margin-top: 16px; }
+        .info-message { background: #fff3cd; border-color: #ffeeba; color: #856404; }
+        .loading-text { text-align: center; padding: 20px; color: #64748b; }
+        .table-wrap { overflow-x: auto; }
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th, .data-table td { padding: 12px 14px; text-align: left; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
+        .data-table th { background: #f8fafc; font-weight: 800; }
+        .empty { text-align: center; padding: 28px; color: #64748b; }
       `}</style>
     </div>
   );

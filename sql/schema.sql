@@ -231,3 +231,33 @@ CREATE TABLE IF NOT EXISTS `purchase_bills` (
   KEY `branch_id` (`branch_id`),
   CONSTRAINT `fk_purchase_bills_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+CREATE TABLE IF NOT EXISTS `product_stock` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `product_id` varchar(100) NOT NULL,
+  `product_name` varchar(255) NOT NULL,
+  `total_purchased` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `current_stock` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `rate` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `branch_id` int(10) unsigned NOT NULL,
+  `last_updated` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `product_branch` (`product_id`, `branch_id`),
+  KEY `branch_id` (`branch_id`),
+  FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+CREATE TABLE IF NOT EXISTS `stock_deductions` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `product_id` varchar(100) NOT NULL,
+  `branch_id` int(10) unsigned NOT NULL,
+  `deducted_qty` decimal(12,2) NOT NULL,
+  `note` text,
+  `deducted_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `branch_id` (`branch_id`),
+  FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
