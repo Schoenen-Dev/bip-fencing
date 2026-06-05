@@ -261,3 +261,46 @@ CREATE TABLE IF NOT EXISTS `stock_deductions` (
   FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+
+-- ─────────────────────────────────────────────
+--  bipfencing  –  Complete invoices table
+--  Run this ONCE on a fresh database
+-- ─────────────────────────────────────────────
+
+CREATE TABLE invoices (
+    id            INT AUTO_INCREMENT PRIMARY KEY,
+
+    -- Invoice Details
+    invoice_no    VARCHAR(50),
+    invoice_date  DATE,
+    buyer_name    VARCHAR(100),
+    buyer_address TEXT,
+    buyer_phone   VARCHAR(20),
+    buyer_gst     VARCHAR(30),
+
+    -- Item Details
+    description   TEXT,
+    hsn           VARCHAR(20),
+    qty           DECIMAL(10,2),
+    rate          DECIMAL(10,2),
+    amount        DECIMAL(12,2),
+
+    -- Invoice Totals
+    subtotal      DECIMAL(12,2),
+    cgst          DECIMAL(12,2),
+    sgst          DECIMAL(12,2),
+    total_tax     DECIMAL(12,2),
+    net_amount    DECIMAL(12,2),
+
+    -- Branch
+    branch_id     INT UNSIGNED NULL DEFAULT NULL,
+
+    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_invoice_branch
+        FOREIGN KEY (branch_id) REFERENCES branches(id)
+        ON DELETE SET NULL ON UPDATE CASCADE
+);
+
+-- Index for fast branch filtering
+CREATE INDEX idx_invoice_branch ON invoices(branch_id);

@@ -1,285 +1,3 @@
-// import { useState } from "react";
-
-// export default function TaxInvoice() {
-//   const [preview, setPreview] = useState(false);
-
-//   const [form, setForm] = useState({
-//     companyName: "BIP FENCING CONTRACT WORK",
-//     address:
-//       "NO. 26/A, MAIN ROAD, PAMBANKULAM, KALANTHAPANAI, PANAGUDI - 627109",
-//     gst: "33ABLPI5244C1Z1",
-//     state: "Tamil Nadu (Code: 33)",
-
-//     invoiceNo: "",
-//     date: "",
-//     dispatch: "",
-//     lrNo: "",
-//     vehicle: "",
-
-//     consignee: "",
-//     buyer: "",
-
-//     items: [
-//       {
-//         description: "",
-//         hsn: "",
-//         qty: "",
-//         rateIncl: "",
-//         rateExcl: "",
-//         per: "NOS",
-//       },
-//     ],
-
-//     cgst: 9,
-//     sgst: 9,
-//     roundOff: 0,
-
-//     openBalance: "",
-//     closingBalance: "",
-
-//     bankName: "",
-//     accountName: "",
-//     accountNo: "",
-//     ifsc: "",
-
-//     declaration:
-//       "We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.",
-//   });
-
-//   const handleChange = (e) =>
-//     setForm({ ...form, [e.target.name]: e.target.value });
-
-//   const handleItemChange = (i, field, value) => {
-//     const items = [...form.items];
-//     items[i][field] = value;
-//     setForm({ ...form, items });
-//   };
-
-//   const addItem = () =>
-//     setForm({
-//       ...form,
-//       items: [
-//         ...form.items,
-//         { description: "", hsn: "", qty: "", rateIncl: "", rateExcl: "", per: "NOS" },
-//       ],
-//     });
-
-//   const removeItem = (i) =>
-//     setForm({
-//       ...form,
-//       items: form.items.filter((_, idx) => idx !== i),
-//     });
-
-//   const subtotal = form.items.reduce(
-//     (sum, item) => sum + item.qty * item.rateExcl,
-//     0
-//   );
-
-//   const cgstAmt = (subtotal * form.cgst) / 100;
-//   const sgstAmt = (subtotal * form.sgst) / 100;
-//   const taxTotal = cgstAmt + sgstAmt;
-//   const total = subtotal + taxTotal + Number(form.roundOff);
-
-//   // Amount in words (simple version)
-//   const toWords = (num) => {
-//     return "INR " + num.toFixed(0) + " Only";
-//   };
-
-//   return (
-//     <>
-//       {/* ================= FORM ================= */}
-//       {!preview && (
-//         <form className="container mt-3" onSubmit={(e) => { e.preventDefault(); setPreview(true); }}>
-//           <h4>Invoice Entry</h4>
-
-//           <input className="form-control mb-2" name="invoiceNo" placeholder="Invoice No" onChange={handleChange} />
-//           <input type="date" className="form-control mb-2" name="date" onChange={handleChange} />
-//           <input className="form-control mb-2" name="vehicle" placeholder="Vehicle" onChange={handleChange} />
-//           <textarea className="form-control mb-2" name="buyer" placeholder="Buyer" onChange={handleChange} />
-//           <textarea className="form-control mb-2" name="consignee" placeholder="Consignee" onChange={handleChange} />
-
-//           <h5>Items</h5>
-
-//           {form.items.map((item, i) => (
-//             <div className="row mb-2" key={i}>
-//               <div className="col"><input placeholder="Desc" className="form-control" onChange={(e)=>handleItemChange(i,"description",e.target.value)} /></div>
-//               <div className="col"><input placeholder="HSN" className="form-control" onChange={(e)=>handleItemChange(i,"hsn",e.target.value)} /></div>
-//               <div className="col"><input placeholder="Qty" className="form-control" onChange={(e)=>handleItemChange(i,"qty",Number(e.target.value))} /></div>
-//               <div className="col"><input placeholder="Rate Excl" className="form-control" onChange={(e)=>handleItemChange(i,"rateExcl",Number(e.target.value))} /></div>
-//               <div className="col"><button type="button" className="btn btn-danger" onClick={()=>removeItem(i)}>X</button></div>
-//             </div>
-//           ))}
-
-//           <button type="button" className="btn btn-secondary" onClick={addItem}>Add Item</button>
-
-//           <br /><br />
-//           <button className="btn btn-primary">Preview</button>
-//         </form>
-//       )}
-
-//       {/* ================= INVOICE ================= */}
-//       {preview && (
-//         <div className="invoice" id="invoice">
-
-//           <div className="header text-center">
-//             <h3>{form.companyName}</h3>
-//             <p>{form.address}</p>
-//             <p>GSTIN: {form.gst} | {form.state}</p>
-//             <h5>TAX INVOICE</h5>
-//           </div>
-
-//           <div className="section">
-//             <div>
-//               <b>Buyer:</b><br />{form.buyer}
-//               <br /><br />
-//               <b>Consignee:</b><br />{form.consignee}
-//             </div>
-
-//             <div>
-//               <p>Invoice: {form.invoiceNo}</p>
-//               <p>Date: {form.date}</p>
-//               <p>Vehicle: {form.vehicle}</p>
-//             </div>
-//           </div>
-
-//           {/* ITEMS TABLE */}
-//           <table className="invoice-table">
-//             <thead>
-//               <tr>
-//                 <th>Sl</th>
-//                 <th>Description</th>
-//                 <th>HSN</th>
-//                 <th>Qty</th>
-//                 <th>Rate</th>
-//                 <th>Amount</th>
-//               </tr>
-//             </thead>
-//             <tbody>
-//               {form.items.map((item, i) => (
-//                 <tr key={i}>
-//                   <td>{i + 1}</td>
-//                   <td>{item.description}</td>
-//                   <td>{item.hsn}</td>
-//                   <td>{item.qty}</td>
-//                   <td>{item.rateExcl}</td>
-//                   <td>{item.qty * item.rateExcl}</td>
-//                 </tr>
-//               ))}
-//             </tbody>
-//           </table>
-
-//           {/* TAX SECTION */}
-//           <div className="tax-box">
-//             <p>Taxable Value: ₹ {subtotal.toFixed(2)}</p>
-//             <p>CGST ({form.cgst}%): ₹ {cgstAmt.toFixed(2)}</p>
-//             <p>SGST ({form.sgst}%): ₹ {sgstAmt.toFixed(2)}</p>
-//             <p>Rounding Off: ₹ {form.roundOff}</p>
-//             <h5>Grand Total: ₹ {total.toFixed(2)}</h5>
-//           </div>
-
-//           {/* TAX TABLE */}
-//           <table className="invoice-table mt-3">
-//             <thead>
-//               <tr>
-//                 <th>HSN/SAC</th>
-//                 <th>Taxable Value</th>
-//                 <th>CGST</th>
-//                 <th>SGST</th>
-//                 <th>Total Tax</th>
-//               </tr>
-//             </thead>
-//             <tbody>
-//               <tr>
-//                 <td>{form.items[0]?.hsn}</td>
-//                 <td>{subtotal.toFixed(2)}</td>
-//                 <td>{cgstAmt.toFixed(2)}</td>
-//                 <td>{sgstAmt.toFixed(2)}</td>
-//                 <td>{taxTotal.toFixed(2)}</td>
-//               </tr>
-//             </tbody>
-//           </table>
-
-//           <p><b>Amount in Words:</b> {toWords(total)}</p>
-//           <p><b>Tax Amount in Words:</b> {toWords(taxTotal)}</p>
-
-//           <p>Open Balance: {form.openBalance}</p>
-//           <p>Closing Balance: {form.closingBalance}</p>
-
-//           <div className="footer">
-//             <p>{form.declaration}</p>
-
-//             <div className="sign">
-//               <span>Receiver Signature</span>
-//               <span>Authorised Signatory</span>
-//             </div>
-//           </div>
-
-//           <div className="no-print mt-3">
-//             <button className="btn btn-secondary" onClick={() => setPreview(false)}>Edit</button>
-//             <button className="btn btn-success ms-2" onClick={() => window.print()}>
-//               Print
-//             </button>
-//           </div>
-//         </div>
-//       )}
-
-//       {/* ================= CSS ================= */}
-//       <style>{`
-//         .invoice {
-//           width: 800px;
-//           margin: auto;
-//           padding: 20px;
-//           border: 1px solid #000;
-//           font-size: 13px;
-//         }
-
-//         .header { text-align: center; }
-
-//         .section {
-//           display: flex;
-//           justify-content: space-between;
-//           margin-top: 10px;
-//         }
-
-//         .invoice-table {
-//           width: 100%;
-//           border-collapse: collapse;
-//           margin-top: 10px;
-//         }
-
-//         .invoice-table th, .invoice-table td {
-//           border: 1px solid #000;
-//           padding: 5px;
-//           text-align: center;
-//         }
-
-//         .tax-box {
-//           text-align: right;
-//           margin-top: 10px;
-//         }
-
-//         .footer {
-//           margin-top: 20px;
-//         }
-
-//         .sign {
-//           display: flex;
-//           justify-content: space-between;
-//           margin-top: 40px;
-//         }
-
-//         @media print {
-//           body * { visibility: hidden; }
-//           #invoice, #invoice * { visibility: visible; }
-//           #invoice { position: absolute; top: 0; left: 0; width: 100%; }
-//           .no-print { display: none; }
-//         }
-//       `}</style>
-//     </>
-//   );
-// }
-
-
 import React, { useState } from "react";
 
 // ─── STATIC COMPANY DATA ────────────────────────────────────────────────────
@@ -356,26 +74,95 @@ const emptyProduct = () => ({ desc: "", hsn: "", qty: "", rateIncl: "", per: "NO
 // ─── PRINT STYLES ────────────────────────────────────────────────────────────
 const printStyles = `
 @media print {
-  body * { visibility: hidden !important; }
-  #bip-invoice-print, #bip-invoice-print * { visibility: visible !important; }
-  #bip-invoice-print {
-    position: fixed !important;
-    top: 0; left: 0;
-    width: 100%;
-    margin: 0; padding: 0;
-    box-shadow: none !important;
+
+  html, body {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0;
+    padding: 0;
+    background: #fff;
   }
-  .no-print { display: none !important; }
-  @page { size: A4 portrait; margin: 8mm; }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  #bip-invoice-print,
+  #bip-invoice-print * {
+    visibility: visible !important;
+  }
+
+  #bip-invoice-print {
+    position: relative !important;
+    top: -10% !important;
+    left: 0 !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    page-break-after: auto !important;
+    maxWidth: 900,
+   margin: "0 auto 30px",
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    page-break-after: auto !important;
+  }
+
+  td, th {
+    page-break-inside: avoid !important;
+    
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  tfoot {
+    display: table-footer-group !important;
+  }
+    
+
+  @page {
+    size: A4 portrait;
+    margin: 8mm;
+  }
 }
 `;
 
-// ─── SHARED CELL STYLE ──────────────────────────────────────────────────────
+// ─── ✅ FIXED CELL STYLE ─────────────────────────────────────────────────────
+// borderCollapse: "collapse" table-level போட்டிருக்கோம்
+// cell-க்கு left+right border மட்டும், top/bottom none
+// இதனால் rows seamlessly join ஆகும், gap இருக்காது
 const cell = (extra = {}) => ({
-  border: "1px solid #000",
+  borderLeft: "1px solid #000",
+  borderRight: "1px solid #000",
+  borderTop: "none",
+  borderBottom: "none",
   padding: "3px 5px",
   fontSize: 12,
   verticalAlign: "top",
+  lineHeight: "1.4",
+  ...extra,
+});
+
+// ✅ Header cell — top + bottom border போடு (section boundary)
+const headerCell = (extra = {}) => ({
+  ...cell(),
+  borderTop: "1px solid #000",
+  borderBottom: "1px solid #000",
   ...extra,
 });
 
@@ -391,7 +178,7 @@ const sectionHead = {
 
 // ════════════════════════════════════════════════════════════════════════════
 export default function TaxInvoice() {
-  const [step, setStep] = useState(1); // 1 = form, 2 = preview
+  const [step, setStep] = useState(1);
 
   const [form, setForm] = useState({
     copyType: "ORIGINAL FOR RECIPIENT",
@@ -406,25 +193,22 @@ export default function TaxInvoice() {
     destination: "",
     billOfLading: "",
     motorVehicleNo: "",
+    ewayRequired: "",
+    ewayNumber: "",
     paymentMode: "Credit",
-    // Consignee
     consigneeName: "",
     consigneeAddress: "",
     consigneeState: "Tamil Nadu",
     consigneeStateCode: "33",
-    // Buyer
     buyerName: "",
     buyerAddress: "",
     buyerPhone: "",
     buyerGst: "",
     buyerState: "Tamil Nadu",
     buyerStateCode: "33",
-    // Balance
     openBalance: "",
     closingBalance: "",
-    // GST
     gstRate: 18,
-    // Bank
     bankHolderName: DEFAULT_BANK.holderName,
     bankName: DEFAULT_BANK.bankName,
     bankAccountNo: DEFAULT_BANK.accountNo,
@@ -435,10 +219,13 @@ export default function TaxInvoice() {
   const [products, setProducts] = useState([emptyProduct()]);
   const [errors, setErrors] = useState({});
 
-  // ── form handlers ──────────────────────────────────────────────────────────
   const handleForm = (e) => {
     const { name, value } = e.target;
-    setForm((p) => ({ ...p, [name]: value }));
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
+      ...(name === "ewayRequired" && value === "No" ? { ewayNumber: "" } : {}),
+    }));
     if (errors[name]) setErrors((p) => ({ ...p, [name]: "" }));
   };
 
@@ -456,7 +243,6 @@ export default function TaxInvoice() {
     setProducts((p) => p.filter((_, i) => i !== idx));
   };
 
-  // ── validation ─────────────────────────────────────────────────────────────
   const validate = () => {
     const e = {};
     if (!form.invoiceNo.trim()) e.invoiceNo = "Required";
@@ -470,7 +256,6 @@ export default function TaxInvoice() {
     return e;
   };
 
-  // ── CALCULATIONS ────────────────────────────────────────────────────────────
   const gstRate = parseFloat(form.gstRate) || 18;
   const cgstRate = gstRate / 2;
   const sgstRate = gstRate / 2;
@@ -492,7 +277,6 @@ export default function TaxInvoice() {
   const roundOff = Math.round(gross) - gross;
   const netAmount = gross + roundOff;
 
-  // Group by HSN for tax table
   const hsnGroups = {};
   rows.forEach((r) => {
     const key = r.hsn || "–";
@@ -503,28 +287,61 @@ export default function TaxInvoice() {
     hsnGroups[key].cgst += cg;
     hsnGroups[key].sgst += sg;
   });
+const saveInvoice = async () => {
+  // ── Read token from localStorage (set by Login.jsx) ──
+  const token = localStorage.getItem("token");
 
-  // ── ✅ FIXED: handlePreview — saves invoice to localStorage for Dashboard ──
-  const handlePreview = () => {
-    const e = validate();
-    if (Object.keys(e).length) { setErrors(e); return; }
+  const response = await fetch("http://localhost:8000/save_invoice.php", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,   // ← sends logged-in user's token
+    },
+    body: JSON.stringify({
+      invoice_no: form.invoiceNo,
+      invoice_date: form.invoiceDate,
+      buyer_name: form.buyerName,
+      buyer_address: form.buyerAddress,
+      buyer_phone: form.buyerPhone,
+      buyer_gst: form.buyerGst,
 
-    // Save to localStorage so Dashboard.jsx can read it
-    const existing = JSON.parse(localStorage.getItem("invoices") || "[]");
-    const newInvoice = {
-      invoiceNo: form.invoiceNo,
-      date: form.invoiceDate,
-      buyerName: form.buyerName,
-      total: netAmount,
-    };
-    // Avoid duplicates — overwrite if same invoiceNo
-    const filtered = existing.filter(i => i.invoiceNo !== form.invoiceNo);
-    localStorage.setItem("invoices", JSON.stringify([...filtered, newInvoice]));
+      description: products[0]?.desc || "",
+      hsn: products[0]?.hsn || "",
+      qty: totalQty,
+      rate: rows[0]?.rateIncl || 0,
+      amount: subtotal,
 
-    setStep(2);
-    window.scrollTo(0, 0);
-  };
+      subtotal,
+      cgst: cgstAmt,
+      sgst: sgstAmt,
+      total_tax: totalTax,
+      net_amount: netAmount,
+    }),
+  });
 
+  const result = await response.json();
+  console.log(result);
+
+  if (!result.success) {
+    alert(result.message);
+  }
+};
+
+const handlePreview = async () => {
+
+  const e = validate();
+
+  if (Object.keys(e).length) {
+    setErrors(e);
+    return;
+  }
+
+  await saveInvoice(); // Database save
+
+  setStep(2);
+
+  window.scrollTo(0, 0);
+};
   const errStyle = (name) => ({ borderColor: errors[name] ? "#dc3545" : undefined });
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -541,7 +358,6 @@ export default function TaxInvoice() {
             </div>
             <div className="card-body">
 
-              {/* Copy type + GST + Payment */}
               <div className="row g-3 mb-3">
                 <div className="col-md-4">
                   <label className="form-label fw-semibold" style={{ fontSize: 12 }}>Copy Type</label>
@@ -566,7 +382,6 @@ export default function TaxInvoice() {
                 </div>
               </div>
 
-              {/* Invoice Details */}
               <h6 className="fw-bold border-bottom pb-1 mb-3 text-secondary text-uppercase" style={{ fontSize: 11 }}>Invoice Details</h6>
               <div className="row g-3 mb-4">
                 {[
@@ -590,9 +405,24 @@ export default function TaxInvoice() {
                     {errors[name] && <div className="text-danger" style={{ fontSize: 11 }}>{errors[name]}</div>}
                   </div>
                 ))}
+                <div className="col-md-4">
+                  <label className="form-label fw-semibold" style={{ fontSize: 12 }}>E-Way Required?</label>
+                  <select className="form-select form-select-sm" name="ewayRequired" value={form.ewayRequired} onChange={handleForm}>
+                    <option value="">Select</option>
+                    <option value="Yes">Yes</option>
+                    <option value="No">No</option>
+                  </select>
+                </div>
+                {form.ewayRequired === "Yes" && (
+                  <div className="col-md-4">
+                    <label className="form-label fw-semibold" style={{ fontSize: 12 }}>E-Way Number</label>
+                    <input type="text" className="form-control form-control-sm"
+                      name="ewayNumber" value={form.ewayNumber} onChange={handleForm}
+                      placeholder="Enter E-Way Bill Number" />
+                  </div>
+                )}
               </div>
 
-              {/* Consignee */}
               <h6 className="fw-bold border-bottom pb-1 mb-3 text-secondary text-uppercase" style={{ fontSize: 11 }}>Consignee (Ship To)</h6>
               <div className="row g-3 mb-4">
                 <div className="col-md-5">
@@ -613,7 +443,6 @@ export default function TaxInvoice() {
                 </div>
               </div>
 
-              {/* Buyer */}
               <h6 className="fw-bold border-bottom pb-1 mb-3 text-secondary text-uppercase" style={{ fontSize: 11 }}>Buyer (Bill To) *</h6>
               <div className="row g-3 mb-4">
                 <div className="col-md-5">
@@ -643,7 +472,6 @@ export default function TaxInvoice() {
                 </div>
               </div>
 
-              {/* Products */}
               <h6 className="fw-bold border-bottom pb-1 mb-3 text-secondary text-uppercase" style={{ fontSize: 11 }}>
                 Products — Enter Rate Inclusive of Tax
               </h6>
@@ -718,7 +546,6 @@ export default function TaxInvoice() {
                 </div>
               </div>
 
-              {/* Balance */}
               <h6 className="fw-bold border-bottom pb-1 mb-3 text-secondary text-uppercase" style={{ fontSize: 11 }}>Balance Tracking</h6>
               <div className="row g-3 mb-4">
                 <div className="col-md-3">
@@ -731,7 +558,6 @@ export default function TaxInvoice() {
                 </div>
               </div>
 
-              {/* Bank */}
               <h6 className="fw-bold border-bottom pb-1 mb-3 text-secondary text-uppercase" style={{ fontSize: 11 }}>Company Bank Details</h6>
               <div className="row g-3 mb-4">
                 {[
@@ -767,7 +593,6 @@ export default function TaxInvoice() {
     <>
       <style>{printStyles}</style>
 
-      {/* Action Bar */}
       <div className="no-print py-3 d-flex justify-content-center gap-3">
         <button className="btn btn-outline-secondary px-4" onClick={() => setStep(1)}>✏️ Edit</button>
         <button className="btn text-white px-4" style={{ background: "#1a1a2e" }} onClick={() => window.print()}>
@@ -775,9 +600,6 @@ export default function TaxInvoice() {
         </button>
       </div>
 
-      {/* ═══════════════════════════════════
-          PRINTABLE INVOICE
-      ═══════════════════════════════════ */}
       <div
         id="bip-invoice-print"
         style={{
@@ -795,36 +617,29 @@ export default function TaxInvoice() {
         </div>
 
         {/* ── HEADER ── */}
-        <table style={{ width: "100%", borderColapse: "collapse", borderBottom: "2px solid #000" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", borderBottom: "1px solid #000" ,pageBreakInside: "avoid",breakInside: "avoid", }}>
           <tbody>
             <tr>
               <td style={{ width: 80, borderRight: "1px solid #000", padding: 6, textAlign: "center", verticalAlign: "middle" }}>
-                <div style={{
-                  width: 66, height: 66, border: "2px solid #000",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontWeight: "bold", fontSize: 10, textAlign: "center", lineHeight: 1.2,
-                  letterSpacing: 0.5,
-                }}>
+                <div style={{ width: 66, height: 66, border: "2px solid #000", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", fontSize: 10, textAlign: "center", lineHeight: 1.2, letterSpacing: 0.5 }}>
                   BIP<br />FENCING
                 </div>
               </td>
-              <td style={{ padding: "6px 14px", textAlign: "center", verticalAlign: "middle" }}>
+              <td colSpan={2} style={{ padding: "6px 14px", textAlign: "center", verticalAlign: "middle" }}>
                 <div style={{ fontSize: 20, fontWeight: "bold", letterSpacing: 2, textTransform: "uppercase" }}>
                   {COMPANY.name}
                 </div>
                 <div style={{ fontSize: 12, marginTop: 2 }}>{COMPANY.address}</div>
                 <div style={{ fontSize: 12 }}>
-                  GSTIN/UIN: <strong>{COMPANY.gst}</strong>&nbsp;&nbsp;
-                  State: {COMPANY.state}, Code: {COMPANY.stateCode}
+                  GSTIN/UIN: <strong>{COMPANY.gst}</strong>&nbsp;&nbsp;State: {COMPANY.state}, Code: {COMPANY.stateCode}
                 </div>
-                <div style={{ fontSize: 12 }}>Ph: {COMPANY.phone}</div>
-              </td>
-              <td style={{ width: 110, borderLeft: "1px solid #000", padding: 6, textAlign: "center", verticalAlign: "middle" }}>
-                <div style={{
-                  border: "2px solid #000", padding: "6px 4px",
-                  fontWeight: "bold", fontSize: 13, textTransform: "uppercase", lineHeight: 1.3,
-                }}>
-                  TAX<br />INVOICE
+                <div style={{ fontSize: 12, position: "relative", textAlign: "center" }}>
+                  <span>Ph: {COMPANY.phone}</span>
+                  {form.ewayNumber && (
+                    <span style={{ position: "absolute", right: 0 }}>
+                      <strong>E-Way Bill No:</strong> {form.ewayNumber}
+                    </span>
+                  )}
                 </div>
               </td>
             </tr>
@@ -837,37 +652,53 @@ export default function TaxInvoice() {
             <tr>
               <td style={{ width: "52%", borderRight: "1px solid #000", padding: "5px 8px", verticalAlign: "top" }}>
                 <div style={sectionHead}>Consignee (Ship to)</div>
-                <div style={{ fontWeight: "bold", fontSize: 13 }}>
-                  {form.consigneeName || form.buyerName}
-                </div>
+                <div style={{ fontWeight: "bold", fontSize: 13 }}>{form.consigneeName || form.buyerName}</div>
                 <div style={{ fontSize: 12 }}>{form.consigneeAddress || form.buyerAddress}</div>
-                <div style={{ fontSize: 12 }}>
-                  State Name: {form.consigneeState || form.buyerState},
-                  Code: {form.consigneeStateCode || form.buyerStateCode}
-                </div>
+                <div style={{ fontSize: 12 }}>State Name: {form.consigneeState || form.buyerState}, Code: {form.consigneeStateCode || form.buyerStateCode}</div>
               </td>
-              <td style={{ padding: "5px 8px", verticalAlign: "top" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <td style={{ padding: 0, verticalAlign: "top" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, height: "100%" }}>
                   <tbody>
-                    {[
-                      ["Invoice No.", form.invoiceNo],
-                      ["Delivery Note", ""],
-                      ["Reference No. & Date", form.referenceNo],
-                      ["Other References", ""],
-                      ["Buyer's Order No.", form.buyersOrderNo],
-                      ["Dated", form.dated ? formatDate(form.dated) : ""],
-                      ["Dispatch Doc No.", form.dispatchDocNo],
-                      ["Delivery Note Date", form.deliveryNoteDate ? formatDate(form.deliveryNoteDate) : ""],
-                      ["Dispatched through", form.dispatchedThrough],
-                      ["Destination", form.destination],
-                      ["Bill of Lading/LR-RR No.", form.billOfLading],
-                      ["Motor Vehicle No.", form.motorVehicleNo],
-                    ].map(([k, v]) => (
-                      <tr key={k}>
-                        <td style={{ fontWeight: "bold", paddingRight: 4, paddingBottom: 1, whiteSpace: "nowrap", fontSize: 11 }}>{k}</td>
-                        <td style={{ paddingBottom: 1, fontSize: 12 }}>: {v}</td>
-                      </tr>
-                    ))}
+                    <tr>
+                      <td style={{ width: "50%", padding: "5px 8px", borderRight: "1px solid #000", verticalAlign: "top" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                          <tbody>
+                            {[
+                              ["Invoice No.", form.invoiceNo],
+                              ["Delivery Note", ""],
+                              ["Reference No. & Date", form.referenceNo],
+                              ["Other References", ""],
+                              ["Buyer's Order No.", form.buyersOrderNo],
+                              ["Dated", form.dated ? formatDate(form.dated) : ""],
+                            ].map(([k, v]) => (
+                              <tr key={k}>
+                                <td style={{ fontWeight: "bold", paddingRight: 4, paddingBottom: 3, whiteSpace: "nowrap", fontSize: 11 }}>{k}</td>
+                                <td style={{ paddingBottom: 3, fontSize: 12 }}>: {v}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </td>
+                      <td style={{ width: "50%", padding: "5px 8px", verticalAlign: "top" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                          <tbody>
+                            {[
+                              ["Dispatch Doc No.", form.dispatchDocNo],
+                              ["Delivery Note Date", form.deliveryNoteDate ? formatDate(form.deliveryNoteDate) : ""],
+                              ["Dispatched through", form.dispatchedThrough],
+                              ["Destination", form.destination],
+                              ["Bill of Lading/LR-RR No.", form.billOfLading],
+                              ["Motor Vehicle No.", form.motorVehicleNo],
+                            ].map(([k, v]) => (
+                              <tr key={k}>
+                                <td style={{ fontWeight: "bold", paddingRight: 4, paddingBottom: 3, whiteSpace: "nowrap", fontSize: 11 }}>{k}</td>
+                                <td style={{ paddingBottom: 3, fontSize: 12 }}>: {v}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
               </td>
@@ -885,9 +716,7 @@ export default function TaxInvoice() {
                 <div style={{ fontSize: 12 }}>{form.buyerAddress}</div>
                 {form.buyerPhone && <div style={{ fontSize: 12 }}>Ph: {form.buyerPhone}</div>}
                 {form.buyerGst && <div style={{ fontSize: 12 }}>GSTIN/UIN: {form.buyerGst}</div>}
-                <div style={{ fontSize: 12 }}>
-                  State Name: {form.buyerState}, Code: {form.buyerStateCode}
-                </div>
+                <div style={{ fontSize: 12 }}>State Name: {form.buyerState}, Code: {form.buyerStateCode}</div>
               </td>
               <td style={{ padding: "5px 8px", verticalAlign: "top" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
@@ -898,6 +727,7 @@ export default function TaxInvoice() {
                       ["Payment", form.paymentMode],
                       form.dispatchedThrough ? ["Transport", form.dispatchedThrough] : null,
                       form.motorVehicleNo ? ["Motor Vehicle No.", form.motorVehicleNo] : null,
+                      form.ewayNumber ? ["E-Way Bill No.", form.ewayNumber] : null,
                       form.destination ? ["Delivery To", form.destination] : null,
                     ].filter(Boolean).map(([k, v]) => (
                       <tr key={k}>
@@ -913,6 +743,7 @@ export default function TaxInvoice() {
         </table>
 
         {/* ── PRODUCT TABLE ── */}
+        {/* ✅ FIX: borderCollapse="collapse" + header uses headerCell() with top+bottom borders */}
         <table style={{ width: "100%", borderCollapse: "collapse", borderBottom: "1px solid #000" }}>
           <thead>
             <tr style={{ background: "#e8e8e8" }}>
@@ -926,7 +757,19 @@ export default function TaxInvoice() {
                 { label: "per", w: 38, align: "center" },
                 { label: "Amount\n(Taxable Value)", w: 100, align: "right" },
               ].map((c) => (
-                <th key={c.label} style={{ ...cell({ background: "#e8e8e8", whiteSpace: "pre-line", textAlign: c.align, fontSize: 11 }), width: c.w }}>
+                <th
+                  key={c.label}
+                  style={{
+                    // ✅ headerCell: top + bottom border போட்டு section boundary தெரியும்
+                    ...headerCell({
+                      background: "#e8e8e8",
+                      whiteSpace: "pre-line",
+                      textAlign: c.align,
+                      fontSize: 11,
+                    }),
+                    width: c.w,
+                  }}
+                >
                   {c.label}
                 </th>
               ))}
@@ -945,33 +788,42 @@ export default function TaxInvoice() {
                 <td style={cell({ textAlign: "right" })}>{fmt2(r.taxableAmt)}</td>
               </tr>
             ))}
+
+            {/* Blank filler rows */}
             {rows.length < 5 &&
               Array.from({ length: 5 - rows.length }).map((_, i) => (
                 <tr key={`blank_${i}`} style={{ height: 22 }}>
                   {Array(8).fill(null).map((__, j) => <td key={j} style={cell()}>&nbsp;</td>)}
                 </tr>
               ))}
+
+            {/* ✅ FIX: CGST row — borderTop போட்டு data rows-இல் இருந்து பிரிக்கிறோம் */}
             <tr>
-              <td colSpan={7} style={cell({ textAlign: "right", fontStyle: "italic", fontWeight: "bold" })}>CGST TAX</td>
-              <td style={cell({ textAlign: "right", fontWeight: "bold" })}>{fmt2(cgstAmt)}</td>
+              <td colSpan={7} style={cell({ textAlign: "right", fontStyle: "italic", fontWeight: "bold", borderTop: "1px solid #000" })}>CGST TAX</td>
+              <td style={cell({ textAlign: "right", fontWeight: "bold", borderTop: "1px solid #000" })}>{fmt2(cgstAmt)}</td>
             </tr>
+
+            {/* SGST — no extra border needed, flows after CGST */}
             <tr>
               <td colSpan={7} style={cell({ textAlign: "right", fontStyle: "italic", fontWeight: "bold" })}>SGST TAX</td>
               <td style={cell({ textAlign: "right", fontWeight: "bold" })}>{fmt2(sgstAmt)}</td>
             </tr>
+
             <tr>
               <td colSpan={7} style={cell({ textAlign: "right", fontStyle: "italic", fontWeight: "bold" })}>ROUNDING OFF</td>
               <td style={cell({ textAlign: "right", fontWeight: "bold" })}>
                 {roundOff >= 0 ? `(+) ${fmt2(Math.abs(roundOff))}` : `(-) ${fmt2(Math.abs(roundOff))}`}
               </td>
             </tr>
+
+            {/* ✅ FIX: Total row — borderTop + borderBottom போட்டு clearly separate பண்றோம் */}
             <tr style={{ background: "#f0f0f0" }}>
-              <td colSpan={3} style={cell({ textAlign: "right", fontWeight: "bold" })}>Total</td>
-              <td style={cell({ textAlign: "center", fontWeight: "bold" })}>{fmt2(totalQty)}</td>
-              <td style={cell()}></td>
-              <td style={cell()}></td>
-              <td style={cell()}></td>
-              <td style={cell({ textAlign: "right", fontWeight: "bold" })}>₹ {fmt2(subtotal)}</td>
+              <td colSpan={3} style={cell({ textAlign: "right", fontWeight: "bold", borderTop: "1px solid #000", borderBottom: "1px solid #000" })}>Total</td>
+              <td style={cell({ textAlign: "center", fontWeight: "bold", borderTop: "1px solid #000", borderBottom: "1px solid #000" })}>{fmt2(totalQty)}</td>
+              <td style={cell({ borderTop: "1px solid #000", borderBottom: "1px solid #000" })}></td>
+              <td style={cell({ borderTop: "1px solid #000", borderBottom: "1px solid #000" })}></td>
+              <td style={cell({ borderTop: "1px solid #000", borderBottom: "1px solid #000" })}></td>
+              <td style={cell({ textAlign: "right", fontWeight: "bold", borderTop: "1px solid #000", borderBottom: "1px solid #000" })}>₹ {fmt2(subtotal)}</td>
             </tr>
           </tbody>
         </table>
@@ -993,11 +845,22 @@ export default function TaxInvoice() {
         </table>
 
         {/* ── HSN TAX TABLE ── */}
+        {/* ✅ FIX: HSN table-ও borderCollapse="collapse" + headerCell() use பண்றோம் */}
         <table style={{ width: "100%", borderCollapse: "collapse", borderBottom: "1px solid #000" }}>
           <thead>
             <tr style={{ background: "#e8e8e8" }}>
               {["HSN/SAC", "Taxable\nValue", `CGST\nRate`, "CGST\nAmount", `SGST/UTGST\nRate`, "SGST/UTGST\nAmount", "Total Tax\nAmount"].map((h) => (
-                <th key={h} style={cell({ textAlign: "center", fontSize: 11, whiteSpace: "pre-line", background: "#e8e8e8" })}>{h}</th>
+                <th
+                  key={h}
+                  style={headerCell({
+                    textAlign: "center",
+                    fontSize: 11,
+                    whiteSpace: "pre-line",
+                    background: "#e8e8e8",
+                  })}
+                >
+                  {h}
+                </th>
               ))}
             </tr>
           </thead>
@@ -1013,14 +876,15 @@ export default function TaxInvoice() {
                 <td style={cell({ textAlign: "right" })}>{fmt2(d.cgst + d.sgst)}</td>
               </tr>
             ))}
+            {/* ✅ FIX: HSN Total row — borderTop + borderBottom */}
             <tr style={{ fontWeight: "bold", background: "#f5f5f5" }}>
-              <td style={cell({ fontSize: 12 })}>Total</td>
-              <td style={cell({ textAlign: "right" })}>{fmt2(subtotal)}</td>
-              <td style={cell()}></td>
-              <td style={cell({ textAlign: "right" })}>{fmt2(cgstAmt)}</td>
-              <td style={cell()}></td>
-              <td style={cell({ textAlign: "right" })}>{fmt2(sgstAmt)}</td>
-              <td style={cell({ textAlign: "right" })}>{fmt2(totalTax)}</td>
+              <td style={cell({ fontSize: 12, borderTop: "1px solid #000", borderBottom: "1px solid #000" })}>Total</td>
+              <td style={cell({ textAlign: "right", borderTop: "1px solid #000", borderBottom: "1px solid #000" })}>{fmt2(subtotal)}</td>
+              <td style={cell({ borderTop: "1px solid #000", borderBottom: "1px solid #000" })}></td>
+              <td style={cell({ textAlign: "right", borderTop: "1px solid #000", borderBottom: "1px solid #000" })}>{fmt2(cgstAmt)}</td>
+              <td style={cell({ borderTop: "1px solid #000", borderBottom: "1px solid #000" })}></td>
+              <td style={cell({ textAlign: "right", borderTop: "1px solid #000", borderBottom: "1px solid #000" })}>{fmt2(sgstAmt)}</td>
+              <td style={cell({ textAlign: "right", borderTop: "1px solid #000", borderBottom: "1px solid #000" })}>{fmt2(totalTax)}</td>
             </tr>
           </tbody>
         </table>
