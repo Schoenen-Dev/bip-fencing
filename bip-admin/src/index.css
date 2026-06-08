@@ -211,6 +211,7 @@ body {
 .page-content {
   padding: 28px;
   flex: 1;
+  width: 100%;
 }
 
 .page-header {
@@ -532,7 +533,8 @@ body {
   border: 1px solid #e1e4e8;
   border-radius: 14px;
   padding: 28px;
-  max-width: 700px;
+  width: 100%;
+  max-width: none;
 }
 
 .client-form-card .form-label {
