@@ -323,124 +323,33 @@ export default function TaxInvoice() {
     hsnGroups[key].sgst += sg;
   });
 
-  // ✅ STOCK REDUCTION — API-based (not localStorage)
-  const reduceStock = async () => {
-    setStockReducing(true);
-    try {
-      // Fetch latest stock from API
-      const res = await fetch(API_URL, { headers: getHeaders() });
-      if (!res.ok) throw new Error("Failed to fetch products");
-      const dbProducts = await res.json();
-
-      let anyReduced = false;
-
-      for (const invoiceItem of products) {
-        const usedQty = parseFloat(invoiceItem.qty);
-        if (!invoiceItem.desc.trim() || !usedQty || usedQty <= 0) continue;
-
-        // Match by product name (case-insensitive)
-        const match = dbProducts.find(
-          (p) =>
-            p.product_name.trim().toLowerCase() ===
-            invoiceItem.desc.trim().toLowerCase()
-        );
-        if (!match) continue;
-
-        const currentStock = parseFloat(match.stock_qty) || 0;
-
-        if (currentStock < usedQty) {
-          alert(
-            `⚠️ Insufficient stock for "${match.product_name}"!\nAvailable: ${currentStock}, Required: ${usedQty}`
-          );
-          setStockReducing(false);
-          return false;
-        }
-
-        const newStock = currentStock - usedQty;
-
-        // PUT updated stock to API
-        const updateRes = await fetch(`${API_URL}?id=${match.id}`, {
-          method: "PUT",
-          headers: getHeaders(),
-          body: JSON.stringify({
-            productName: match.product_name,
-            sku: match.sku,
-            category: match.category,
-            unit: match.unit,
-            sellingPrice: match.selling_price,
-            stockQty: newStock,
-            minStock: match.min_stock,
-            description: match.description,
-          }),
-        });
-
-        if (!updateRes.ok)
-          throw new Error(`Failed to update stock for "${match.product_name}"`);
-
-        anyReduced = true;
-        console.log(
-          `✅ Stock reduced: ${match.product_name} | ${currentStock} → ${newStock}`
-        );
-      }
-
-      if (anyReduced) {
-        setStockReduced(true);
-        // Refresh savedProducts list with new stock values
-        await fetchSavedProducts();
-      }
-      setStockReducing(false);
-      return anyReduced;
-    } catch (err) {
-      console.error("Stock reduction error:", err);
-      alert("❌ Stock update failed: " + err.message);
-      setStockReducing(false);
-      return false;
-    }
-  };
-
-  // ✅ PREVIEW BUTTON HANDLER
-  const handlePreview = async () => {
+  // ── ✅ FIXED: handlePreview — saves invoice to localStorage for Dashboard ──
+  const handlePreview = () => {
     const e = validate();
-    if (Object.keys(e).length) {
-      setErrors(e);
-      return;
-    }
+    if (Object.keys(e).length) { setErrors(e); return; }
 
-    if (!stockReduced) {
-      const success = await reduceStock();
-      // Continue to preview regardless (stock may not match any product name)
-    }
-
-    // Save invoice record to localStorage for history tracking
-    try {
-      const existing = JSON.parse(localStorage.getItem("bip_invoices") || "[]");
-      const newInvoice = {
-        invoiceNo: form.invoiceNo,
-        date: form.invoiceDate,
-        buyerName: form.buyerName,
-        total: netAmount,
-      };
-      const filtered = existing.filter((i) => i.invoiceNo !== form.invoiceNo);
-      localStorage.setItem(
-        "bip_invoices",
-        JSON.stringify([...filtered, newInvoice])
-      );
-    } catch (_) {}
+    // Save to localStorage so Dashboard.jsx can read it
+    const existing = JSON.parse(localStorage.getItem("invoices") || "[]");
+    const newInvoice = {
+      invoiceNo: form.invoiceNo,
+      date: form.invoiceDate,
+      buyerName: form.buyerName,
+      total: netAmount,
+    };
+    // Avoid duplicates — overwrite if same invoiceNo
+    const filtered = existing.filter(i => i.invoiceNo !== form.invoiceNo);
+    localStorage.setItem("invoices", JSON.stringify([...filtered, newInvoice]));
 
     setStep(2);
     window.scrollTo(0, 0);
   };
-
-  const handleEdit = () => {
-    setStep(1);
-    window.scrollTo(0, 0);
-  };
-
   const errStyle = (name) => ({
     borderColor: errors[name] ? "#dc3545" : undefined,
   });
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  const errStyle = (name) => ({ borderColor: errors[name] ? "#dc3545" : undefined });
+
+  // ════════════════════════════════════════════════════════════════════════════
   // STEP 1 — FORM
   // ═══════════════════════════════════════════════════════════════════════════
   if (step === 1) {
@@ -1184,4 +1093,4 @@ export default function TaxInvoice() {
       </div>
     </>
   );
-}
+} 

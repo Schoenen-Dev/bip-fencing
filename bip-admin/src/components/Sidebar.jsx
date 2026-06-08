@@ -25,6 +25,7 @@ export default function Sidebar() {
   const { logout } = useAuth();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const role = localStorage.getItem('role'); // ✅ role check added here
 
   useEffect(() => {
     setMobileOpen(false);
@@ -101,10 +102,15 @@ export default function Sidebar() {
         <div className="nav-section-label">HR</div>
 
         <DropdownItem label="Staff Management" icon="bi-people">
-          <NavLink to="/admin-features" className={({ isActive }) => `nav-item-link ${isActive ? 'active' : ''}`}>
-            <i className="bi bi-shield-lock"></i><span>Admin Features</span>
-          </NavLink>
-           <NavLink to="/employee-details" className={({ isActive }) => `nav-item-link ${isActive ? 'active' : ''}`}>
+
+          {/* ✅ Only visible to admin */}
+          {role === 'admin' && (
+            <NavLink to="/admin-features" className={({ isActive }) => `nav-item-link ${isActive ? 'active' : ''}`}>
+              <i className="bi bi-shield-lock"></i><span>Admin Features</span>
+            </NavLink>
+          )}
+
+          <NavLink to="/employee-details" className={({ isActive }) => `nav-item-link ${isActive ? 'active' : ''}`}>
             <i className="bi bi-person-vcard"></i><span>Employee Details</span>
           </NavLink>
           <NavLink to="/salary" className={({ isActive }) => `nav-item-link ${isActive ? 'active' : ''}`}>
@@ -242,7 +248,6 @@ export default function Sidebar() {
         }
         .chevron.open { transform: rotate(90deg); }
 
-        /* KEY FIX: grid-template-rows animation — no auto-open, controlled by click only */
         .nav-dropdown-items {
           display: grid;
           grid-template-rows: 0fr;
