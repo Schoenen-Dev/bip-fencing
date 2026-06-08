@@ -1,6 +1,11 @@
+// ✅ COMPLETE FIXED TAX INVOICE COMPONENT
+// Stock deduction via API (products.php) — not localStorage
+
 import React, { useState, useEffect } from "react";
 
-// ─── STATIC COMPANY DATA ────────────────────────────────────────────────────
+const API_URL = "http://localhost:8000/products.php";
+
+// ─── STATIC COMPANY DATA ─────────────────────────────────────────────────────
 const COMPANY = {
   name: "BIP FENCING CONTRACT WORK",
   address: "NO. 26/A, MAIN ROAD, PAMBANKULAM, KALANTHAPANAI, PANAGUDI - 627109",
@@ -27,7 +32,7 @@ const COPY_TYPES = [
   "TRIPLICATE FOR SUPPLIER",
 ];
 
-// ─── NUMBER TO WORDS (Indian) ────────────────────────────────────────────────
+// ─── NUMBER TO WORDS (Indian) ─────────────────────────────────────────────────
 const _ones = [
   "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
   "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen",
@@ -47,7 +52,11 @@ function numToWords(n) {
     return numToWords(Math.floor(num / 1000)) + " Thousand" + (num % 1000 ? " " + numToWords(num % 1000) : "");
   if (num < 10000000)
     return numToWords(Math.floor(num / 100000)) + " Lakh" + (num % 100000 ? " " + numToWords(num % 100000) : "");
-  return numToWords(Math.floor(num / 10000000)) + " Crore" + (num % 10000000 ? " " + numToWords(num % 10000000) : "");
+  return (
+    numToWords(Math.floor(num / 10000000)) +
+    " Crore" +
+    (num % 10000000 ? " " + numToWords(num % 10000000) : "")
+  );
 }
 
 function amountInWords(amount) {
@@ -59,48 +68,39 @@ function amountInWords(amount) {
   return "INR " + numToWords(rupees) + " Only";
 }
 
-// ─── HELPERS ────────────────────────────────────────────────────────────────
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
 const fmt2 = (n) =>
-  Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  Number(n || 0).toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 
 const formatDate = (d) => {
   if (!d) return "";
   const dt = new Date(d + "T00:00:00");
-  return dt.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "2-digit" });
+  return dt.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "2-digit",
+  });
 };
 
 const emptyProduct = () => ({ desc: "", hsn: "", qty: "", rateIncl: "", per: "NOS" });
 
-// ─── PRINT STYLES ────────────────────────────────────────────────────────────
+// ─── PRINT STYLES ─────────────────────────────────────────────────────────────
 const printStyles = `
 @media print {
-  html, body {
-    width: 210mm;
-    min-height: 297mm;
-    margin: 0;
-    padding: 0;
-    background: #fff;
-  }
+  html, body { width: 210mm; min-height: 297mm; margin: 0; padding: 0; background: #fff; }
   body * { visibility: hidden !important; }
-  #bip-invoice-print,
-  #bip-invoice-print * { visibility: visible !important; }
+  #bip-invoice-print, #bip-invoice-print * { visibility: visible !important; }
   #bip-invoice-print {
-    position: relative !important;
-    top: -10% !important;
-    left: 0 !important;
-    width: 100% !important;
-    margin: 0 auto !important;
-    padding: 0 !important;
-    box-shadow: none !important;
-    overflow: visible !important;
+    position: relative !important; top: 0 !important; left: 0 !important;
+    width: 100% !important; margin: 0 auto !important; padding: 0 !important;
+    box-shadow: none !important; overflow: visible !important;
     page-break-after: auto !important;
   }
   .no-print { display: none !important; }
-  table {
-    width: 100% !important;
-    border-collapse: collapse !important;
-    page-break-inside: auto !important;
-  }
+  table { width: 100% !important; border-collapse: collapse !important; page-break-inside: auto !important; }
   tr { page-break-inside: avoid !important; page-break-after: auto !important; }
   td, th { page-break-inside: avoid !important; }
   thead { display: table-header-group !important; }
@@ -138,17 +138,55 @@ const sectionHead = {
   paddingBottom: 2,
 };
 
-// ════════════════════════════════════════════════════════════════════════════
+// ─── API HEADERS ──────────────────────────────────────────────────────────────
+const getHeaders = () => {
+  const headers = {
+    Authorization: `Bearer ${localStorage.getItem("token")}`,
+    "Content-Type": "application/json",
+  };
+  const role = localStorage.getItem("role");
+  if (role === "admin") {
+    const viewBranch = localStorage.getItem("admin_view_branch");
+    if (viewBranch) headers["X-Branch-ID"] = viewBranch;
+  }
+  return headers;
+};
+
+// ═════════════════════════════════════════════════════════════════════════════
 export default function TaxInvoice() {
   const [step, setStep] = useState(1);
+  const [savedProducts, setSavedProducts] = useState([]);
+  const [stockReduced, setStockReduced] = useState(false);
+  const [stockReducing, setStockReducing] = useState(false);
 
-  // ── Load saved products from Products page (localStorage) ───────────────
-  const [savedProducts, setSavedProducts] = useState(() => {
+  // Load products from API
+  useEffect(() => {
+    fetchSavedProducts();
+  }, []);
+
+  async function fetchSavedProducts() {
     try {
-      const raw = localStorage.getItem('products');
-      return raw ? JSON.parse(raw) : [];
-    } catch (_) { return []; }
-  });
+      const res = await fetch(API_URL, { headers: getHeaders() });
+      if (!res.ok) return;
+      const data = await res.json();
+      // Map to camelCase for internal use
+      setSavedProducts(
+        data.map((p) => ({
+          id: p.id,
+          productName: p.product_name,
+          sku: p.sku,
+          category: p.category,
+          unit: p.unit,
+          sellingPrice: p.selling_price,
+          stockQty: p.stock_qty,
+          minStock: p.min_stock,
+          description: p.description,
+          // Keep originals for PUT
+          _raw: p,
+        }))
+      );
+    } catch (_) {}
+  }
 
   const [form, setForm] = useState({
     copyType: "ORIGINAL FOR RECIPIENT",
@@ -207,7 +245,6 @@ export default function TaxInvoice() {
     });
   };
 
-  // ── When a saved product is selected from dropdown ──────────────────────
   const handleProductSelect = (idx, productName) => {
     if (!productName) {
       handleProduct(idx, "desc", "");
@@ -216,7 +253,6 @@ export default function TaxInvoice() {
     const found = savedProducts.find((p) => p.productName === productName);
     if (!found) return;
 
-    // Map Products.jsx unit → invoice per unit
     const unitMap = {
       Pcs: "PCS", Kg: "KGS", Meter: "MTR", Roll: "RFT",
       Box: "SET", Set: "SET", Liter: "LTR",
@@ -229,7 +265,6 @@ export default function TaxInvoice() {
         desc: found.productName,
         rateIncl: found.sellingPrice || "",
         per: unitMap[found.unit] || "NOS",
-        // ✅ SKU → HSN/SAC, Unit → Per (dropdown)
         hsn: found.sku || "",
       };
       return updated;
@@ -250,7 +285,8 @@ export default function TaxInvoice() {
     products.forEach((p, i) => {
       if (!p.desc.trim()) e[`desc_${i}`] = "Required";
       if (!p.qty || isNaN(p.qty) || Number(p.qty) <= 0) e[`qty_${i}`] = "Invalid";
-      if (!p.rateIncl || isNaN(p.rateIncl) || Number(p.rateIncl) <= 0) e[`rateIncl_${i}`] = "Invalid";
+      if (!p.rateIncl || isNaN(p.rateIncl) || Number(p.rateIncl) <= 0)
+        e[`rateIncl_${i}`] = "Invalid";
     });
     return e;
   };
@@ -287,24 +323,126 @@ export default function TaxInvoice() {
     hsnGroups[key].sgst += sg;
   });
 
-  const handlePreview = () => {
-    const e = validate();
-    if (Object.keys(e).length) { setErrors(e); return; }
+  // ✅ STOCK REDUCTION — API-based (not localStorage)
+  const reduceStock = async () => {
+    setStockReducing(true);
     try {
-      const existing = JSON.parse(localStorage.getItem('bip_invoices') || '[]');
-      const newInvoice = { invoiceNo: form.invoiceNo, date: form.invoiceDate, buyerName: form.buyerName, total: netAmount };
-      const filtered = existing.filter(i => i.invoiceNo !== form.invoiceNo);
-      localStorage.setItem('bip_invoices', JSON.stringify([...filtered, newInvoice]));
+      // Fetch latest stock from API
+      const res = await fetch(API_URL, { headers: getHeaders() });
+      if (!res.ok) throw new Error("Failed to fetch products");
+      const dbProducts = await res.json();
+
+      let anyReduced = false;
+
+      for (const invoiceItem of products) {
+        const usedQty = parseFloat(invoiceItem.qty);
+        if (!invoiceItem.desc.trim() || !usedQty || usedQty <= 0) continue;
+
+        // Match by product name (case-insensitive)
+        const match = dbProducts.find(
+          (p) =>
+            p.product_name.trim().toLowerCase() ===
+            invoiceItem.desc.trim().toLowerCase()
+        );
+        if (!match) continue;
+
+        const currentStock = parseFloat(match.stock_qty) || 0;
+
+        if (currentStock < usedQty) {
+          alert(
+            `⚠️ Insufficient stock for "${match.product_name}"!\nAvailable: ${currentStock}, Required: ${usedQty}`
+          );
+          setStockReducing(false);
+          return false;
+        }
+
+        const newStock = currentStock - usedQty;
+
+        // PUT updated stock to API
+        const updateRes = await fetch(`${API_URL}?id=${match.id}`, {
+          method: "PUT",
+          headers: getHeaders(),
+          body: JSON.stringify({
+            productName: match.product_name,
+            sku: match.sku,
+            category: match.category,
+            unit: match.unit,
+            sellingPrice: match.selling_price,
+            stockQty: newStock,
+            minStock: match.min_stock,
+            description: match.description,
+          }),
+        });
+
+        if (!updateRes.ok)
+          throw new Error(`Failed to update stock for "${match.product_name}"`);
+
+        anyReduced = true;
+        console.log(
+          `✅ Stock reduced: ${match.product_name} | ${currentStock} → ${newStock}`
+        );
+      }
+
+      if (anyReduced) {
+        setStockReduced(true);
+        // Refresh savedProducts list with new stock values
+        await fetchSavedProducts();
+      }
+      setStockReducing(false);
+      return anyReduced;
+    } catch (err) {
+      console.error("Stock reduction error:", err);
+      alert("❌ Stock update failed: " + err.message);
+      setStockReducing(false);
+      return false;
+    }
+  };
+
+  // ✅ PREVIEW BUTTON HANDLER
+  const handlePreview = async () => {
+    const e = validate();
+    if (Object.keys(e).length) {
+      setErrors(e);
+      return;
+    }
+
+    if (!stockReduced) {
+      const success = await reduceStock();
+      // Continue to preview regardless (stock may not match any product name)
+    }
+
+    // Save invoice record to localStorage for history tracking
+    try {
+      const existing = JSON.parse(localStorage.getItem("bip_invoices") || "[]");
+      const newInvoice = {
+        invoiceNo: form.invoiceNo,
+        date: form.invoiceDate,
+        buyerName: form.buyerName,
+        total: netAmount,
+      };
+      const filtered = existing.filter((i) => i.invoiceNo !== form.invoiceNo);
+      localStorage.setItem(
+        "bip_invoices",
+        JSON.stringify([...filtered, newInvoice])
+      );
     } catch (_) {}
+
     setStep(2);
     window.scrollTo(0, 0);
   };
 
-  const errStyle = (name) => ({ borderColor: errors[name] ? "#dc3545" : undefined });
+  const handleEdit = () => {
+    setStep(1);
+    window.scrollTo(0, 0);
+  };
 
-  // ════════════════════════════════════════════════════════════════════════════
+  const errStyle = (name) => ({
+    borderColor: errors[name] ? "#dc3545" : undefined,
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // STEP 1 — FORM
-  // ════════════════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════════
   if (step === 1) {
     return (
       <>
@@ -316,6 +454,7 @@ export default function TaxInvoice() {
             </div>
             <div className="card-body">
 
+              {/* Copy Type / GST Rate / Payment Mode */}
               <div className="row g-3 mb-3">
                 <div className="col-md-4">
                   <label className="form-label fw-semibold" style={{ fontSize: 12 }}>Copy Type</label>
@@ -335,11 +474,14 @@ export default function TaxInvoice() {
                 <div className="col-md-4">
                   <label className="form-label fw-semibold" style={{ fontSize: 12 }}>Payment Mode</label>
                   <select className="form-select form-select-sm" name="paymentMode" value={form.paymentMode} onChange={handleForm}>
-                    {["Cash", "Credit", "UPI", "Bank Transfer", "Cheque"].map((m) => <option key={m}>{m}</option>)}
+                    {["Cash", "Credit", "UPI", "Bank Transfer", "Cheque"].map((m) => (
+                      <option key={m}>{m}</option>
+                    ))}
                   </select>
                 </div>
               </div>
 
+              {/* Invoice Details */}
               <h6 className="fw-bold border-bottom pb-1 mb-3 text-secondary text-uppercase" style={{ fontSize: 11 }}>Invoice Details</h6>
               <div className="row g-3 mb-4">
                 {[
@@ -357,10 +499,18 @@ export default function TaxInvoice() {
                 ].map(([name, label, placeholder, type]) => (
                   <div className="col-md-4" key={name}>
                     <label className="form-label fw-semibold" style={{ fontSize: 12 }}>{label}</label>
-                    <input type={type || "text"} className="form-control form-control-sm"
-                      name={name} value={form[name]} onChange={handleForm}
-                      placeholder={placeholder || ""} style={errStyle(name)} />
-                    {errors[name] && <div className="text-danger" style={{ fontSize: 11 }}>{errors[name]}</div>}
+                    <input
+                      type={type || "text"}
+                      className="form-control form-control-sm"
+                      name={name}
+                      value={form[name]}
+                      onChange={handleForm}
+                      placeholder={placeholder || ""}
+                      style={errStyle(name)}
+                    />
+                    {errors[name] && (
+                      <div className="text-danger" style={{ fontSize: 11 }}>{errors[name]}</div>
+                    )}
                   </div>
                 ))}
                 <div className="col-md-4">
@@ -374,13 +524,19 @@ export default function TaxInvoice() {
                 {form.ewayRequired === "Yes" && (
                   <div className="col-md-4">
                     <label className="form-label fw-semibold" style={{ fontSize: 12 }}>E-Way Number</label>
-                    <input type="text" className="form-control form-control-sm"
-                      name="ewayNumber" value={form.ewayNumber} onChange={handleForm}
-                      placeholder="Enter E-Way Bill Number" />
+                    <input
+                      type="text"
+                      className="form-control form-control-sm"
+                      name="ewayNumber"
+                      value={form.ewayNumber}
+                      onChange={handleForm}
+                      placeholder="Enter E-Way Bill Number"
+                    />
                   </div>
                 )}
               </div>
 
+              {/* Consignee */}
               <h6 className="fw-bold border-bottom pb-1 mb-3 text-secondary text-uppercase" style={{ fontSize: 11 }}>Consignee (Ship To)</h6>
               <div className="row g-3 mb-4">
                 <div className="col-md-5">
@@ -401,12 +557,15 @@ export default function TaxInvoice() {
                 </div>
               </div>
 
+              {/* Buyer */}
               <h6 className="fw-bold border-bottom pb-1 mb-3 text-secondary text-uppercase" style={{ fontSize: 11 }}>Buyer (Bill To) *</h6>
               <div className="row g-3 mb-4">
                 <div className="col-md-5">
                   <label className="form-label fw-semibold" style={{ fontSize: 12 }}>Name *</label>
                   <input className="form-control form-control-sm" name="buyerName" value={form.buyerName} onChange={handleForm} style={errStyle("buyerName")} />
-                  {errors.buyerName && <div className="text-danger" style={{ fontSize: 11 }}>{errors.buyerName}</div>}
+                  {errors.buyerName && (
+                    <div className="text-danger" style={{ fontSize: 11 }}>{errors.buyerName}</div>
+                  )}
                 </div>
                 <div className="col-md-5">
                   <label className="form-label fw-semibold" style={{ fontSize: 12 }}>Address</label>
@@ -430,15 +589,14 @@ export default function TaxInvoice() {
                 </div>
               </div>
 
-              {/* ── PRODUCTS TABLE ── */}
+              {/* Products Table */}
               <h6 className="fw-bold border-bottom pb-1 mb-3 text-secondary text-uppercase" style={{ fontSize: 11 }}>
                 Products — Enter Rate Inclusive of Tax
               </h6>
 
-              {/* Info banner if products are available */}
               {savedProducts.length > 0 && (
                 <div className="alert alert-info py-2 px-3 mb-2" style={{ fontSize: 12 }}>
-                  💡 <strong>{savedProducts.length} product{savedProducts.length !== 1 ? "s" : ""}</strong> available from your Product Catalog. Select from the <strong>Description</strong> dropdown or type manually.
+                  💡 <strong>{savedProducts.length} product{savedProducts.length !== 1 ? "s" : ""}</strong> available from your Product Catalog. Select from the <strong>Description</strong> dropdown.
                 </div>
               )}
 
@@ -463,18 +621,17 @@ export default function TaxInvoice() {
                       const ri = parseFloat(p.rateIncl) || 0;
                       const re = ri / (1 + gstRate / 100);
                       const ta = re * q;
+
                       return (
                         <tr key={i}>
                           <td className="text-center">{i + 1}</td>
                           <td>
-                            {/* ── Description: dropdown + manual input ── */}
                             {savedProducts.length > 0 ? (
                               <div style={{ display: "flex", gap: 4 }}>
-                                {/* Dropdown for saved products */}
                                 <select
                                   className="form-select form-select-sm"
                                   style={{
-                                    width: 180,
+                                    width: 200,
                                     flexShrink: 0,
                                     borderColor: errors[`desc_${i}`] ? "#dc3545" : undefined,
                                   }}
@@ -492,7 +649,6 @@ export default function TaxInvoice() {
                                     </option>
                                   ))}
                                 </select>
-                                {/* Manual override input */}
                                 <input
                                   className="form-control form-control-sm"
                                   value={p.desc}
@@ -502,7 +658,6 @@ export default function TaxInvoice() {
                                 />
                               </div>
                             ) : (
-                              /* No saved products — plain input */
                               <input
                                 className="form-control form-control-sm"
                                 value={p.desc}
@@ -515,7 +670,6 @@ export default function TaxInvoice() {
                             )}
                           </td>
                           <td>
-                            {/* HSN/SAC — plain input, auto-filled from SKU when product selected */}
                             <input
                               className="form-control form-control-sm"
                               value={p.hsn}
@@ -524,33 +678,59 @@ export default function TaxInvoice() {
                             />
                           </td>
                           <td>
-                            <input type="number" min="0" className="form-control form-control-sm" value={p.qty}
+                            <input
+                              type="number"
+                              min="0"
+                              className="form-control form-control-sm"
+                              value={p.qty}
                               onChange={(e) => handleProduct(i, "qty", e.target.value)}
-                              style={{ borderColor: errors[`qty_${i}`] ? "#dc3545" : undefined }} />
+                              style={{
+                                borderColor: errors[`qty_${i}`] ? "#dc3545" : undefined,
+                              }}
+                            />
                           </td>
                           <td>
-                            {/* Per — base options + any unique units from saved products */}
-                            <select className="form-select form-select-sm" value={p.per}
-                              onChange={(e) => handleProduct(i, "per", e.target.value)}>
+                            <select
+                              className="form-select form-select-sm"
+                              value={p.per}
+                              onChange={(e) => handleProduct(i, "per", e.target.value)}
+                            >
                               {(() => {
-                                const unitMap = { Pcs: "PCS", Kg: "KGS", Meter: "MTR", Roll: "RFT", Box: "SET", Set: "SET", Liter: "LTR" };
+                                const unitMap = {
+                                  Pcs: "PCS", Kg: "KGS", Meter: "MTR",
+                                  Roll: "RFT", Box: "SET", Set: "SET", Liter: "LTR",
+                                };
                                 const base = ["NOS", "KGS", "MTR", "SQM", "RFT", "SET", "PCS", "LTR"];
-                                const fromProducts = savedProducts.map((sp) => unitMap[sp.unit] || sp.unit).filter(Boolean);
+                                const fromProducts = savedProducts
+                                  .map((sp) => unitMap[sp.unit] || sp.unit)
+                                  .filter(Boolean);
                                 const all = [...new Set([...base, ...fromProducts])];
                                 return all.map((u) => <option key={u}>{u}</option>);
                               })()}
                             </select>
                           </td>
                           <td>
-                            <input type="number" min="0" step="0.01" className="form-control form-control-sm" value={p.rateIncl}
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              className="form-control form-control-sm"
+                              value={p.rateIncl}
                               onChange={(e) => handleProduct(i, "rateIncl", e.target.value)}
-                              style={{ borderColor: errors[`rateIncl_${i}`] ? "#dc3545" : undefined }} />
+                              style={{ borderColor: errors[`rateIncl_${i}`] ? "#dc3545" : undefined }}
+                            />
                           </td>
                           <td className="text-end text-muted">{fmt2(re)}</td>
                           <td className="text-end fw-semibold">{fmt2(ta)}</td>
                           <td className="text-center">
-                            <button type="button" className="btn btn-sm btn-outline-danger"
-                              onClick={() => removeProduct(i)} disabled={products.length === 1}>✕</button>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-danger"
+                              onClick={() => removeProduct(i)}
+                              disabled={products.length === 1}
+                            >
+                              ✕
+                            </button>
                           </td>
                         </tr>
                       );
@@ -558,16 +738,22 @@ export default function TaxInvoice() {
                   </tbody>
                 </table>
               </div>
+
               <div className="d-flex justify-content-between align-items-start mb-4">
-                <button type="button" className="btn btn-outline-secondary btn-sm" onClick={addProduct}>+ Add Row</button>
+                <button type="button" className="btn btn-outline-secondary btn-sm" onClick={addProduct}>
+                  + Add Row
+                </button>
                 <div className="text-end" style={{ fontSize: 13 }}>
                   <div>Subtotal (Taxable): <strong>₹ {fmt2(subtotal)}</strong></div>
-                  <div className="text-muted">CGST {cgstRate}%: ₹ {fmt2(cgstAmt)} | SGST {sgstRate}%: ₹ {fmt2(sgstAmt)}</div>
+                  <div className="text-muted">
+                    CGST {cgstRate}%: ₹ {fmt2(cgstAmt)} | SGST {sgstRate}%: ₹ {fmt2(sgstAmt)}
+                  </div>
                   <div className="text-muted">Round Off: ₹ {fmt2(roundOff)}</div>
                   <div className="fs-6 fw-bold">Net Amount: ₹ {fmt2(netAmount)}</div>
                 </div>
               </div>
 
+              {/* Balance Tracking */}
               <h6 className="fw-bold border-bottom pb-1 mb-3 text-secondary text-uppercase" style={{ fontSize: 11 }}>Balance Tracking</h6>
               <div className="row g-3 mb-4">
                 <div className="col-md-3">
@@ -580,6 +766,7 @@ export default function TaxInvoice() {
                 </div>
               </div>
 
+              {/* Bank Details */}
               <h6 className="fw-bold border-bottom pb-1 mb-3 text-secondary text-uppercase" style={{ fontSize: 11 }}>Company Bank Details</h6>
               <div className="row g-3 mb-4">
                 {[
@@ -596,11 +783,21 @@ export default function TaxInvoice() {
                 ))}
               </div>
 
+              {/* Preview Button */}
               <div className="d-grid d-md-flex justify-content-md-end">
-                <button className="btn btn-lg px-5 text-white" style={{ background: "#1a1a2e" }} onClick={handlePreview}>
-                  Preview Invoice →
+                <button
+                  className="btn btn-lg px-5 text-white"
+                  style={{
+                    background: stockReducing ? "#6b7280" : "#1a1a2e",
+                    cursor: stockReducing ? "not-allowed" : "pointer",
+                  }}
+                  onClick={handlePreview}
+                  disabled={stockReducing}
+                >
+                  {stockReducing ? "⏳ Updating Stock…" : "Preview Invoice →"}
                 </button>
               </div>
+
             </div>
           </div>
         </div>
@@ -608,19 +805,45 @@ export default function TaxInvoice() {
     );
   }
 
-  // ════════════════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════════
   // STEP 2 — INVOICE PREVIEW + PRINT
-  // ════════════════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════════
   return (
     <>
       <style>{printStyles}</style>
 
       <div className="no-print py-3 d-flex justify-content-center gap-3">
-        <button className="btn btn-outline-secondary px-4" onClick={() => setStep(1)}>✏️ Edit</button>
-        <button className="btn text-white px-4" style={{ background: "#1a1a2e" }} onClick={() => window.print()}>
+        <button className="btn btn-outline-secondary px-4" onClick={handleEdit}>
+          ✏️ Edit
+        </button>
+        <button
+          className="btn text-white px-4"
+          style={{ background: "#1a1a2e" }}
+          onClick={() => window.print()}
+        >
           🖨️ Confirm &amp; Print
         </button>
       </div>
+
+      {/* Stock reduced confirmation banner */}
+      {stockReduced && (
+        <div
+          className="no-print"
+          style={{
+            maxWidth: 900,
+            margin: "0 auto 10px",
+            background: "#d1fae5",
+            border: "1px solid #6ee7b7",
+            borderRadius: 8,
+            padding: "8px 16px",
+            fontSize: 13,
+            color: "#065f46",
+            textAlign: "center",
+          }}
+        >
+          ✅ Stock successfully updated in the database for invoiced products.
+        </div>
+      )}
 
       <div
         id="bip-invoice-print"
@@ -638,7 +861,7 @@ export default function TaxInvoice() {
           ({form.copyType})
         </div>
 
-        {/* ── HEADER ── */}
+        {/* HEADER */}
         <table style={{ width: "100%", borderCollapse: "collapse", borderBottom: "1px solid #000", pageBreakInside: "avoid", breakInside: "avoid" }}>
           <tbody>
             <tr>
@@ -668,7 +891,7 @@ export default function TaxInvoice() {
           </tbody>
         </table>
 
-        {/* ── CONSIGNEE + INVOICE META ── */}
+        {/* CONSIGNEE + INVOICE META */}
         <table style={{ width: "100%", borderCollapse: "collapse", borderBottom: "1px solid #000" }}>
           <tbody>
             <tr>
@@ -728,7 +951,7 @@ export default function TaxInvoice() {
           </tbody>
         </table>
 
-        {/* ── BUYER + PAYMENT ── */}
+        {/* BUYER + PAYMENT */}
         <table style={{ width: "100%", borderCollapse: "collapse", borderBottom: "1px solid #000" }}>
           <tbody>
             <tr>
@@ -751,12 +974,14 @@ export default function TaxInvoice() {
                       form.motorVehicleNo ? ["Motor Vehicle No.", form.motorVehicleNo] : null,
                       form.ewayNumber ? ["E-Way Bill No.", form.ewayNumber] : null,
                       form.destination ? ["Delivery To", form.destination] : null,
-                    ].filter(Boolean).map(([k, v]) => (
-                      <tr key={k}>
-                        <td style={{ fontWeight: "bold", paddingRight: 4, paddingBottom: 2, width: "45%", fontSize: 11 }}>{k}</td>
-                        <td style={{ paddingBottom: 2 }}>: {v}</td>
-                      </tr>
-                    ))}
+                    ]
+                      .filter(Boolean)
+                      .map(([k, v]) => (
+                        <tr key={k}>
+                          <td style={{ fontWeight: "bold", paddingRight: 4, paddingBottom: 2, width: "45%", fontSize: 11 }}>{k}</td>
+                          <td style={{ paddingBottom: 2 }}>: {v}</td>
+                        </tr>
+                      ))}
                   </tbody>
                 </table>
               </td>
@@ -764,7 +989,7 @@ export default function TaxInvoice() {
           </tbody>
         </table>
 
-        {/* ── PRODUCT TABLE ── */}
+        {/* PRODUCT TABLE */}
         <table style={{ width: "100%", borderCollapse: "collapse", borderBottom: "1px solid #000" }}>
           <thead>
             <tr style={{ background: "#e8e8e8" }}>
@@ -778,7 +1003,13 @@ export default function TaxInvoice() {
                 { label: "per", w: 38, align: "center" },
                 { label: "Amount\n(Taxable Value)", w: 100, align: "right" },
               ].map((c) => (
-                <th key={c.label} style={{ ...headerCell({ background: "#e8e8e8", whiteSpace: "pre-line", textAlign: c.align, fontSize: 11 }), width: c.w }}>
+                <th
+                  key={c.label}
+                  style={{
+                    ...headerCell({ background: "#e8e8e8", whiteSpace: "pre-line", textAlign: c.align, fontSize: 11 }),
+                    width: c.w,
+                  }}
+                >
                   {c.label}
                 </th>
               ))}
@@ -800,7 +1031,9 @@ export default function TaxInvoice() {
             {rows.length < 5 &&
               Array.from({ length: 5 - rows.length }).map((_, i) => (
                 <tr key={`blank_${i}`} style={{ height: 22 }}>
-                  {Array(8).fill(null).map((__, j) => <td key={j} style={cell()}>&nbsp;</td>)}
+                  {Array(8).fill(null).map((__, j) => (
+                    <td key={j} style={cell()}>&nbsp;</td>
+                  ))}
                 </tr>
               ))}
             <tr>
@@ -828,7 +1061,7 @@ export default function TaxInvoice() {
           </tbody>
         </table>
 
-        {/* ── AMOUNT IN WORDS ── */}
+        {/* AMOUNT IN WORDS */}
         <table style={{ width: "100%", borderCollapse: "collapse", borderBottom: "1px solid #000" }}>
           <tbody>
             <tr>
@@ -844,11 +1077,19 @@ export default function TaxInvoice() {
           </tbody>
         </table>
 
-        {/* ── HSN TAX TABLE ── */}
+        {/* HSN TAX TABLE */}
         <table style={{ width: "100%", borderCollapse: "collapse", borderBottom: "1px solid #000" }}>
           <thead>
             <tr style={{ background: "#e8e8e8" }}>
-              {["HSN/SAC", "Taxable\nValue", `CGST\nRate`, "CGST\nAmount", `SGST/UTGST\nRate`, "SGST/UTGST\nAmount", "Total Tax\nAmount"].map((h) => (
+              {[
+                "HSN/SAC",
+                "Taxable\nValue",
+                `CGST\nRate`,
+                "CGST\nAmount",
+                `SGST/UTGST\nRate`,
+                "SGST/UTGST\nAmount",
+                "Total Tax\nAmount",
+              ].map((h) => (
                 <th key={h} style={headerCell({ textAlign: "center", fontSize: 11, whiteSpace: "pre-line", background: "#e8e8e8" })}>
                   {h}
                 </th>
@@ -879,13 +1120,13 @@ export default function TaxInvoice() {
           </tbody>
         </table>
 
-        {/* ── TAX IN WORDS ── */}
+        {/* TAX IN WORDS */}
         <div style={{ padding: "3px 8px", borderBottom: "1px solid #000", fontSize: 12 }}>
           <strong>Tax Amount (in words):</strong>&nbsp;
           <em>{amountInWords(totalTax)}</em>
         </div>
 
-        {/* ── FOOTER ── */}
+        {/* FOOTER */}
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <tbody>
             <tr>
@@ -932,8 +1173,12 @@ export default function TaxInvoice() {
       </div>
 
       <div className="no-print d-flex justify-content-center gap-3 pb-4">
-        <button className="btn btn-outline-secondary px-4" onClick={() => setStep(1)}>✏️ Edit</button>
-        <button className="btn text-white px-4" style={{ background: "#1a1a2e" }} onClick={() => window.print()}>
+        <button className="btn btn-outline-secondary px-4" onClick={handleEdit}>✏️ Edit</button>
+        <button
+          className="btn text-white px-4"
+          style={{ background: "#1a1a2e" }}
+          onClick={() => window.print()}
+        >
           🖨️ Confirm &amp; Print
         </button>
       </div>
