@@ -351,3 +351,6 @@ CREATE TABLE IF NOT EXISTS quotation_items (
   CONSTRAINT fk_quotation_items_quotation
     FOREIGN KEY (quotation_id) REFERENCES quotations(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE employees ADD COLUMN branch_id INT UNSIGNED DEFAULT NULL;
+ALTER TABLE attendance ADD COLUMN branch_id INT UNSIGNED DEFAULT NULL;
