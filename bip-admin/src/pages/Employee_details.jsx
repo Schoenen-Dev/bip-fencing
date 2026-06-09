@@ -32,7 +32,9 @@ const Employee_details = () => {
     date_of_joining: "",
   });
 
-const API_BASE = "http://localhost:8000";
+  const API_BASE = "http://localhost:8000";
+
+>>>>>>>>> Temporary merge branch 2
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -169,10 +171,41 @@ const API_BASE = "http://localhost:8000";
                 />
               </div>
               <div className="form-group">
-                <label>Department <b>*</b></label>
-                <input type="text" name="department" placeholder="Operations"
-                  value={formData.department} onChange={handleChange} required />
+                <label>
+                  Department <b>*</b>
+                </label>
+                <input
+                  type="text"
+                  name="department"
+                  placeholder="Operations"
+                  value={formData.department}
+                  onChange={handleChange}
+                  required
+                />
               </div>
+             <div className="form-group">
+  <label>Phone Number <b>*</b></label>
+  <input
+    type="tel"
+    name="phoneNumber"
+    placeholder="Enter Phone Number"
+    value={formData.phoneNumber}
+    onChange={handleChange}
+    required
+  />
+</div>
+
+<div className="form-group">
+  <label>Address <b>*</b></label>
+  <input
+    type="text"
+    name="address"
+    placeholder="Enter Address"
+    value={formData.address}
+    onChange={handleChange}
+    required
+  />
+</div>
               <div className="form-group">
                 <label>
                   Salary Type <b>*</b>

@@ -333,21 +333,32 @@ CREATE TABLE IF NOT EXISTS quotations (
     FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- -------------------------------------------------------------
--- Table: quotation_items
--- -------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS quotation_items (
-  id            INT UNSIGNED  NOT NULL AUTO_INCREMENT,
-  quotation_id  INT UNSIGNED  NOT NULL,
-  description   TEXT          NOT NULL,
-  hsn           VARCHAR(20)   DEFAULT NULL,
-  due_on        DATE          DEFAULT NULL,
-  unit          VARCHAR(20)   DEFAULT 'Nos',
-  quantity      DECIMAL(12,2) NOT NULL,
-  rate          DECIMAL(12,2) NOT NULL,
-  amount        DECIMAL(12,2) NOT NULL,
-  PRIMARY KEY (id),
-  KEY idx_qi_quotation (quotation_id),
-  CONSTRAINT fk_quotation_items_quotation
-    FOREIGN KEY (quotation_id) REFERENCES quotations(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Quotation items table
+CREATE TABLE IF NOT EXISTS `quotation_items` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `quotation_id` int(10) unsigned NOT NULL,
+  `description` text NOT NULL,
+  `quantity` decimal(12,2) NOT NULL,
+  `rate` decimal(12,2) NOT NULL,
+  `amount` decimal(12,2) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `quotation_id` (`quotation_id`),
+  FOREIGN KEY (`quotation_id`) REFERENCES `quotations` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Add any missing columns to quotations
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS po_no VARCHAR(50) NULL AFTER quote_no;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS dispatched_through VARCHAR(255) NULL;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS vehicle_no VARCHAR(50) NULL;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS other_ref TEXT NULL;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS ship_name VARCHAR(255) NULL;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS ship_address TEXT NULL;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS ship_gst VARCHAR(50) NULL;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS ship_state VARCHAR(100) NULL;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS ship_state_code VARCHAR(10) NULL;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS declaration TEXT NULL;
+
+-- Add missing columns to quotation_items
+ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS hsn VARCHAR(20) NULL AFTER description;
+ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS due_on DATE NULL;
+ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS unit VARCHAR(20) DEFAULT 'Nos' NULL;
