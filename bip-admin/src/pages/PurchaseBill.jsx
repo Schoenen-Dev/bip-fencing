@@ -33,6 +33,11 @@ export default function PurchaseBill() {
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [editingId, setEditingId] = useState(null);
+  
+  // Get user role from localStorage
+  const userRole = localStorage.getItem("role");
+  const isAdmin = userRole === "admin";
 
   // Fetch purchase bills
   const fetchRecords = async () => {
@@ -68,7 +73,46 @@ export default function PurchaseBill() {
 
   const resetForm = () => {
     setForm(emptyForm);
+    setEditingId(null);
     setError("");
+  };
+
+  const handleEdit = (record) => {
+    setForm({
+      company_name: record.company_name,
+      product_name: record.product_name,
+      product_id: record.product_id || "",
+      quantity: record.quantity,
+      rate: record.rate,
+      invoice_no: record.invoice_no,
+      total_amount: record.total_amount,
+    });
+    setEditingId(record.id);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Delete this purchase bill record?")) return;
+    
+    try {
+      const res = await fetch(`${API_BASE}/delete_purchase_bill.php?id=${id}`, {
+        method: "DELETE",
+        headers: getHeaders(),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || "Record deleted successfully");
+        fetchRecords();
+        if (editingId === id) {
+          resetForm();
+        }
+      } else {
+        setError(data.message || "Delete failed");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Server error while deleting");
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -87,14 +131,19 @@ export default function PurchaseBill() {
     }
 
     try {
-      const res = await fetch(`${API_BASE}/add_purchase_bill.php`, {
-        method: "POST",
+      const url = editingId 
+        ? `${API_BASE}/update_purchase_bill.php?id=${editingId}`
+        : `${API_BASE}/add_purchase_bill.php`;
+      const method = editingId ? "PUT" : "POST";
+      
+      const res = await fetch(url, {
+        method: method,
         headers: getHeaders(),
         body: JSON.stringify(form),
       });
       const data = await res.json();
       if (res.ok) {
-        alert(data.message || "Purchase bill saved successfully");
+        alert(data.message || `Purchase bill ${editingId ? "updated" : "saved"} successfully`);
         resetForm();
         fetchRecords();
       } else {
@@ -121,11 +170,26 @@ export default function PurchaseBill() {
         <p>Record and manage purchase bills from suppliers</p>
       </div>
 
-      {/* Add Purchase Bill Form */}
+      {/* Add/Edit Purchase Bill Form */}
       <form onSubmit={handleSubmit} className="card form-card">
         <h3>
-          <i className="bi bi-plus-circle"></i> Add Purchase Bill
+          <i className="bi bi-plus-circle"></i> 
+          {editingId ? "Edit Purchase Bill" : "Add Purchase Bill"}
         </h3>
+
+        {editingId && (
+          <div style={{ 
+            background: "#fef3c7", 
+            border: "1px solid #fbbf24", 
+            borderRadius: "8px", 
+            padding: "10px 16px", 
+            marginBottom: "20px",
+            fontSize: "14px",
+            color: "#92400e"
+          }}>
+            ✏️ Editing Record #{editingId} - Invoice: {form.invoice_no}
+          </div>
+        )}
 
         <div className="form-grid">
           <div className="form-group">
@@ -228,10 +292,12 @@ export default function PurchaseBill() {
 
         <div className="action-row">
           <button type="submit" className="save-btn">
-            <i className="bi bi-check-circle"></i> Save Purchase Bill
+            <i className="bi bi-check-circle"></i> 
+            {editingId ? "Update Purchase Bill" : "Save Purchase Bill"}
           </button>
           <button type="button" className="reset-btn" onClick={resetForm}>
-            <i className="bi bi-arrow-counterclockwise"></i> Reset
+            <i className="bi bi-arrow-counterclockwise"></i> 
+            {editingId ? "Cancel Edit" : "Reset"}
           </button>
         </div>
       </form>
@@ -257,6 +323,7 @@ export default function PurchaseBill() {
                   <th>Quantity</th>
                   <th>Rate (₹)</th>
                   <th>Total (₹)</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -270,11 +337,34 @@ export default function PurchaseBill() {
                       <td>{rec.quantity}</td>
                       <td>{inr(rec.rate)}</td>
                       <td>{inr(rec.total_amount)}</td>
+                      <td className="action-buttons">
+                        {/* ONLY EDIT AND DELETE BUTTONS ARE HIDDEN FOR NON-ADMIN */}
+                        {/* EVERYTHING ELSE WORKS NORMALLY */}
+                        {isAdmin ? (
+                          <>
+                            <button 
+                              className="edit-btn" 
+                              onClick={() => handleEdit(rec)}
+                            >
+                              <i className="bi bi-pencil"></i> Edit
+                            </button>
+                            <button 
+                              className="delete-btn" 
+                              onClick={() => handleDelete(rec.id)}
+                            >
+                              <i className="bi bi-trash"></i> Delete
+                            </button>
+                          </>
+                        ) : (
+                          /* Show dash when not admin - buttons completely hidden */
+                          <span style={{ fontSize: 12, color: "#94a3b8" }}>—</span>
+                        )}
+                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="7" className="empty">
+                    <td colSpan="8" className="empty">
                       No purchase bill records found
                     </td>
                   </tr>
@@ -383,6 +473,9 @@ export default function PurchaseBill() {
           color: #1e293b;
           border: 1px solid #cbd5e1;
         }
+        .reset-btn:hover {
+          background: #e2e8f0;
+        }
         .error-message {
           background: #fef2f2;
           border: 1px solid #fecaca;
@@ -419,6 +512,35 @@ export default function PurchaseBill() {
           text-align: center;
           padding: 28px;
           color: #64748b;
+        }
+        .action-buttons {
+          white-space: nowrap;
+        }
+        .edit-btn, .delete-btn {
+          border: none;
+          border-radius: 6px;
+          padding: 5px 12px;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          margin: 0 4px;
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+        }
+        .edit-btn {
+          background: #f59e0b;
+          color: #fff;
+        }
+        .edit-btn:hover {
+          background: #d97706;
+        }
+        .delete-btn {
+          background: #ef4444;
+          color: #fff;
+        }
+        .delete-btn:hover {
+          background: #dc2626;
         }
         @media (max-width: 1000px) {
           .form-grid {

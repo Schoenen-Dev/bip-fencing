@@ -25,6 +25,11 @@ export default function PurchaseInventory() {
   const [deductQty, setDeductQty] = useState("");
   const [deductNote, setDeductNote] = useState("");
   const [branchSelected, setBranchSelected] = useState(true);
+  const [editingProduct, setEditingProduct] = useState(null);
+  
+  // Get user role from localStorage
+  const userRole = localStorage.getItem("role");
+  const isAdmin = userRole === "admin";
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -96,6 +101,70 @@ export default function PurchaseInventory() {
       fetchProducts();
     } catch (err) {
       setError(err.message);
+    }
+  };
+
+  const handleEdit = (product) => {
+    if (!isAdmin) {
+      setError("❌ Only administrators can edit products");
+      return;
+    }
+    
+    // Open edit modal or form - you can customize this
+    const newName = prompt("Edit Product Name:", product.product_name);
+    if (newName && newName !== product.product_name) {
+      updateProduct(product.product_id, { product_name: newName });
+    }
+  };
+
+  const handleDelete = async (productId, productName) => {
+    if (!isAdmin) {
+      setError("❌ Only administrators can delete products");
+      return;
+    }
+    
+    if (!window.confirm(`Delete product "${productName}"? This will also delete all associated purchase records.`)) return;
+    
+    try {
+      const res = await fetch(`${API_BASE}/delete_inventory_product.php?id=${productId}`, {
+        method: "DELETE",
+        headers: getHeaders(),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || "Product deleted successfully");
+        fetchProducts();
+        if (selectedProduct === productId) {
+          setSelectedProduct("");
+          setDeductQty("");
+          setDeductNote("");
+        }
+      } else {
+        setError(data.error || "Delete failed");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Server error while deleting");
+    }
+  };
+
+  const updateProduct = async (productId, updatedData) => {
+    try {
+      const res = await fetch(`${API_BASE}/update_inventory_product.php?id=${productId}`, {
+        method: "PUT",
+        headers: getHeaders(),
+        body: JSON.stringify(updatedData),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || "Product updated successfully");
+        fetchProducts();
+      } else {
+        setError(data.error || "Update failed");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Server error while updating");
     }
   };
 
@@ -241,12 +310,13 @@ export default function PurchaseInventory() {
                   <th>Total Purchased</th>
                   <th>Current Stock</th>
                   <th>Avg. Rate (₹)</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {products.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="empty">
+                    <td colSpan="6" className="empty">
                       No products found
                     </td>
                   </tr>
@@ -258,6 +328,28 @@ export default function PurchaseInventory() {
                       <td>{parseFloat(p.total_purchased).toLocaleString()}</td>
                       <td>{parseFloat(p.current_stock).toLocaleString()}</td>
                       <td>₹ {parseFloat(p.rate).toFixed(2)}</td>
+                      <td className="action-buttons">
+                        {/* ONLY EDIT AND DELETE BUTTONS ARE HIDDEN FOR NON-ADMIN */}
+                        {isAdmin ? (
+                          <>
+                            <button 
+                              className="edit-btn" 
+                              onClick={() => handleEdit(p)}
+                            >
+                              <i className="bi bi-pencil"></i> Edit
+                            </button>
+                            <button 
+                              className="delete-btn" 
+                              onClick={() => handleDelete(p.product_id, p.product_name)}
+                            >
+                              <i className="bi bi-trash"></i> Delete
+                            </button>
+                          </>
+                        ) : (
+                          /* Show dash when not admin - buttons completely hidden */
+                          <span style={{ fontSize: 12, color: "#94a3b8" }}>—</span>
+                        )}
+                      </td>
                     </tr>
                   ))
                 )}
@@ -289,6 +381,35 @@ export default function PurchaseInventory() {
         .data-table th, .data-table td { padding: 12px 14px; text-align: left; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
         .data-table th { background: #f8fafc; font-weight: 800; }
         .empty { text-align: center; padding: 28px; color: #64748b; }
+        .action-buttons {
+          white-space: nowrap;
+        }
+        .edit-btn, .delete-btn {
+          border: none;
+          border-radius: 6px;
+          padding: 5px 12px;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          margin: 0 4px;
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+        }
+        .edit-btn {
+          background: #f59e0b;
+          color: #fff;
+        }
+        .edit-btn:hover {
+          background: #d97706;
+        }
+        .delete-btn {
+          background: #ef4444;
+          color: #fff;
+        }
+        .delete-btn:hover {
+          background: #dc2626;
+        }
       `}</style>
     </div>
   );
