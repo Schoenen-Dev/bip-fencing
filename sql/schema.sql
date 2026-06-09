@@ -313,3 +313,57 @@ CREATE TABLE invoices (
 
 -- Index for fast branch filtering
 CREATE INDEX idx_invoice_branch ON invoices(branch_id);
+
+-- quotation  --
+
+-- Quotations header table
+CREATE TABLE IF NOT EXISTS `quotations` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `quote_no` varchar(50) NOT NULL,
+  `quote_date` date NOT NULL,
+  `valid_until` date DEFAULT NULL,
+  `client_name` varchar(255) NOT NULL,
+  `client_phone` varchar(50) DEFAULT NULL,
+  `client_email` varchar(100) DEFAULT NULL,
+  `client_gst` varchar(50) DEFAULT NULL,
+  `client_address` text DEFAULT NULL,
+  `discount_percent` decimal(5,2) DEFAULT 0.00,
+  `tax_percent` decimal(5,2) DEFAULT 18.00,
+  `notes` text DEFAULT NULL,
+  `branch_id` int(10) unsigned NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `quote_no` (`quote_no`),
+  KEY `branch_id` (`branch_id`),
+  FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Quotation items table
+CREATE TABLE IF NOT EXISTS `quotation_items` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `quotation_id` int(10) unsigned NOT NULL,
+  `description` text NOT NULL,
+  `quantity` decimal(12,2) NOT NULL,
+  `rate` decimal(12,2) NOT NULL,
+  `amount` decimal(12,2) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `quotation_id` (`quotation_id`),
+  FOREIGN KEY (`quotation_id`) REFERENCES `quotations` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Add any missing columns to quotations
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS po_no VARCHAR(50) NULL AFTER quote_no;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS dispatched_through VARCHAR(255) NULL;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS vehicle_no VARCHAR(50) NULL;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS other_ref TEXT NULL;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS ship_name VARCHAR(255) NULL;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS ship_address TEXT NULL;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS ship_gst VARCHAR(50) NULL;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS ship_state VARCHAR(100) NULL;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS ship_state_code VARCHAR(10) NULL;
+ALTER TABLE quotations ADD COLUMN IF NOT EXISTS declaration TEXT NULL;
+
+-- Add missing columns to quotation_items
+ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS hsn VARCHAR(20) NULL AFTER description;
+ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS due_on DATE NULL;
+ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS unit VARCHAR(20) DEFAULT 'Nos' NULL;
