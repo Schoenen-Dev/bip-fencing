@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 
 const API_URL = "http://localhost:8000/products.php";
 
-// ─── Helper to get headers with admin branch selection ──────────────────────
 const getHeaders = () => {
   const headers = {
     Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -50,6 +49,7 @@ export default function Products() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [addStockQty, setAddStockQty] = useState("");
+  const [stockAlert, setStockAlert] = useState("");
 
   useEffect(() => {
     fetchProducts();
@@ -62,7 +62,35 @@ export default function Products() {
       const res = await fetch(API_URL, { headers: getHeaders() });
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const data = await res.json();
-      setProducts(data.map(mapFromDB));
+      const loaded = data.map(mapFromDB);
+      setProducts(loaded);
+
+      // ── Stock alert check ──────────────────────────────────────────
+      const outItems = loaded.filter((p) => Number(p.stockQty) === 0);
+      const lowItems = loaded.filter(
+        (p) =>
+          Number(p.stockQty) > 0 &&
+          Number(p.minStock) > 0 &&
+          Number(p.stockQty) <= Number(p.minStock)
+      );
+
+      if (outItems.length > 0 || lowItems.length > 0) {
+        const msgs = [];
+        if (outItems.length)
+          msgs.push(
+            `🔴 Out of Stock: ${outItems.map((p) => p.productName).join(", ")}`
+          );
+        if (lowItems.length)
+          msgs.push(
+            `🟡 Low Stock: ${lowItems
+              .map((p) => `${p.productName} (${p.stockQty} left)`)
+              .join(", ")}`
+          );
+        setStockAlert(msgs.join("\n"));
+      } else {
+        setStockAlert("");
+      }
+      // ───────────────────────────────────────────────────────────────
     } catch (err) {
       setError("❌ Could not load products. Is PHP server running?");
     } finally {
@@ -185,6 +213,8 @@ export default function Products() {
         .pf-editing-bar { background: #fff8e1; border: 1px solid #ffe082; border-radius: 8px; padding: 9px 14px; font-size: 13px; color: #92400e; font-weight: 600; display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
         .pf-editing-bar button { margin-left: auto; background: none; border: 1px solid #fbbf24; border-radius: 5px; padding: 2px 10px; font-size: 12px; cursor: pointer; color: #92400e; font-weight: 600; }
         .pf-error { background: #fee2e2; border: 1px solid #fca5a5; color: #991b1b; border-radius: 8px; padding: 10px 16px; font-size: 13px; margin-bottom: 14px; }
+        .pf-stock-alert { background: #fffbeb; border: 1px solid #f59e0b; border-radius: 8px; padding: 10px 16px; font-size: 13px; margin-bottom: 14px; color: #92400e; white-space: pre-line; position: relative; }
+        .pf-stock-alert-close { position: absolute; top: 8px; right: 12px; background: none; border: none; font-size: 17px; cursor: pointer; color: #92400e; line-height: 1; }
         .pf-empty { text-align: center; padding: 36px; color: #9ca3af; font-size: 13.5px; }
         .pf-grid-3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 16px; }
         .pf-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
@@ -192,25 +222,33 @@ export default function Products() {
         @media (max-width: 480px) { .pf-grid-3, .pf-grid-4 { grid-template-columns: 1fr; } }
       `}</style>
 
-      <h2
-        style={{
-          fontSize: 24,
-          fontWeight: 700,
-          color: "#111827",
-          marginBottom: 20,
-        }}
-      >
+      <h2 style={{ fontSize: 24, fontWeight: 700, color: "#111827", marginBottom: 20 }}>
         🗂️ Products
       </h2>
+
+      {/* ── Stock Alert Banner ───────────────────────────────────── */}
+      {stockAlert && (
+        <div className="pf-stock-alert">
+          <strong>⚠️ Stock Alert</strong>
+          <br />
+          {stockAlert}
+          <button
+            className="pf-stock-alert-close"
+            onClick={() => setStockAlert("")}
+            title="Dismiss"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+      {/* ─────────────────────────────────────────────────────────── */}
 
       {error && <div className="pf-error">{error}</div>}
 
       {editingId !== null && (
         <div className="pf-editing-bar">
           ✏️ Editing:{" "}
-          <strong>
-            {products.find((p) => p.id === editingId)?.productName}
-          </strong>
+          <strong>{products.find((p) => p.id === editingId)?.productName}</strong>
           <button onClick={cancelEdit}>Cancel</button>
         </div>
       )}
@@ -262,11 +300,9 @@ export default function Products() {
                 value={form.unit}
                 onChange={handleChange}
               >
-                {["Pcs", "Kg", "Meter", "Roll", "Box", "Set", "Liter"].map(
-                  (u) => (
-                    <option key={u}>{u}</option>
-                  ),
-                )}
+                {["Pcs", "Kg", "Meter", "Roll", "Box", "Set", "Liter"].map((u) => (
+                  <option key={u}>{u}</option>
+                ))}
               </select>
             </div>
             <div className="pf-field">
@@ -333,10 +369,10 @@ export default function Products() {
                             cursor: "default",
                           }
                         : isOut
-                          ? { borderColor: "#ef4444", background: "#fff5f5" }
-                          : isLow
-                            ? { borderColor: "#f59e0b", background: "#fffdf0" }
-                            : {}
+                        ? { borderColor: "#ef4444", background: "#fff5f5" }
+                        : isLow
+                        ? { borderColor: "#f59e0b", background: "#fffdf0" }
+                        : {}
                     }
                   />
                 );
@@ -453,13 +489,11 @@ export default function Products() {
                     qty === 0
                       ? "row-alert-out"
                       : qty <= min && min > 0
-                        ? "row-alert-low"
-                        : "";
+                      ? "row-alert-low"
+                      : "";
                   return (
                     <tr key={p.id} className={rowClass}>
-                      <td style={{ color: "#6b7280", fontWeight: 600 }}>
-                        {i + 1}
-                      </td>
+                      <td style={{ color: "#6b7280", fontWeight: 600 }}>{i + 1}</td>
                       <td>
                         <div style={{ fontWeight: 600 }}>{p.productName}</div>
                         {p.description && (
@@ -479,10 +513,7 @@ export default function Products() {
                       </td>
                       <td>{stockBadge(p.stockQty, p.minStock)}</td>
                       <td>
-                        <button
-                          className="pf-btn-edit"
-                          onClick={() => handleEdit(p)}
-                        >
+                        <button className="pf-btn-edit" onClick={() => handleEdit(p)}>
                           Edit
                         </button>
                         <button

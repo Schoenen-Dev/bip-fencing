@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useAuth } from "../context/AuthContext";
 
 // ─── Helper to get headers with admin branch selection ──────────────────────
 const getHeaders = () => {
@@ -17,6 +18,7 @@ const getHeaders = () => {
 };
 
 const Employee_details = () => {
+  const { logout } = useAuth();
   const [activeTab, setActiveTab] = useState("add");
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -28,6 +30,8 @@ const Employee_details = () => {
     department: "",
     salary_type: "",
     date_of_joining: "",
+    phone_number: "",
+    address: "",
   });
 
   const API_BASE = "http://localhost:8000";
@@ -52,9 +56,17 @@ const Employee_details = () => {
           department: "",
           salary_type: "",
           date_of_joining: "",
+          phone_number: "",
+          address: "",
         });
       } else {
-        alert("Failed to save employee details");
+        const errData = await response.json().catch(() => ({}));
+        if (response.status === 401) {
+          alert("Session expired. Please log in again.");
+          logout();
+        } else {
+          alert(errData.error || "Failed to save employee details");
+        }
       }
     } catch (error) {
       console.error(error);
@@ -69,6 +81,15 @@ const Employee_details = () => {
       const response = await fetch(`${API_BASE}/get_employees.php`, {
         headers: getHeaders(),
       });
+      if (!response.ok) {
+        if (response.status === 401) {
+          alert("Session expired. Please log in again.");
+          logout();
+          return;
+        }
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to fetch employee details.");
+      }
       const data = await response.json();
       const list = Array.isArray(data)
         ? data
@@ -78,7 +99,7 @@ const Employee_details = () => {
     } catch (err) {
       console.error(err);
       setError(
-        "Failed to fetch employee details. Check if get_employees.php exists.",
+        err.message || "Failed to fetch employee details. Check if get_employees.php exists.",
       );
       setActiveTab("records");
     } finally {
@@ -191,6 +212,26 @@ const Employee_details = () => {
                   required
                 />
               </div>
+              <div className="form-group">
+                <label>Phone Number</label>
+                <input
+                  type="text"
+                  name="phone_number"
+                  placeholder="Phone number"
+                  value={formData.phone_number}
+                  onChange={handleChange}
+                />
+              </div>
+              <div className="form-group span-3">
+                <label>Address</label>
+                <input
+                  type="text"
+                  name="address"
+                  placeholder="Address"
+                  value={formData.address}
+                  onChange={handleChange}
+                />
+              </div>
             </div>
           </div>
           <div className="action-row">
@@ -239,6 +280,8 @@ const Employee_details = () => {
                     <th>Department</th>
                     <th>Salary Type</th>
                     <th>Date of Joining</th>
+                    <th>Phone Number</th>
+                    <th>Address</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -250,11 +293,13 @@ const Employee_details = () => {
                         <td>{employee.department || "—"}</td>
                         <td>{employee.salary_type || "—"}</td>
                         <td>{employee.date_of_joining || "—"}</td>
+                        <td>{employee.phone_number || "—"}</td>
+                        <td>{employee.address || "—"}</td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="5" className="empty">
+                      <td colSpan="7" className="empty">
                         No employee records found
                       </td>
                     </tr>
@@ -282,6 +327,7 @@ const Employee_details = () => {
         .card h3 i { color: #008b3e; }
         .form-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 24px 20px; }
         .form-group { display: flex; flex-direction: column; gap: 10px; }
+        .span-3 { grid-column: span 3; }
         .form-group label { font-size: 16px; font-weight: 800; color: #0f172a; }
         .form-group label b { color: #ef233c; }
         .form-group input, .form-group select { height: 50px; border: 1px solid #cbd5e1; border-radius: 9px; padding: 0 17px; font-size: 18px; color: #334155; background: #ffffff; outline: none; }
