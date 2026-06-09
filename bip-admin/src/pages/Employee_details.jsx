@@ -34,7 +34,7 @@ const Employee_details = () => {
 
   const API_BASE = "http://localhost:8000";
 
->>>>>>>>> Temporary merge branch 2
+
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
