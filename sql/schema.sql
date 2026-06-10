@@ -313,3 +313,42 @@ ALTER TABLE quotations ADD COLUMN IF NOT EXISTS declaration TEXT NULL;
 ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS hsn VARCHAR(20) NULL AFTER description;
 ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS due_on DATE NULL;
 ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS unit VARCHAR(20) DEFAULT 'Nos' NULL;
+
+
+CREATE TABLE invoices (
+    id            INT AUTO_INCREMENT PRIMARY KEY,
+
+    -- Invoice Details
+    invoice_no    VARCHAR(50),
+    invoice_date  DATE,
+    buyer_name    VARCHAR(100),
+    buyer_address TEXT,
+    buyer_phone   VARCHAR(20),
+    buyer_gst     VARCHAR(30),
+
+    -- Item Details
+    description   TEXT,
+    hsn           VARCHAR(20),
+    qty           DECIMAL(10,2),
+    rate          DECIMAL(10,2),
+    amount        DECIMAL(12,2),
+
+    -- Invoice Totals
+    subtotal      DECIMAL(12,2),
+    cgst          DECIMAL(12,2),
+    sgst          DECIMAL(12,2),
+    total_tax     DECIMAL(12,2),
+    net_amount    DECIMAL(12,2),
+
+    -- Branch
+    branch_id     INT UNSIGNED NULL DEFAULT NULL,
+
+    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_invoice_branch
+        FOREIGN KEY (branch_id) REFERENCES branches(id)
+        ON DELETE SET NULL ON UPDATE CASCADE
+);
+
+-- Index for fast branch filtering
+CREATE INDEX idx_invoice_branch ON invoices(branch_id);
