@@ -415,26 +415,67 @@ export default function TaxInvoice() {
       await reduceStock();
     }
 
-    // ── Save invoice to database ──────────────────────────────
+    // ── Save invoice to database (full data) ─────────────────
     try {
-      const firstItem = products[0] || {};
       const payload = {
-        invoice_no:    form.invoiceNo,
-        invoice_date:  form.invoiceDate,
-        buyer_name:    form.buyerName,
-        buyer_address: form.buyerAddress,
-        buyer_phone:   form.buyerPhone,
-        buyer_gst:     form.buyerGst,
-        description:   firstItem.desc  || "",
-        hsn:           firstItem.hsn   || "",
-        qty:           parseFloat(firstItem.qty)      || 0,
-        rate:          parseFloat(firstItem.rateIncl) || 0,
-        amount:        parseFloat(firstItem.qty) * parseFloat(firstItem.rateIncl) || 0,
-        subtotal:      subtotal,
-        cgst:          cgstAmt,
-        sgst:          sgstAmt,
-        total_tax:     cgstAmt + sgstAmt,
-        net_amount:    netAmount,
+        // Meta
+        copy_type:            form.copyType,
+        payment_mode:         form.paymentMode,
+        gst_rate:             gstRate,
+        // Invoice details
+        invoice_no:           form.invoiceNo,
+        invoice_date:         form.invoiceDate,
+        reference_no:         form.referenceNo,
+        buyers_order_no:      form.buyersOrderNo,
+        dated:                form.dated,
+        dispatch_doc_no:      form.dispatchDocNo,
+        delivery_note_date:   form.deliveryNoteDate,
+        dispatched_through:   form.dispatchedThrough,
+        destination:          form.destination,
+        bill_of_lading:       form.billOfLading,
+        motor_vehicle_no:     form.motorVehicleNo,
+        eway_required:        form.ewayRequired,
+        eway_number:          form.ewayNumber,
+        // Consignee
+        consignee_name:       form.consigneeName,
+        consignee_address:    form.consigneeAddress,
+        consignee_state:      form.consigneeState,
+        consignee_state_code: form.consigneeStateCode,
+        // Buyer
+        buyer_name:           form.buyerName,
+        buyer_address:        form.buyerAddress,
+        buyer_phone:          form.buyerPhone,
+        buyer_gst:            form.buyerGst,
+        buyer_state:          form.buyerState,
+        buyer_state_code:     form.buyerStateCode,
+        // Totals
+        subtotal:             subtotal,
+        cgst_rate:            cgstRate,
+        cgst_amount:          cgstAmt,
+        sgst_rate:            sgstRate,
+        sgst_amount:          sgstAmt,
+        total_tax:            totalTax,
+        round_off:            roundOff,
+        net_amount:           netAmount,
+        // Balance
+        open_balance:         parseFloat(form.openBalance)   || 0,
+        closing_balance:      parseFloat(form.closingBalance) || 0,
+        // Bank
+        bank_holder_name:     form.bankHolderName,
+        bank_name:            form.bankName,
+        bank_account_no:      form.bankAccountNo,
+        bank_ifsc:            form.bankIfsc,
+        bank_branch:          form.bankBranch,
+        // Line items (all rows)
+        items: rows.map((r) => ({
+          desc:       r.desc,
+          hsn:        r.hsn,
+          qty:        r.qty,
+          per:        r.per,
+          rateIncl:   r.rateIncl,
+          rateExcl:   r.rateExcl,
+          taxableAmt: r.taxableAmt,
+        })),
       };
 
       const res = await fetch("http://localhost:8000/save_invoice.php", {
@@ -1213,4 +1254,4 @@ export default function TaxInvoice() {
       </div>
     </>
   );
-} 
+}

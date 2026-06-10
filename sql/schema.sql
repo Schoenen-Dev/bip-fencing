@@ -269,36 +269,6 @@ CREATE TABLE IF NOT EXISTS stock_deductions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- -------------------------------------------------------------
--- Table: invoices
--- -------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS invoices (
-  id            INT UNSIGNED  NOT NULL AUTO_INCREMENT,
-  invoice_no    VARCHAR(50)   DEFAULT NULL,
-  invoice_date  DATE          DEFAULT NULL,
-  buyer_name    VARCHAR(100)  DEFAULT NULL,
-  buyer_address TEXT          DEFAULT NULL,
-  buyer_phone   VARCHAR(20)   DEFAULT NULL,
-  buyer_gst     VARCHAR(30)   DEFAULT NULL,
-  description   TEXT          DEFAULT NULL,
-  hsn           VARCHAR(20)   DEFAULT NULL,
-  qty           DECIMAL(10,2) DEFAULT NULL,
-  rate          DECIMAL(10,2) DEFAULT NULL,
-  amount        DECIMAL(12,2) DEFAULT NULL,
-  subtotal      DECIMAL(12,2) DEFAULT NULL,
-  cgst          DECIMAL(12,2) DEFAULT NULL,
-  sgst          DECIMAL(12,2) DEFAULT NULL,
-  total_tax     DECIMAL(12,2) DEFAULT NULL,
-  net_amount    DECIMAL(12,2) DEFAULT NULL,
-  branch_id     INT UNSIGNED  NULL DEFAULT NULL,
-  created_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  KEY idx_invoice_branch (branch_id),
-  CONSTRAINT fk_invoice_branch
-    FOREIGN KEY (branch_id) REFERENCES branches(id)
-    ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- -------------------------------------------------------------
 -- Table: quotations
 -- -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS quotations (
@@ -351,6 +321,101 @@ CREATE TABLE IF NOT EXISTS quotation_items (
   CONSTRAINT fk_quotation_items_quotation
     FOREIGN KEY (quotation_id) REFERENCES quotations(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- Drop old single-table invoices
+DROP TABLE IF EXISTS invoice_items;
+DROP TABLE IF EXISTS invoices;
+
+-- ── invoices (header) ────────────────────────────────────────
+CREATE TABLE invoices (
+  id                    INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+
+  -- Copy / meta
+  copy_type             VARCHAR(50)   DEFAULT NULL,
+  payment_mode          VARCHAR(30)   DEFAULT NULL,
+  gst_rate              DECIMAL(5,2)  NOT NULL DEFAULT 18.00,
+
+  -- Invoice identifiers
+  invoice_no            VARCHAR(50)   NOT NULL,
+  invoice_date          DATE          NOT NULL,
+  reference_no          VARCHAR(100)  DEFAULT NULL,
+  buyers_order_no       VARCHAR(100)  DEFAULT NULL,
+  dated                 DATE          DEFAULT NULL,
+  dispatch_doc_no       VARCHAR(100)  DEFAULT NULL,
+  delivery_note_date    DATE          DEFAULT NULL,
+  dispatched_through    VARCHAR(150)  DEFAULT NULL,
+  destination           VARCHAR(150)  DEFAULT NULL,
+  bill_of_lading        VARCHAR(150)  DEFAULT NULL,
+  motor_vehicle_no      VARCHAR(50)   DEFAULT NULL,
+  eway_required         VARCHAR(5)    DEFAULT NULL,
+  eway_number           VARCHAR(50)   DEFAULT NULL,
+
+  -- Consignee
+  consignee_name        VARCHAR(150)  DEFAULT NULL,
+  consignee_address     TEXT          DEFAULT NULL,
+  consignee_state       VARCHAR(100)  DEFAULT NULL,
+  consignee_state_code  VARCHAR(10)   DEFAULT NULL,
+
+  -- Buyer
+  buyer_name            VARCHAR(150)  NOT NULL,
+  buyer_address         TEXT          DEFAULT NULL,
+  buyer_phone           VARCHAR(20)   DEFAULT NULL,
+  buyer_gst             VARCHAR(30)   DEFAULT NULL,
+  buyer_state           VARCHAR(100)  DEFAULT NULL,
+  buyer_state_code      VARCHAR(10)   DEFAULT NULL,
+
+  -- Totals
+  subtotal              DECIMAL(12,2) DEFAULT 0,
+  cgst_rate             DECIMAL(5,2)  DEFAULT 0,
+  cgst_amount           DECIMAL(12,2) DEFAULT 0,
+  sgst_rate             DECIMAL(5,2)  DEFAULT 0,
+  sgst_amount           DECIMAL(12,2) DEFAULT 0,
+  total_tax             DECIMAL(12,2) DEFAULT 0,
+  round_off             DECIMAL(8,2)  DEFAULT 0,
+  net_amount            DECIMAL(12,2) DEFAULT 0,
+
+  -- Balance
+  open_balance          DECIMAL(12,2) DEFAULT 0,
+  closing_balance       DECIMAL(12,2) DEFAULT 0,
+
+  -- Bank
+  bank_holder_name      VARCHAR(150)  DEFAULT NULL,
+  bank_name             VARCHAR(150)  DEFAULT NULL,
+  bank_account_no       VARCHAR(50)   DEFAULT NULL,
+  bank_ifsc             VARCHAR(20)   DEFAULT NULL,
+  bank_branch           VARCHAR(100)  DEFAULT NULL,
+
+  -- Branch
+  branch_id             INT UNSIGNED  NULL DEFAULT NULL,
+  created_at            TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_invoice_no (invoice_no),
+  KEY idx_invoice_branch (branch_id),
+  CONSTRAINT fk_invoice_branch
+    FOREIGN KEY (branch_id) REFERENCES branches(id)
+    ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ── invoice_items (line items) ───────────────────────────────
+CREATE TABLE invoice_items (
+  id           INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  invoice_id   INT UNSIGNED  NOT NULL,
+  description  TEXT          NOT NULL,
+  hsn          VARCHAR(20)   DEFAULT NULL,
+  qty          DECIMAL(10,2) NOT NULL DEFAULT 0,
+  per          VARCHAR(20)   DEFAULT 'NOS',
+  rate_incl    DECIMAL(12,2) NOT NULL DEFAULT 0,
+  rate_excl    DECIMAL(12,2) NOT NULL DEFAULT 0,
+  taxable_amt  DECIMAL(12,2) NOT NULL DEFAULT 0,
+  PRIMARY KEY (id),
+  KEY idx_ii_invoice (invoice_id),
+  CONSTRAINT fk_invoice_items_invoice
+    FOREIGN KEY (invoice_id) REFERENCES invoices(id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 ALTER TABLE employees ADD COLUMN branch_id INT UNSIGNED DEFAULT NULL;
 ALTER TABLE attendance ADD COLUMN branch_id INT UNSIGNED DEFAULT NULL;
