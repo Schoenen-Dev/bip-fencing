@@ -407,11 +407,44 @@ export default function TaxInvoice() {
     }
 
     if (!stockReduced) {
-      const success = await reduceStock();
-      // Continue to preview regardless (stock may not match any product name)
+      await reduceStock();
     }
 
-    // Save invoice record to localStorage for history tracking
+    // ── Save invoice to database ──────────────────────────────
+    try {
+      const firstItem = products[0] || {};
+      const payload = {
+        invoice_no:    form.invoiceNo,
+        invoice_date:  form.invoiceDate,
+        buyer_name:    form.buyerName,
+        buyer_address: form.buyerAddress,
+        buyer_phone:   form.buyerPhone,
+        buyer_gst:     form.buyerGst,
+        description:   firstItem.desc  || "",
+        hsn:           firstItem.hsn   || "",
+        qty:           parseFloat(firstItem.qty)      || 0,
+        rate:          parseFloat(firstItem.rateIncl) || 0,
+        amount:        parseFloat(firstItem.qty) * parseFloat(firstItem.rateIncl) || 0,
+        subtotal:      subtotal,
+        cgst:          cgstAmt,
+        sgst:          sgstAmt,
+        total_tax:     cgstAmt + sgstAmt,
+        net_amount:    netAmount,
+      };
+
+      const res = await fetch("http://localhost:8000/save_invoice.php", {
+        method: "POST",
+        headers: { ...getHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const result = await res.json();
+      if (!result.success) console.error("Invoice save failed:", result.message);
+    } catch (err) {
+      console.error("Invoice save error:", err);
+    }
+    // ─────────────────────────────────────────────────────────
+
+    // Save to localStorage for history tracking
     try {
       const existing = JSON.parse(localStorage.getItem("bip_invoices") || "[]");
       const newInvoice = {
