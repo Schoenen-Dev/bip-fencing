@@ -419,3 +419,44 @@ CREATE TABLE invoice_items (
 
 ALTER TABLE employees ADD COLUMN branch_id INT UNSIGNED DEFAULT NULL;
 ALTER TABLE attendance ADD COLUMN branch_id INT UNSIGNED DEFAULT NULL;
+
+
+
+-- ── clients table ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS clients (
+  id         INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  name       VARCHAR(150)  NOT NULL,
+  phone      VARCHAR(20)   NOT NULL,
+  address    TEXT          DEFAULT NULL,
+  gst        VARCHAR(30)   DEFAULT NULL,
+  branch_id  INT UNSIGNED  DEFAULT NULL,
+  created_at TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_client_phone_branch (phone, branch_id),
+  KEY idx_client_branch (branch_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ── client_payments table ─────────────────────────────────────
+CREATE TABLE IF NOT EXISTS client_payments (
+  id           INT UNSIGNED  NOT NULL AUTO_INCREMENT,
+  client_id    INT UNSIGNED  NOT NULL,
+  amount       DECIMAL(12,2) NOT NULL,
+  note         VARCHAR(255)  DEFAULT NULL,
+  payment_date DATE          NOT NULL,
+  branch_id    INT UNSIGNED  DEFAULT NULL,
+  created_at   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_cp_client (client_id),
+  KEY idx_cp_branch (branch_id),
+  CONSTRAINT fk_cp_client
+    FOREIGN KEY (client_id) REFERENCES clients(id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ── Add client_id to invoices ─────────────────────────────────
+ALTER TABLE invoices
+  ADD COLUMN client_id INT UNSIGNED DEFAULT NULL AFTER branch_id,
+  ADD KEY idx_invoice_client (client_id),
+  ADD CONSTRAINT fk_invoice_client
+    FOREIGN KEY (client_id) REFERENCES clients(id)
+    ON DELETE SET NULL;

@@ -1,9 +1,7 @@
 <?php
 // ============================================================
 //  save_invoice.php  –  Insert or Update invoice + line items
-//  POST with invoice_no:
-//    - If invoice_no exists → UPDATE header + replace items
-//    - If new              → INSERT header + insert items
+//  Also auto-creates or links a client record by phone number
 // ============================================================
 
 require_once __DIR__ . '/auth_middleware.php';
@@ -83,7 +81,34 @@ $bank_account_no      = $s('bank_account_no');
 $bank_ifsc            = $s('bank_ifsc');
 $bank_branch          = $s('bank_branch');
 
-// ── Check if invoice_no already exists ───────────────────────
+// ── Step 1: Auto-create or find client by phone ───────────────
+$client_id = null;
+if ($buyer_phone) {
+    // Check if client with this phone exists in this branch
+    $cChk = $conn->prepare("SELECT id FROM clients WHERE phone = ? AND branch_id = ?");
+    $cChk->bind_param('si', $buyer_phone, $branch_id);
+    $cChk->execute();
+    $existingClient = $cChk->get_result()->fetch_assoc();
+    $cChk->close();
+
+    if ($existingClient) {
+        // Client exists — update name/address in case they changed
+        $client_id = $existingClient['id'];
+        $cUpd = $conn->prepare("UPDATE clients SET name=?, address=?, gst=? WHERE id=?");
+        $cUpd->bind_param('sssi', $buyer_name, $buyer_address, $buyer_gst, $client_id);
+        $cUpd->execute();
+        $cUpd->close();
+    } else {
+        // New client — insert
+        $cIns = $conn->prepare("INSERT INTO clients (name, phone, address, gst, branch_id) VALUES (?,?,?,?,?)");
+        $cIns->bind_param('ssssi', $buyer_name, $buyer_phone, $buyer_address, $buyer_gst, $branch_id);
+        $cIns->execute();
+        $client_id = $conn->insert_id;
+        $cIns->close();
+    }
+}
+
+// ── Step 2: Check if invoice_no already exists ────────────────
 $chk = $conn->prepare("SELECT id FROM invoices WHERE invoice_no = ?");
 $chk->bind_param('s', $invoice_no);
 $chk->execute();
@@ -91,7 +116,7 @@ $existing = $chk->get_result()->fetch_assoc();
 $chk->close();
 
 if ($existing) {
-    // ── UPDATE existing invoice header ────────────────────────
+    // ── UPDATE existing invoice ───────────────────────────────
     $invoice_id = $existing['id'];
 
     $stmt = $conn->prepare("
@@ -105,7 +130,8 @@ if ($existing) {
             subtotal=?, cgst_rate=?, cgst_amount=?, sgst_rate=?, sgst_amount=?,
             total_tax=?, round_off=?, net_amount=?,
             open_balance=?, closing_balance=?,
-            bank_holder_name=?, bank_name=?, bank_account_no=?, bank_ifsc=?, bank_branch=?
+            bank_holder_name=?, bank_name=?, bank_account_no=?, bank_ifsc=?, bank_branch=?,
+            client_id=?
         WHERE id=?
     ");
 
@@ -116,7 +142,7 @@ if ($existing) {
     }
 
     $stmt->bind_param(
-        'ssdssssssssssssssssssssssddddddddddsssssi',
+        'ssdsssssssssssssssssssssssddddddddddsssssi',
         $copy_type, $payment_mode, $gst_rate,
         $invoice_date, $reference_no, $buyers_order_no, $dated,
         $dispatch_doc_no, $delivery_note_date, $dispatched_through, $destination,
@@ -127,7 +153,7 @@ if ($existing) {
         $total_tax, $round_off, $net_amount,
         $open_balance, $closing_balance,
         $bank_holder_name, $bank_name, $bank_account_no, $bank_ifsc, $bank_branch,
-        $invoice_id
+        $client_id, $invoice_id
     );
 
     if (!$stmt->execute()) {
@@ -137,13 +163,11 @@ if ($existing) {
     }
     $stmt->close();
 
-    // Delete old items before inserting updated ones
     $conn->query("DELETE FROM invoice_items WHERE invoice_id = $invoice_id");
-
     $action = 'updated';
 
 } else {
-    // ── INSERT new invoice header ─────────────────────────────
+    // ── INSERT new invoice ────────────────────────────────────
     $stmt = $conn->prepare("
         INSERT INTO invoices (
             copy_type, payment_mode, gst_rate,
@@ -156,7 +180,7 @@ if ($existing) {
             total_tax, round_off, net_amount,
             open_balance, closing_balance,
             bank_holder_name, bank_name, bank_account_no, bank_ifsc, bank_branch,
-            branch_id
+            branch_id, client_id
         ) VALUES (
             ?,?,?,
             ?,?,?,?,?,
@@ -168,7 +192,7 @@ if ($existing) {
             ?,?,?,
             ?,?,
             ?,?,?,?,?,
-            ?
+            ?,?
         )
     ");
 
@@ -179,7 +203,7 @@ if ($existing) {
     }
 
     $stmt->bind_param(
-        'ssdsssssssssssssssssssssssddddddddddsssssi',
+        'ssdsssssssssssssssssssssssddddddddddsssssii',
         $copy_type, $payment_mode, $gst_rate,
         $invoice_no, $invoice_date, $reference_no, $buyers_order_no, $dated,
         $dispatch_doc_no, $delivery_note_date, $dispatched_through, $destination,
@@ -190,7 +214,7 @@ if ($existing) {
         $total_tax, $round_off, $net_amount,
         $open_balance, $closing_balance,
         $bank_holder_name, $bank_name, $bank_account_no, $bank_ifsc, $bank_branch,
-        $branch_id
+        $branch_id, $client_id
     );
 
     if (!$stmt->execute()) {
@@ -201,23 +225,22 @@ if ($existing) {
 
     $invoice_id = $conn->insert_id;
     $stmt->close();
-
     $action = 'created';
 }
 
-// ── INSERT line items ─────────────────────────────────────────
+// ── Step 3: Insert line items ─────────────────────────────────
 $iStmt = $conn->prepare("
     INSERT INTO invoice_items (invoice_id, description, hsn, qty, per, rate_incl, rate_excl, taxable_amt)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 ");
 
 foreach ($data['items'] as $item) {
-    $desc      = trim($item['desc']         ?? '');
-    $hsn       = trim($item['hsn']          ?? '');
-    $qty       = floatval($item['qty']       ?? 0);
-    $per       = trim($item['per']           ?? 'NOS');
-    $rate_incl = floatval($item['rateIncl']  ?? 0);
-    $rate_excl = floatval($item['rateExcl']  ?? 0);
+    $desc      = trim($item['desc']          ?? '');
+    $hsn       = trim($item['hsn']           ?? '');
+    $qty       = floatval($item['qty']        ?? 0);
+    $per       = trim($item['per']            ?? 'NOS');
+    $rate_incl = floatval($item['rateIncl']   ?? 0);
+    $rate_excl = floatval($item['rateExcl']   ?? 0);
     $taxable   = floatval($item['taxableAmt'] ?? ($rate_excl * $qty));
 
     if (!$desc || $qty <= 0) continue;
@@ -232,6 +255,7 @@ echo json_encode([
     'success'   => true,
     'message'   => "Invoice $action successfully",
     'id'        => $invoice_id,
+    'client_id' => $client_id,
     'action'    => $action,
 ]);
 
