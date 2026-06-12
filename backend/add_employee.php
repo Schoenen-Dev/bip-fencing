@@ -24,6 +24,8 @@ $empId   = trim($body['emp_id']);
 $dept    = trim($body['department']);
 $salType = trim($body['salary_type']);
 $doj     = trim($body['date_of_joining']);
+$phone   = isset($body['phone_number']) && trim((string)$body['phone_number']) !== '' ? trim((string)$body['phone_number']) : null;
+$address = isset($body['address']) && trim((string)$body['address']) !== '' ? trim((string)$body['address']) : null;
 
 if (!in_array($salType, ['monthly','weekly','daily'], true)) {
     http_response_code(422); echo json_encode(['error' => 'Invalid salary_type']); exit;
@@ -36,9 +38,9 @@ $branchId = $authUser['role'] === 'admin'
 
 $db   = getDB();
 $stmt = $db->prepare(
-    'INSERT INTO employees (employee_name, emp_id, department, salary_type, date_of_joining, branch_id) VALUES (?,?,?,?,?,?)'
+    'INSERT INTO employees (employee_name, emp_id, department, salary_type, date_of_joining, branch_id, phone_number, address) VALUES (?,?,?,?,?,?,?,?)'
 );
-$stmt->bind_param('sssssi', $name, $empId, $dept, $salType, $doj, $branchId);
+$stmt->bind_param('sssssiss', $name, $empId, $dept, $salType, $doj, $branchId, $phone, $address);
 
 if ($stmt->execute()) {
     http_response_code(201);

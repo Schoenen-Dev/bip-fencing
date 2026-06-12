@@ -9,11 +9,26 @@
 require_once __DIR__ . '/cors.php';
 
 // ── Read Bearer token from Authorization header ───────────────
-$authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+$authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+if (!$authHeader && function_exists('getallheaders')) {
+    $headers = getallheaders();
+    foreach ($headers as $key => $val) {
+        if (strcasecmp($key, 'Authorization') === 0) {
+            $authHeader = $val;
+            break;
+        }
+    }
+}
 if (!$authHeader && function_exists('apache_request_headers')) {
     $headers    = apache_request_headers();
-    $authHeader = $headers['Authorization'] ?? '';
+    foreach ($headers as $key => $val) {
+        if (strcasecmp($key, 'Authorization') === 0) {
+            $authHeader = $val;
+            break;
+        }
+    }
 }
+
 $token = '';
 if (preg_match('/Bearer\s+(.+)/i', $authHeader, $m)) {
     $token = trim($m[1]);
@@ -51,8 +66,25 @@ if (!$authUser || !$authUser['is_active']) {
 // If admin, read X-Branch-ID header to decide which branch to view
 $authUser['view_branch_id'] = null;
 if ($authUser['role'] === 'admin') {
-    $headers = getallheaders();
-    $viewBranch = $headers['X-Branch-ID'] ?? '';
+    $viewBranch = $_SERVER['HTTP_X_BRANCH_ID'] ?? '';
+    if (!$viewBranch && function_exists('getallheaders')) {
+        $headers = getallheaders();
+        foreach ($headers as $key => $val) {
+            if (strcasecmp($key, 'X-Branch-ID') === 0) {
+                $viewBranch = $val;
+                break;
+            }
+        }
+    }
+    if (!$viewBranch && function_exists('apache_request_headers')) {
+        $headers    = apache_request_headers();
+        foreach ($headers as $key => $val) {
+            if (strcasecmp($key, 'X-Branch-ID') === 0) {
+                $viewBranch = $val;
+                break;
+            }
+        }
+    }
     if ($viewBranch && is_numeric($viewBranch)) {
         $authUser['view_branch_id'] = (int)$viewBranch;
     }

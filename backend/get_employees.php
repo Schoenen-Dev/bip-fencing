@@ -14,7 +14,7 @@ $db = getDB();
 
 list($whereClause, $params) = branchFilter($authUser);
 
-$sql = "SELECT id, employee_name, emp_id, department, salary_type, date_of_joining, created_at FROM employees $whereClause ORDER BY created_at DESC";
+$sql = "SELECT id, employee_name, emp_id, department, salary_type, date_of_joining, phone_number, address, created_at FROM employees $whereClause ORDER BY created_at DESC";
 
 $stmt = $db->prepare($sql);
 if ($params) {

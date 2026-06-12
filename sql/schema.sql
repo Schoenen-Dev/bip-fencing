@@ -20,8 +20,10 @@ CREATE TABLE employees (
   phone_number     VARCHAR(15) NOT NULL,
   address          TEXT NOT NULL,
   salary_type      ENUM('monthly','weekly','daily') NOT NULL,
-  date_of_joining  DATE NOT NULL,
-  created_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  date_of_joining  DATE            NOT NULL,
+  phone_number     VARCHAR(20)     DEFAULT NULL,
+  address          TEXT            DEFAULT NULL,
+  created_at       TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
   PRIMARY KEY (id),
   UNIQUE KEY uq_emp_id (emp_id)
@@ -75,11 +77,10 @@ CREATE TABLE IF NOT EXISTS branch_amounts (
   KEY idx_payment_date (payment_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- -------------------------------------------------------------
--- Table: salaries
--- Populated by Salary.jsx → salary_api.php?action=save
--- Read     by Salary.jsx → salary_api.php?action=records
--- -------------------------------------------------------------
+-- ================================================================
+-- Updated salaries table WITH branch_id
+-- ================================================================
+ 
 CREATE TABLE IF NOT EXISTS salaries (
   id            INT UNSIGNED    NOT NULL AUTO_INCREMENT,
   employeeName  VARCHAR(150)    NOT NULL,
@@ -89,19 +90,27 @@ CREATE TABLE IF NOT EXISTS salaries (
   balance       DECIMAL(10,2)   NOT NULL DEFAULT 0,
   type          VARCHAR(50)     NOT NULL,
   salary_date   DATE            NOT NULL,
+  branch_id     INT UNSIGNED    NOT NULL,
   created_at    TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
+ 
   PRIMARY KEY (id),
-  KEY idx_emp_id   (employeeId),
-  KEY idx_sal_date (salary_date),
-
+  KEY idx_emp_id    (employeeId),
+  KEY idx_sal_date  (salary_date),
+  KEY idx_branch_id (branch_id),
+ 
   CONSTRAINT fk_sal_emp
     FOREIGN KEY (employeeId)
     REFERENCES employees (emp_id)
     ON UPDATE CASCADE
+    ON DELETE RESTRICT,
+ 
+  CONSTRAINT fk_sal_branch
+    FOREIGN KEY (branch_id)
+    REFERENCES branches (id)
+    ON UPDATE CASCADE
     ON DELETE RESTRICT
+ 
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 
 -- -------------------------------------------------------------
 -- Table: OT Table
