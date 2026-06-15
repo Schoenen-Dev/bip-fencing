@@ -217,27 +217,77 @@
         // ----------------------------------------------------------
         //  DELETE – Remove a payment record
         // ----------------------------------------------------------
-        case 'DELETE':
-            $payment_id = (int) ($_GET['payment_id'] ?? 0);
+// FIND THIS (around line 155):
+// REPLACE WITH:
+case 'DELETE':
+    $client_id = (int) ($_GET['client_id'] ?? 0);
+    if (!$client_id) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'client_id required']);
+        exit;
+    }
+    $stmt = $conn->prepare("DELETE FROM client_payments WHERE client_id = ?");
+    $stmt->bind_param('i', $client_id);
+    $stmt->execute();
+    $stmt->close();
+    $stmt = $conn->prepare("DELETE FROM clients WHERE id = ?");
+    $stmt->bind_param('i', $client_id);
+    $stmt->execute();
+    if ($stmt->affected_rows > 0) {
+        echo json_encode(['success' => true, 'message' => 'Client deleted']);
+    } else {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'message' => 'Client not found']);
+    }
+    $stmt->close();
+    break;
 
-            if (!$payment_id) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'message' => 'payment_id required']);
-                exit;
-            }
+// REPLACE WITH:
+case 'PUT':
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (empty($data['client_id']) || empty($data['name'])) {
+        http_response_code(422);
+        echo json_encode(['success' => false, 'message' => 'client_id and name are required']);
+        exit;
+    }
+    $client_id = (int) $data['client_id'];
+    $name      = trim($data['name']);
+    $phone     = trim($data['phone'] ?? '');
+    $address   = trim($data['address'] ?? '');
+    $gst       = trim($data['gst'] ?? '');
+    $stmt = $conn->prepare("UPDATE clients SET name=?, phone=?, address=?, gst=? WHERE id=?");
+    $stmt->bind_param('ssssi', $name, $phone, $address, $gst, $client_id);
+    if (!$stmt->execute()) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => $stmt->error]);
+        exit;
+    }
+    echo json_encode(['success' => true, 'message' => 'Client updated']);
+    $stmt->close();
+    break;
 
-            $stmt = $conn->prepare("DELETE FROM client_payments WHERE id = ?");
-            $stmt->bind_param('i', $payment_id);
-            $stmt->execute();
-
-            if ($stmt->affected_rows > 0) {
-                echo json_encode(['success' => true, 'message' => 'Payment deleted']);
-            } else {
-                http_response_code(404);
-                echo json_encode(['success' => false, 'message' => 'Payment not found']);
-            }
-            $stmt->close();
-            break;
+case 'DELETE':
+    $client_id = (int) ($_GET['client_id'] ?? 0);
+    if (!$client_id) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'client_id required']);
+        exit;
+    }
+    $stmt = $conn->prepare("DELETE FROM client_payments WHERE client_id = ?");
+    $stmt->bind_param('i', $client_id);
+    $stmt->execute();
+    $stmt->close();
+    $stmt = $conn->prepare("DELETE FROM clients WHERE id = ?");
+    $stmt->bind_param('i', $client_id);
+    $stmt->execute();
+    if ($stmt->affected_rows > 0) {
+        echo json_encode(['success' => true, 'message' => 'Client deleted']);
+    } else {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'message' => 'Client not found']);
+    }
+    $stmt->close();
+    break;
 
         default:
             http_response_code(405);

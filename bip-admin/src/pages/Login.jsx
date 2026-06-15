@@ -29,6 +29,7 @@ export default function Login() {
         localStorage.setItem("token", data.token);
         localStorage.setItem("role", data.user.role);
         localStorage.setItem("user", JSON.stringify(data.user));
+        localStorage.setItem("branch_code", data.user.branch_code || "");
 
         // Clear any previous branch selection for admin
         if (data.user.role === "admin") {

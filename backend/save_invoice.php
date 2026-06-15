@@ -6,6 +6,19 @@
 
 require_once __DIR__ . '/auth_middleware.php';
 require_once __DIR__ . '/db.php';
+if (isset($_GET['next_no'])) {
+    $res = $conn->query("SELECT invoice_no FROM invoices ORDER BY id DESC LIMIT 1");
+    $row = $res->fetch_assoc();
+    if ($row && preg_match('/(\d+)$/', $row['invoice_no'], $m)) {
+        $next = str_pad((int)$m[1] + 1, 3, '0', STR_PAD_LEFT);
+    } else {
+        $next = '001';
+    }
+    echo json_encode(['next_no' => "BFCWS-{$next}"]);
+    exit;
+}
+
+
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);

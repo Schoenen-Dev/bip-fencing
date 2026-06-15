@@ -21,12 +21,16 @@ export function AuthProvider({ children }) {
     }
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    sessionStorage.clear(); // wipe any unsaved drafts (e.g. Tax Invoice form) so the next branch login starts clean
     setIsAuthenticated(false);
     navigate('/login');
   };
 
   // called by Login.jsx after successful PHP login
-  const setAuth = () => setIsAuthenticated(true);
+  const setAuth = () => {
+    sessionStorage.clear(); // belt-and-suspenders: also clear on the way in, in case logout was skipped
+    setIsAuthenticated(true);
+  };
 
   return (
     <AuthContext.Provider value={{ isAuthenticated, setAuth, logout }}>
