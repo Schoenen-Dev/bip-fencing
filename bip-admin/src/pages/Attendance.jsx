@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 
 const API_BASE = "http://localhost:8000";
 
-// ─── Helper to get headers with admin branch selection ──────────────────────
 const getHeaders = () => {
   const headers = {
     Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -10,15 +9,22 @@ const getHeaders = () => {
   };
   const role = localStorage.getItem("role");
   if (role === "admin") {
-    const viewBranch = localStorage.getItem("admin_view_branch");
-    if (viewBranch) {
-      headers["X-Branch-ID"] = viewBranch;
-    }
+    const vb = localStorage.getItem("admin_view_branch");
+    if (vb) headers["X-Branch-ID"] = vb;
   }
   return headers;
 };
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+async function fetchJSON(url, options = {}) {
+  const res = await fetch(url, options);
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`Backend error: ${text.substring(0, 200)}`);
+  }
+}
+
 const STATUSES = [
   "Present",
   "Absent",
@@ -28,7 +34,6 @@ const STATUSES = [
   "Holiday",
   "Work From Site",
 ];
-
 const LEAVE_TYPES = [
   "Annual Leave",
   "Sick Leave",
@@ -37,15 +42,22 @@ const LEAVE_TYPES = [
   "Maternity/Paternity",
   "Compensatory Off",
 ];
-
 const STATUS_META = {
-  Present: { color: "success", icon: "bi-check-circle-fill" },
-  Absent: { color: "danger", icon: "bi-x-circle-fill" },
-  "Half Day": { color: "warning", icon: "bi-circle-half" },
-  Late: { color: "warning", icon: "bi-clock-fill" },
-  "On Leave": { color: "info", icon: "bi-calendar2-minus-fill" },
-  Holiday: { color: "secondary", icon: "bi-star-fill" },
-  "Work From Site": { color: "primary", icon: "bi-geo-alt-fill" },
+  Present: { bg: "#dcfce7", color: "#15803d", icon: "bi-check-circle-fill" },
+  Absent: { bg: "#fee2e2", color: "#dc2626", icon: "bi-x-circle-fill" },
+  "Half Day": { bg: "#fef9c3", color: "#b45309", icon: "bi-circle-half" },
+  Late: { bg: "#fef3c7", color: "#d97706", icon: "bi-clock-fill" },
+  "On Leave": {
+    bg: "#e0f2fe",
+    color: "#0369a1",
+    icon: "bi-calendar2-minus-fill",
+  },
+  Holiday: { bg: "#f1f5f9", color: "#475569", icon: "bi-star-fill" },
+  "Work From Site": {
+    bg: "#ede9fe",
+    color: "#7c3aed",
+    icon: "bi-geo-alt-fill",
+  },
 };
 
 const emptyForm = {
@@ -59,12 +71,12 @@ const emptyForm = {
   work_hours: "",
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 const calcWorkHours = (ci, co) => {
   if (!ci || !co) return "";
   const [ih, im] = ci.split(":").map(Number);
   const [oh, om] = co.split(":").map(Number);
-  const diff = oh * 60 + om - (ih * 60 + im);
+  let diff = oh * 60 + om - (ih * 60 + im);
+  if (diff <= 0) diff += 24 * 60;
   return diff > 0 ? (diff / 60).toFixed(2) : "";
 };
 
@@ -93,8 +105,7 @@ const to24 = ({ hour12, minute, ampm }) => {
   return `${String(h).padStart(2, "0")}:${minute}`;
 };
 
-// ─── 12hr Time Picker ─────────────────────────────────────────────────────────
-function TimePicker12({ value, onChange, name }) {
+function TimePicker12({ value, onChange, name, required }) {
   const parts = to12Parts(value);
   const [focused, setFocused] = useState(false);
   const hours = Array.from({ length: 12 }, (_, i) => String(i + 1));
@@ -112,12 +123,10 @@ function TimePicker12({ value, onChange, name }) {
     "50",
     "55",
   ];
-
   const update = (field, val) => {
-    const newParts = { ...parts, [field]: val };
-    onChange({ target: { name, value: to24(newParts) } });
+    const np = { ...parts, [field]: val };
+    onChange({ target: { name, value: to24(np) } });
   };
-
   const sel = {
     border: "none",
     outline: "none",
@@ -133,7 +142,6 @@ function TimePicker12({ value, onChange, name }) {
     MozAppearance: "none",
     lineHeight: "36px",
   };
-
   return (
     <div
       onFocus={() => setFocused(true)}
@@ -141,16 +149,15 @@ function TimePicker12({ value, onChange, name }) {
       style={{
         display: "flex",
         alignItems: "center",
-        height: 38,
-        border: `1.5px solid ${focused ? "#3b82f6" : "#dee2e6"}`,
-        borderRadius: 10,
-        background: "#fff",
+        height: 40,
+        border: `1.5px solid ${focused ? "#008b3e" : "#e2e8f0"}`,
+        borderRadius: 8,
+        background: "#fafbfc",
         paddingLeft: 10,
         paddingRight: 6,
         gap: 0,
-        boxShadow: focused ? "0 0 0 3px rgba(59,130,246,0.12)" : "none",
+        boxShadow: focused ? "0 0 0 3px rgba(0,139,62,0.1)" : "none",
         transition: "border-color 0.15s, box-shadow 0.15s",
-        userSelect: "none",
       }}
     >
       <i
@@ -181,7 +188,6 @@ function TimePicker12({ value, onChange, name }) {
           fontSize: 14,
           margin: "0 1px",
           flexShrink: 0,
-          lineHeight: "36px",
         }}
       >
         :
@@ -210,7 +216,7 @@ function TimePicker12({ value, onChange, name }) {
       <div
         style={{
           display: "flex",
-          borderRadius: 7,
+          borderRadius: 6,
           border: "1px solid #e5e7eb",
           overflow: "hidden",
           flexShrink: 0,
@@ -227,7 +233,6 @@ function TimePicker12({ value, onChange, name }) {
               fontSize: 11,
               fontWeight: 700,
               cursor: "pointer",
-              lineHeight: "20px",
               minWidth: 34,
               background:
                 parts.ampm === period
@@ -248,11 +253,13 @@ function TimePicker12({ value, onChange, name }) {
           </button>
         ))}
       </div>
+      {required && !value && (
+        <span style={{ color: "#ef4444", fontSize: 10, marginLeft: 4 }}>*</span>
+      )}
     </div>
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
 export default function Attendance() {
   const [records, setRecords] = useState([]);
   const [stats, setStats] = useState({
@@ -270,32 +277,77 @@ export default function Attendance() {
   const [activeTab, setActiveTab] = useState("all");
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState("");
-  const [successMsg, setSuccessMsg] = useState("");
-
+  const [toast, setToast] = useState({
+    show: false,
+    message: "",
+    type: "success",
+  });
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
   const [dbEmployees, setDbEmployees] = useState([]);
   const [empLoading, setEmpLoading] = useState(false);
   const [empError, setEmpError] = useState("");
+  const [branchesMap, setBranchesMap] = useState({});
 
-  // ── Fetch attendance records + stats ─────────────────────────────────────────
+  const showToast = (message, type = "success") => {
+    setToast({ show: true, message, type });
+    setTimeout(
+      () => setToast({ show: false, message: "", type: "success" }),
+      3000,
+    );
+  };
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterDate, filterStatus, search, activeTab]);
+
+  const role = localStorage.getItem("role");
+  const selectedBranch = localStorage.getItem("admin_view_branch");
+  const isAdmin = role === "admin";
+  const canMarkAttendance = !isAdmin || (isAdmin && !!selectedBranch);
+  const canEditDelete = isAdmin;
+
+  useEffect(() => {
+    const fetchBranches = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) return;
+        const data = await fetchJSON(
+          `${API_BASE}/branches/get_branches.php?token=${encodeURIComponent(token)}&simple=1`,
+          { headers: getHeaders() },
+        );
+        const list = Array.isArray(data) ? data : data.branches || [];
+        const map = {};
+        list.forEach((b) => {
+          map[b.id] = b.name || b.branch_name;
+        });
+        setBranchesMap(map);
+      } catch {}
+    };
+    fetchBranches();
+  }, []);
+
   const fetchRecords = useCallback(async () => {
     setLoading(true);
     setApiError("");
     try {
+      const token = localStorage.getItem("token");
+      if (!token) throw new Error("No token");
       const params = new URLSearchParams();
       if (filterDate) params.set("date", filterDate);
       if (filterStatus) params.set("status", filterStatus);
       if (search) params.set("search", search);
       if (activeTab !== "all") params.set("tab", activeTab);
-
-      const res = await fetch(`${API_BASE}/attendance.php?${params}`, {
-        headers: getHeaders(),
-      });
-      const data = await res.json();
+      params.set("token", token);
+      const data = await fetchJSON(
+        `${API_BASE}/attendance/attendance.php?${params}`,
+        { headers: getHeaders() },
+      );
       if (data.error) throw new Error(data.error);
       setRecords(data.records || []);
       setStats(data.stats || { total_employees: 0, today: {}, all_time: {} });
     } catch (err) {
-      setApiError(err.message || "Failed to load records.");
+      setApiError(err.message);
+      showToast(err.message, "error");
     } finally {
       setLoading(false);
     }
@@ -305,20 +357,20 @@ export default function Attendance() {
     fetchRecords();
   }, [fetchRecords]);
 
-  // ── Fetch active employees from employees.php ─────────────────────────────
   useEffect(() => {
     const fetchEmployees = async () => {
       setEmpLoading(true);
       setEmpError("");
       try {
-        const res = await fetch(`${API_BASE}/employees.php`, {
-          headers: getHeaders(),
-        });
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        setDbEmployees(data.employees || []);
+        const token = localStorage.getItem("token");
+        if (!token) throw new Error("No token");
+        const data = await fetchJSON(
+          `${API_BASE}/employees/get_employees.php?token=${encodeURIComponent(token)}&simple=1`,
+          { headers: getHeaders() },
+        );
+        setDbEmployees(Array.isArray(data) ? data : data.employees || []);
       } catch (err) {
-        setEmpError(err.message || "Failed to load employees.");
+        setEmpError(err.message);
       } finally {
         setEmpLoading(false);
       }
@@ -329,7 +381,6 @@ export default function Attendance() {
       window.removeEventListener("employees-updated", fetchEmployees);
   }, []);
 
-  // ── Auto-calculate work hours ─────────────────────────────────────────────────
   useEffect(() => {
     const wh = calcWorkHours(form.check_in, form.check_out);
     if (wh) setForm((f) => ({ ...f, work_hours: wh }));
@@ -338,50 +389,102 @@ export default function Attendance() {
   const handleEmployeeSelect = (e) => {
     const empId = e.target.value;
     const emp = dbEmployees.find((em) => em.emp_id === empId);
-    if (emp) {
+    if (emp)
       setForm((f) => ({
         ...f,
         employee_id: emp.emp_id,
-        employee_name: emp.emp_name,
+        employee_name: emp.employee_name || emp.emp_name,
       }));
-    } else {
-      setForm((f) => ({ ...f, employee_id: "", employee_name: "" }));
-    }
+    else setForm((f) => ({ ...f, employee_id: "", employee_name: "" }));
   };
 
   const handleChange = (e) =>
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+  const isTimeRequired = () =>
+    ["Present", "Half Day", "Late", "Work From Site"].includes(form.status);
+  const isDuplicateEntry = () => {
+    if (!form.employee_id || !form.date || editingId) return false;
+    return records.some(
+      (r) => r.employee_id === form.employee_id && r.date === form.date,
+    );
+  };
 
-  // ── Submit ────────────────────────────────────────────────────────────────────
+  // FIX: closeForm properly resets everything
+  const closeForm = () => {
+    setShowForm(false);
+    setEditingId(null);
+    setForm(emptyForm);
+  };
+
+  const handleOpenForm = () => {
+    if (!canMarkAttendance) {
+      showToast("Please select a specific branch to mark attendance.", "error");
+      return;
+    }
+    if (showForm && !editingId) {
+      closeForm();
+      return;
+    } // toggle off if already open in add mode
+    setShowForm(true);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!canMarkAttendance) {
+      showToast("Please select a specific branch to mark attendance.", "error");
+      return;
+    }
+    if (isDuplicateEntry()) {
+      showToast(
+        `Attendance already exists for this employee on ${form.date}.`,
+        "error",
+      );
+      return;
+    }
+    if (isTimeRequired() && (!form.check_in || !form.check_out)) {
+      showToast(
+        "Check-in and Check-out are required for Present, Half Day, Late, or Work From Site.",
+        "error",
+      );
+      return;
+    }
     setApiError("");
     try {
+      const token = localStorage.getItem("token");
+      if (!token) throw new Error("No token");
+      const payload = { ...form };
+      if (isAdmin && selectedBranch)
+        payload.branch_id = parseInt(selectedBranch);
       const url = editingId
-        ? `${API_BASE}/attendance.php?id=${editingId}`
-        : `${API_BASE}/attendance.php`;
-      const method = editingId ? "PUT" : "POST";
-      const res = await fetch(url, {
-        method,
+        ? `${API_BASE}/attendance/attendance.php?id=${editingId}&token=${encodeURIComponent(token)}`
+        : `${API_BASE}/attendance/attendance.php?token=${encodeURIComponent(token)}`;
+      const data = await fetchJSON(url, {
+        method: editingId ? "PUT" : "POST",
         headers: getHeaders(),
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
-      const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setSuccessMsg(editingId ? "Attendance updated!" : "Attendance marked!");
-      setTimeout(() => setSuccessMsg(""), 3000);
-      setForm(emptyForm);
-      setEditingId(null);
-      setShowForm(false);
+      showToast(editingId ? "Attendance updated!" : "Attendance marked!");
+      closeForm();
       fetchRecords();
-      window.dispatchEvent(new Event("attendance-updated"));
     } catch (err) {
-      setApiError(err.message || "Failed to save record.");
+      if (
+        err.message.includes("Duplicate entry") ||
+        err.message.includes("already exists")
+      )
+        showToast(
+          `Attendance already exists for this employee on ${form.date}.`,
+          "error",
+        );
+      else showToast(err.message, "error");
     }
   };
 
-  // ── Edit ──────────────────────────────────────────────────────────────────────
   const handleEdit = (rec) => {
+    if (!canEditDelete) {
+      showToast("Only admin can edit records.", "error");
+      return;
+    }
     setForm({
       employee_id: rec.employee_id || "",
       employee_name: rec.employee_name || "",
@@ -397,30 +500,46 @@ export default function Attendance() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // ── Delete ────────────────────────────────────────────────────────────────────
   const handleDelete = async (id) => {
+    if (!canEditDelete) {
+      showToast("Only admin can delete records.", "error");
+      return;
+    }
     try {
-      const res = await fetch(`${API_BASE}/attendance.php?id=${id}`, {
-        method: "DELETE",
-        headers: getHeaders(),
-      });
-      const data = await res.json();
+      const token = localStorage.getItem("token");
+      if (!token) throw new Error("No token");
+      const data = await fetchJSON(
+        `${API_BASE}/attendance/attendance.php?id=${id}&token=${encodeURIComponent(token)}`,
+        { method: "DELETE", headers: getHeaders() },
+      );
       if (data.error) throw new Error(data.error);
       setDeleteConfirm(null);
+      showToast("Attendance record deleted");
       fetchRecords();
-      window.dispatchEvent(new Event("attendance-updated"));
     } catch (err) {
-      setApiError(err.message || "Failed to delete.");
+      showToast(err.message, "error");
     }
   };
 
-  const closeForm = () => {
-    setShowForm(false);
-    setEditingId(null);
-    setForm(emptyForm);
+  const totalFiltered = records.length;
+  const totalPages =
+    rowsPerPage === -1 ? 1 : Math.ceil(totalFiltered / rowsPerPage);
+  const startIndex = rowsPerPage === -1 ? 0 : (currentPage - 1) * rowsPerPage;
+  const paginatedRecords =
+    rowsPerPage === -1
+      ? records
+      : records.slice(startIndex, startIndex + rowsPerPage);
+  const goToPage = (page) => {
+    if (page >= 1 && page <= totalPages) setCurrentPage(page);
   };
+  const formatTime = (ts) =>
+    ts
+      ? new Date(ts).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "—";
 
-  // ── Today's stats from the records (already filtered) ────────────────────────
   const todayStr = new Date().toISOString().split("T")[0];
   const todayRecords = records.filter((r) => r.date === todayStr);
   const todayPresent = todayRecords.filter(
@@ -428,133 +547,172 @@ export default function Attendance() {
   ).length;
   const todayAbsent = todayRecords.filter((r) => r.status === "Absent").length;
   const todayHalf = todayRecords.filter((r) => r.status === "Half Day").length;
-  const todayLeave = todayRecords.filter((r) => r.status === "On Leave").length;
-
-  const lbl = { fontSize: 12, fontWeight: 600, color: "#374151" };
-  const inp = { borderRadius: 10, fontSize: 13, height: 38 };
+  const todayWFS = todayRecords.filter(
+    (r) => r.status === "Work From Site",
+  ).length;
+  const showBranchColumn = isAdmin && !selectedBranch;
 
   return (
-    <div
-      className="container-fluid p-4"
-      style={{ backgroundColor: "#f0f2f5", minHeight: "100vh" }}
-    >
-      {/* ── Delete Modal ── */}
-      {deleteConfirm && (
-        <div
-          className="modal show d-block"
-          style={{ background: "rgba(0,0,0,0.5)", zIndex: 1055 }}
-        >
-          <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content shadow-lg border-0 rounded-3">
-              <div className="modal-header border-0">
-                <h6 className="modal-title text-danger fw-bold">
-                  <i className="bi bi-exclamation-triangle-fill me-2" />
-                  Delete Attendance Record
-                </h6>
-              </div>
-              <div className="modal-body pt-0">
-                <p className="mb-0 text-muted">
-                  Remove attendance for{" "}
-                  <strong className="text-dark">
-                    {deleteConfirm.employee_name}
-                  </strong>{" "}
-                  on <strong className="text-dark">{deleteConfirm.date}</strong>
-                  ? This action is permanent.
-                </p>
-              </div>
-              <div className="modal-footer border-0">
-                <button
-                  className="btn btn-sm btn-outline-secondary rounded-pill px-4"
-                  onClick={() => setDeleteConfirm(null)}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="btn btn-sm btn-danger rounded-pill px-4"
-                  onClick={() => handleDelete(deleteConfirm.id)}
-                >
-                  <i className="bi bi-trash me-1" />
-                  Delete
-                </button>
-              </div>
-            </div>
-          </div>
+    <div className="at-root">
+      <style>{`
+        .at-root { color: #0f172a; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        .at-toast { position: fixed; top: 24px; right: 24px; z-index: 1200; display: flex; align-items: center; gap: 10px; padding: 13px 20px; border-radius: 10px; font-size: 14px; font-weight: 600; box-shadow: 0 8px 24px rgba(0,0,0,0.18); color: #fff; min-width: 240px; animation: at-slide .28s cubic-bezier(.4,0,.2,1); }
+        .at-toast.success { background: #008b3e; } .at-toast.error { background: #dc2626; }
+        @keyframes at-slide { from { transform: translateX(110%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        .at-header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 28px; border-bottom: 1.5px solid #e2e8f0; margin-bottom: 28px; flex-wrap: wrap; gap: 14px; }
+        .at-header__left { display: flex; align-items: center; gap: 14px; }
+        .at-header__icon { width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #008b3e, #00b84f); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 17px; flex-shrink: 0; box-shadow: 0 3px 10px rgba(0,139,62,.25); }
+        .at-header__title { margin: 0 0 2px; font-size: 22px; font-weight: 800; letter-spacing: -.4px; }
+        .at-header__sub { margin: 0; font-size: 13px; color: #64748b; }
+
+        .at-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-bottom: 28px; }
+        .at-stat { background: #fff; border: 1.5px solid var(--bd); border-radius: 12px; padding: 18px 20px; display: flex; align-items: center; gap: 14px; }
+        .at-stat__icon { width: 44px; height: 44px; border-radius: 10px; background: var(--bg); color: var(--c); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+        .at-stat__label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #64748b; margin-bottom: 4px; }
+        .at-stat__value { font-size: 22px; font-weight: 800; color: var(--c); }
+        .at-stat__sub { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+
+        .at-btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 20px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; border: none; transition: box-shadow .15s, opacity .15s; }
+        .at-btn--primary { background: linear-gradient(135deg,#008b3e,#00b84f); color: #fff; box-shadow: 0 2px 10px rgba(0,139,62,.3); }
+        .at-btn--primary:hover { box-shadow: 0 4px 16px rgba(0,139,62,.38); }
+        .at-btn--ghost { background: #f8fafc; color: #374151; border: 1.5px solid #e2e8f0; }
+        .at-btn--ghost:hover { background: #f1f5f9; }
+        .at-btn--danger { background: #dc2626; color: #fff; }
+        .at-btn--warn { background: #fef3c7; color: #b45309; border: 1.5px solid #fde68a; }
+        .at-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+        .at-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 14px; padding: 24px; margin-bottom: 24px; }
+        .at-card__head { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 22px; padding-bottom: 16px; border-bottom: 1px solid #f1f5f9; }
+        .at-card__head i { font-size: 17px; }
+
+        .at-form-section { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: #94a3b8; margin: 0 0 12px; }
+        .at-form-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-bottom: 20px; }
+        .at-fg { display: flex; flex-direction: column; gap: 7px; }
+        .at-fg--2 { grid-column: span 2; }
+        .at-label { font-size: 13px; font-weight: 600; color: #374151; }
+        .at-input, .at-select { height: 40px; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 0 12px; font-size: 14px; color: #1e293b; background: #fafbfc; width: 100%; box-sizing: border-box; outline: none; transition: border-color .15s, box-shadow .15s; }
+        .at-input:focus, .at-select:focus { border-color: #008b3e; background: #fff; box-shadow: 0 0 0 3px rgba(0,139,62,.1); }
+        .at-input:disabled, .at-select:disabled { background: #f1f5f9; color: #94a3b8; }
+        .at-readonly { height: 40px; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 0 12px; font-size: 14px; background: #f8fafc; color: #475569; font-weight: 600; display: flex; align-items: center; }
+        .at-form-actions { display: flex; gap: 10px; padding-top: 8px; }
+        .at-alert { display: flex; align-items: center; gap: 10px; background: #fffbeb; border: 1px solid #fde68a; color: #92400e; border-radius: 8px; padding: 12px 16px; font-size: 14px; margin-bottom: 20px; }
+
+        .at-tabs-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
+        .at-tabs { display: flex; gap: 6px; }
+        .at-tab { padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1.5px solid #e2e8f0; background: #f8fafc; color: #64748b; transition: all .15s; }
+        .at-tab.active { background: #008b3e; color: #fff; border-color: #008b3e; }
+        .at-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        .at-finput { height: 36px; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 0 11px; font-size: 13px; color: #1e293b; background: #fafbfc; outline: none; transition: border-color .15s; }
+        .at-finput:focus { border-color: #008b3e; }
+
+        .at-table-wrap { border-radius: 10px; border: 1.5px solid #e2e8f0; overflow-x: auto; }
+        .at-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .at-table thead tr { background: #f8fafc; }
+        .at-table th { padding: 11px 14px; text-align: left; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .6px; border-bottom: 1.5px solid #e2e8f0; white-space: nowrap; }
+        .at-table td { padding: 12px 14px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        .at-table tbody tr:last-child td { border-bottom: none; }
+        .at-table tbody tr:hover td { background: #f8fbff; }
+        .at-tfoot td { background: #f8fafc; font-size: 12px; font-weight: 700; color: #475569; border-top: 2px solid #e2e8f0; padding: 10px 14px; }
+        .at-td-num { color: #94a3b8; font-size: 12px; width: 36px; }
+        .at-emp-cell { display: flex; align-items: center; gap: 10px; }
+        .at-avatar { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; flex-shrink: 0; }
+        .at-emp-name { font-weight: 700; font-size: 13px; color: #0f172a; }
+        .at-emp-id { font-size: 11px; color: #94a3b8; }
+        .at-status-badge { display: inline-flex; align-items: center; gap: 5px; border-radius: 20px; padding: 3px 10px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+        .at-time-mono { font-family: "SF Mono","Fira Code",monospace; font-size: 12px; color: #475569; }
+        .at-wh { font-family: "SF Mono","Fira Code",monospace; font-weight: 700; color: #15803d; }
+        .at-actions { display: flex; gap: 5px; }
+        .at-act { width: 30px; height: 30px; border: none; border-radius: 7px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px; transition: transform .12s; }
+        .at-act:hover { transform: scale(1.08); }
+        .at-act--edit { background: #dcfce7; color: #2563eb; }
+        .at-act--del { background: #fef2f2; color: #dc2626; }
+
+        .at-empty { display: flex; flex-direction: column; align-items: center; padding: 52px 20px; color: #94a3b8; }
+        .at-empty i { font-size: 40px; margin-bottom: 10px; }
+        .at-empty p { margin: 0 0 4px; font-weight: 600; color: #64748b; font-size: 14px; }
+        .at-loading { display: flex; align-items: center; gap: 12px; padding: 40px; justify-content: center; color: #64748b; }
+        .at-spinner { width: 22px; height: 22px; border: 3px solid #e2e8f0; border-top-color: #008b3e; border-radius: 50%; animation: at-spin .7s linear infinite; }
+        @keyframes at-spin { to { transform: rotate(360deg); } }
+
+        .at-pagination { display: flex; justify-content: space-between; align-items: center; padding: 16px 0 0; border-top: 1px solid #f1f5f9; margin-top: 16px; flex-wrap: wrap; gap: 10px; }
+        .at-pg-left { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #64748b; }
+        .at-pg-select { height: 32px; border: 1.5px solid #e2e8f0; border-radius: 7px; padding: 0 8px; font-size: 13px; background: #fafbfc; cursor: pointer; outline: none; }
+        .at-pg-right { display: flex; align-items: center; gap: 8px; }
+        .at-pg-info { font-size: 13px; color: #64748b; }
+        .at-pg-btn { display: inline-flex; align-items: center; gap: 5px; padding: 6px 14px; border: 1.5px solid #e2e8f0; background: #fafbfc; border-radius: 8px; font-size: 13px; font-weight: 600; color: #374151; cursor: pointer; transition: background .15s; }
+        .at-pg-btn:hover:not(:disabled) { background: #f1f5f9; }
+        .at-pg-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+        .at-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.55); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .at-modal { background: #fff; border-radius: 16px; width: 460px; max-width: 92vw; box-shadow: 0 24px 60px rgba(15,23,42,.22); animation: at-mi .22s cubic-bezier(.4,0,.2,1); overflow: hidden; }
+        @keyframes at-mi { from { transform: translateY(18px) scale(.97); opacity: 0; } to { transform: none; opacity: 1; } }
+        .at-modal__hd { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-bottom: 1px solid #f1f5f9; }
+        .at-modal__title { font-size: 16px; font-weight: 800; color: #dc2626; display: flex; align-items: center; gap: 8px; }
+        .at-modal__close { width: 30px; height: 30px; border: none; background: #f1f5f9; border-radius: 7px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 13px; }
+        .at-modal__body { padding: 24px 22px; text-align: center; }
+        .at-modal__ft { padding: 14px 22px; border-top: 1px solid #f1f5f9; display: flex; justify-content: flex-end; gap: 10px; }
+
+        .at-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding-top: 16px; border-top: 1px solid #f1f5f9; margin-top: 4px; }
+        .at-status-summary { display: flex; gap: 14px; flex-wrap: wrap; }
+        .at-ss-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #64748b; }
+
+        @media (max-width: 1100px) { .at-stats { grid-template-columns: repeat(2,1fr); } .at-form-grid { grid-template-columns: repeat(2,1fr); } }
+        @media (max-width: 640px) { .at-stats { grid-template-columns: 1fr 1fr; } .at-form-grid { grid-template-columns: 1fr; } .at-filters { flex-direction: column; } }
+      `}</style>
+
+      {toast.show && (
+        <div className={`at-toast ${toast.type}`}>
+          <i
+            className={
+              toast.type === "success"
+                ? "bi bi-check-circle-fill"
+                : "bi bi-exclamation-triangle-fill"
+            }
+          />
+          <span>{toast.message}</span>
         </div>
       )}
 
-      {/* ── API Error Banner ── */}
-      {apiError && (
-        <div
-          className="alert alert-danger d-flex align-items-center gap-2 mb-3"
-          style={{ borderRadius: 10, fontSize: 13 }}
-        >
-          <i className="bi bi-wifi-off" />
-          <span>{apiError}</span>
-          <button
-            className="btn btn-sm btn-outline-danger ms-auto rounded-pill px-3"
-            onClick={fetchRecords}
-          >
-            Retry
-          </button>
-        </div>
-      )}
-
-      {/* ── Page Header ── */}
-      <div className="d-flex justify-content-between align-items-start mb-4">
-        <div>
-          <div className="d-flex align-items-center gap-2 mb-1">
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 10,
-                background: "linear-gradient(135deg,#1e40af,#3b82f6)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <i
-                className="bi bi-calendar-check text-white"
-                style={{ fontSize: 16 }}
-              />
-            </div>
-            <h1
-              className="h3 mb-0 fw-bold"
-              style={{ color: "#0f172a", letterSpacing: "-0.5px" }}
-            >
-              Attendance
-            </h1>
+      {/* Header */}
+      <div className="at-header">
+        <div className="at-header__left">
+          <div className="at-header__icon">
+            <i className="bi bi-calendar-check"></i>
           </div>
-          <p className="text-muted mb-0 ms-1" style={{ fontSize: 13 }}>
-            Track daily attendance, leaves and working hours
-          </p>
+          <div>
+            <h1 className="at-header__title">Attendance</h1>
+            <p className="at-header__sub">
+              Track daily attendance, leaves and working hours
+            </p>
+          </div>
         </div>
+        {/* FIX: Button properly toggles form open/close and resets state */}
         <button
-          onClick={() => (showForm ? closeForm() : setShowForm(true))}
-          className="btn rounded-pill px-4 fw-semibold"
-          style={{
-            background: "linear-gradient(135deg,#1e40af,#3b82f6)",
-            border: "none",
-            color: "#fff",
-            fontSize: 13,
-            boxShadow: "0 4px 14px rgba(59,130,246,0.4)",
-          }}
+          className={`at-btn ${showForm ? "at-btn--warn" : "at-btn--primary"}`}
+          disabled={!canMarkAttendance}
+          title={
+            !canMarkAttendance
+              ? "Please select a specific branch to mark attendance"
+              : ""
+          }
+          onClick={showForm ? closeForm : handleOpenForm}
         >
-          <i className={`bi ${showForm ? "bi-x-lg" : "bi-plus-lg"} me-2`} />
+          <i className={`bi ${showForm ? "bi-x-lg" : "bi-plus-lg"}`} />
           {showForm ? "Close Form" : "Mark Attendance"}
         </button>
       </div>
 
-      {/* ── Stats Cards — today's live counts ── */}
-      <div className="row g-3 mb-4">
+      {/* Stats */}
+      <div className="at-stats">
         {[
           {
             label: "Total Employees",
-            value: stats.total_employees || 0, // ✅ uses backend filtered count
+            value: stats.total_employees || 0,
             sub: `${todayRecords.length} marked today`,
-            color: "#1e40af",
-            bg: "#eff6ff",
+            c: "#008b3e",
+            bg: "#dcfce7",
+            bd: "#86efac",
             icon: "bi-people-fill",
           },
           {
@@ -564,557 +722,326 @@ export default function Attendance() {
               todayPresent > 0 && stats.total_employees
                 ? `${Math.round((todayPresent / stats.total_employees) * 100)}% attendance`
                 : "No records yet",
-            color: "#15803d",
-            bg: "#f0fdf4",
-            icon: "bi-graph-up",
+            c: "#15803d",
+            bg: "#dcfce7",
+            bd: "#86efac",
+            icon: "bi-check-circle-fill",
           },
           {
             label: "Absent Today",
             value: todayAbsent,
             sub: `${todayHalf} half day`,
-            color: "#b91c1c",
-            bg: "#fef2f2",
-            icon: "bi-x-circle",
+            c: "#dc2626",
+            bg: "#fee2e2",
+            bd: "#fca5a5",
+            icon: "bi-x-circle-fill",
           },
           {
-            label: "On Leave Today",
-            value: todayLeave,
-            sub: todayLeave > 0 ? `${todayLeave} on leave` : "No leaves today",
-            color: "#0369a1",
-            bg: "#f0f9ff",
-            icon: "bi-calendar-minus",
+            label: "Work From Site",
+            value: todayWFS,
+            sub:
+              todayWFS > 0 ? `${todayWFS} working from site` : "No WFS today",
+            c: "#7c3aed",
+            bg: "#ede9fe",
+            bd: "#c4b5fd",
+            icon: "bi-geo-alt-fill",
           },
         ].map((card) => (
-          <div className="col-md-3" key={card.label}>
-            <div
-              className="card border-0 h-100"
-              style={{
-                borderRadius: 16,
-                background: "#fff",
-                boxShadow:
-                  "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)",
-              }}
-            >
-              <div className="card-body p-4">
-                <div className="d-flex justify-content-between align-items-start">
-                  <div>
-                    <p
-                      className="text-muted mb-2"
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 600,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.06em",
-                      }}
-                    >
-                      {card.label}
-                    </p>
-                    <h2
-                      className="mb-1 fw-bold"
-                      style={{
-                        color: card.color,
-                        fontSize: 28,
-                        letterSpacing: "-1px",
-                      }}
-                    >
-                      {card.value}
-                    </h2>
-                    <p
-                      className="mb-0"
-                      style={{ fontSize: 12, color: "#64748b" }}
-                    >
-                      {card.sub}
-                    </p>
-                  </div>
-                  <div
-                    style={{
-                      width: 42,
-                      height: 42,
-                      borderRadius: 12,
-                      background: card.bg,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <i
-                      className={`bi ${card.icon}`}
-                      style={{ fontSize: 18, color: card.color }}
-                    />
-                  </div>
-                </div>
-              </div>
+          <div
+            className="at-stat"
+            key={card.label}
+            style={{ "--c": card.c, "--bg": card.bg, "--bd": card.bd }}
+          >
+            <div className="at-stat__icon">
+              <i className={`bi ${card.icon}`}></i>
+            </div>
+            <div>
+              <div className="at-stat__label">{card.label}</div>
+              <div className="at-stat__value">{card.value}</div>
+              <div className="at-stat__sub">{card.sub}</div>
             </div>
           </div>
         ))}
       </div>
 
-      {/* ── Add / Edit Form ── */}
-      {showForm && (
-        <div
-          className="card border-0 mb-4"
-          style={{
-            borderRadius: 16,
-            boxShadow:
-              "0 1px 3px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.06)",
-          }}
-        >
-          <div
-            className="card-header bg-white border-0 pb-0 pt-4 px-4"
-            style={{ borderRadius: "16px 16px 0 0" }}
-          >
-            <div className="d-flex align-items-center gap-2">
-              <div
-                style={{
-                  width: 30,
-                  height: 30,
-                  borderRadius: 8,
-                  background: editingId ? "#fef3c7" : "#eff6ff",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <i
-                  className={`bi ${editingId ? "bi-pencil-fill" : "bi-person-check-fill"}`}
-                  style={{
-                    fontSize: 13,
-                    color: editingId ? "#d97706" : "#1e40af",
-                  }}
-                />
-              </div>
-              <h6 className="mb-0 fw-bold" style={{ color: "#0f172a" }}>
-                {editingId ? "Edit Attendance Record" : "Mark New Attendance"}
-              </h6>
-            </div>
+      {/* Form */}
+      {showForm && canMarkAttendance && (
+        <div className="at-card">
+          <div className="at-card__head">
+            <i
+              className={`bi ${editingId ? "bi-pencil-fill" : "bi-person-check-fill"}`}
+              style={{ color: editingId ? "#d97706" : "#008b3e" }}
+            ></i>
+            <span>
+              {editingId ? "Edit Attendance Record" : "Mark New Attendance"}
+            </span>
           </div>
-
-          <div className="card-body px-4 pb-4">
-            {successMsg && (
-              <div
-                className="alert border-0 py-2 mb-3 d-flex align-items-center gap-2"
-                style={{
-                  background: "#f0fdf4",
-                  color: "#15803d",
-                  borderRadius: 10,
-                  fontSize: 13,
-                }}
-              >
-                <i className="bi bi-check-circle-fill" />
-                {successMsg}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit}>
-              <p
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.1em",
-                  color: "#94a3b8",
-                  marginBottom: 12,
-                  marginTop: 8,
-                }}
-              >
-                Employee Information
-              </p>
-              <div className="row g-3 mb-4">
-                <div className="col-md-5">
-                  <label className="form-label" style={lbl}>
-                    Employee Name <span className="text-danger">*</span>
-                  </label>
-                  <select
-                    className="form-select"
-                    style={inp}
-                    value={form.employee_id}
-                    onChange={handleEmployeeSelect}
-                    required
-                    disabled={empLoading}
-                  >
-                    <option value="">
-                      {empLoading
-                        ? "Loading employees…"
-                        : empError
-                          ? "Error loading employees"
-                          : "Select employee..."}
+          <form onSubmit={handleSubmit}>
+            <p className="at-form-section">Employee Information</p>
+            <div className="at-form-grid">
+              <div className="at-fg at-fg--2">
+                <label className="at-label">
+                  Employee Name <span style={{ color: "#ef4444" }}>*</span>
+                </label>
+                <select
+                  className="at-select"
+                  value={form.employee_id}
+                  onChange={handleEmployeeSelect}
+                  required
+                  disabled={empLoading}
+                >
+                  <option value="">
+                    {empLoading ? "Loading…" : "Select employee…"}
+                  </option>
+                  {dbEmployees.map((emp) => (
+                    <option key={emp.emp_id} value={emp.emp_id}>
+                      {emp.employee_name || emp.emp_name} ({emp.emp_id})
                     </option>
-                    {dbEmployees.map((emp) => (
-                      <option key={emp.emp_id} value={emp.emp_id}>
-                        {emp.emp_name} ({emp.emp_id})
-                      </option>
-                    ))}
-                  </select>
-                  {empError && (
-                    <div
-                      style={{ fontSize: 11, color: "#ef4444", marginTop: 4 }}
-                    >
-                      <i className="bi bi-exclamation-circle me-1" />
-                      {empError}
-                    </div>
+                  ))}
+                </select>
+              </div>
+              <div className="at-fg">
+                <label className="at-label">Employee ID</label>
+                <div className="at-readonly">
+                  {form.employee_id || (
+                    <span style={{ color: "#94a3b8" }}>Auto-filled</span>
                   )}
                 </div>
-                <div className="col-md-3">
-                  <label className="form-label" style={lbl}>
-                    Employee ID
-                  </label>
-                  <div
-                    className="form-control d-flex align-items-center"
-                    style={{
-                      ...inp,
-                      background: "#f8fafc",
-                      color: "#475569",
-                      fontWeight: 600,
-                      cursor: "default",
-                    }}
-                  >
-                    {form.employee_id || (
-                      <span style={{ color: "#94a3b8" }}>Auto-filled</span>
-                    )}
-                  </div>
-                </div>
               </div>
-
-              <p
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.1em",
-                  color: "#94a3b8",
-                  marginBottom: 12,
-                }}
-              >
-                Attendance Details
-              </p>
-              <div className="row g-3 mb-4">
-                <div className="col-md-2">
-                  <label className="form-label" style={lbl}>
-                    Date <span className="text-danger">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    className="form-control"
-                    style={inp}
-                    name="date"
-                    value={form.date}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-                <div className="col-md-3">
-                  <label className="form-label" style={lbl}>
-                    Status <span className="text-danger">*</span>
-                  </label>
+            </div>
+            <p className="at-form-section">Attendance Details</p>
+            <div className="at-form-grid">
+              <div className="at-fg">
+                <label className="at-label">
+                  Date <span style={{ color: "#ef4444" }}>*</span>
+                </label>
+                <input
+                  className="at-input"
+                  type="date"
+                  name="date"
+                  value={form.date}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">
+                  Status <span style={{ color: "#ef4444" }}>*</span>
+                </label>
+                <select
+                  className="at-select"
+                  name="status"
+                  value={form.status}
+                  onChange={handleChange}
+                >
+                  {STATUSES.map((s) => (
+                    <option key={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+              {form.status === "On Leave" && (
+                <div className="at-fg">
+                  <label className="at-label">Leave Type</label>
                   <select
-                    className="form-select"
-                    style={inp}
-                    name="status"
-                    value={form.status}
+                    className="at-select"
+                    name="leave_type"
+                    value={form.leave_type}
                     onChange={handleChange}
                   >
-                    {STATUSES.map((s) => (
-                      <option key={s}>{s}</option>
+                    <option value="">Select type…</option>
+                    {LEAVE_TYPES.map((l) => (
+                      <option key={l}>{l}</option>
                     ))}
                   </select>
                 </div>
-                {form.status === "On Leave" && (
-                  <div className="col-md-3">
-                    <label className="form-label" style={lbl}>
-                      Leave Type
-                    </label>
-                    <select
-                      className="form-select"
-                      style={inp}
-                      name="leave_type"
-                      value={form.leave_type}
-                      onChange={handleChange}
-                    >
-                      <option value="">Select type...</option>
-                      {LEAVE_TYPES.map((l) => (
-                        <option key={l}>{l}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                <div className="col-md-2">
-                  <label className="form-label" style={lbl}>
-                    Check In
-                  </label>
-                  <TimePicker12
-                    name="check_in"
-                    value={form.check_in}
-                    onChange={handleChange}
-                  />
-                </div>
-                <div className="col-md-2">
-                  <label className="form-label" style={lbl}>
-                    Check Out
-                  </label>
-                  <TimePicker12
-                    name="check_out"
-                    value={form.check_out}
-                    onChange={handleChange}
-                  />
-                </div>
-                <div className="col-md-2">
-                  <label className="form-label" style={lbl}>
-                    Work Hours
-                  </label>
-                  <div
-                    className="form-control d-flex align-items-center"
-                    style={{
-                      ...inp,
-                      background: form.work_hours ? "#f0fdf4" : "#f8fafc",
-                      color: form.work_hours ? "#15803d" : "#9ca3af",
-                      fontWeight: 700,
-                      cursor: "default",
-                    }}
-                  >
-                    {form.work_hours ? `${form.work_hours} hrs` : "—"}
-                  </div>
-                </div>
+              )}
+              <div className="at-fg">
+                <label className="at-label">
+                  Check In{" "}
+                  {isTimeRequired() && (
+                    <span style={{ color: "#ef4444" }}>*</span>
+                  )}
+                </label>
+                <TimePicker12
+                  name="check_in"
+                  value={form.check_in}
+                  onChange={handleChange}
+                  required={isTimeRequired()}
+                />
               </div>
-
-              <div className="d-flex gap-2">
-                <button
-                  type="submit"
-                  className="btn rounded-pill px-4 fw-semibold"
+              <div className="at-fg">
+                <label className="at-label">
+                  Check Out{" "}
+                  {isTimeRequired() && (
+                    <span style={{ color: "#ef4444" }}>*</span>
+                  )}
+                </label>
+                <TimePicker12
+                  name="check_out"
+                  value={form.check_out}
+                  onChange={handleChange}
+                  required={isTimeRequired()}
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">Work Hours</label>
+                <div
+                  className="at-readonly"
                   style={{
-                    background: "linear-gradient(135deg,#1e40af,#3b82f6)",
-                    border: "none",
-                    color: "#fff",
-                    fontSize: 13,
+                    color: form.work_hours ? "#15803d" : "#94a3b8",
+                    fontWeight: 700,
                   }}
                 >
-                  <i className="bi bi-check-lg me-2" />
-                  {editingId ? "Update Record" : "Save Attendance"}
-                </button>
+                  {form.work_hours ? `${form.work_hours} hrs` : "—"}
+                </div>
+              </div>
+            </div>
+            <div className="at-form-actions">
+              <button type="submit" className="at-btn at-btn--primary">
+                <i
+                  className={`bi ${editingId ? "bi-check-circle" : "bi-check-lg"}`}
+                />{" "}
+                {editingId ? "Update Record" : "Save Attendance"}
+              </button>
+              <button
+                type="button"
+                className="at-btn at-btn--ghost"
+                onClick={() => setForm(emptyForm)}
+              >
+                <i className="bi bi-arrow-counterclockwise" /> Reset
+              </button>
+              {/* FIX: Cancel Edit uses closeForm to fully reset */}
+              {editingId && (
                 <button
                   type="button"
-                  className="btn btn-outline-secondary rounded-pill px-4"
-                  style={{ fontSize: 13 }}
-                  onClick={() => setForm(emptyForm)}
+                  className="at-btn at-btn--warn"
+                  onClick={closeForm}
                 >
-                  <i className="bi bi-arrow-counterclockwise me-2" />
-                  Reset
+                  <i className="bi bi-x-lg" /> Cancel Edit
                 </button>
-                {editingId && (
-                  <button
-                    type="button"
-                    className="btn btn-outline-danger rounded-pill px-4"
-                    style={{ fontSize: 13 }}
-                    onClick={closeForm}
-                  >
-                    Cancel Edit
-                  </button>
-                )}
-              </div>
-            </form>
-          </div>
+              )}
+            </div>
+          </form>
         </div>
       )}
 
-      {/* ── Records Table ── */}
-      <div
-        className="card border-0"
-        style={{
-          borderRadius: 16,
-          boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04)",
-        }}
-      >
-        <div
-          className="card-header bg-white border-0 px-4 pt-4 pb-0"
-          style={{ borderRadius: "16px 16px 0 0" }}
-        >
-          <div className="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
-            <div>
-              <h6 className="fw-bold mb-0" style={{ color: "#0f172a" }}>
-                Attendance Records
-              </h6>
-              <p className="text-muted mb-0" style={{ fontSize: 12 }}>
-                {loading
-                  ? "Loading..."
-                  : `${records.length} record${records.length !== 1 ? "s" : ""} shown`}
-              </p>
+      {/* Records Table */}
+      <div className="at-card">
+        <div className="at-tabs-row">
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: "#1e293b" }}>
+              Attendance Records
             </div>
-            <div className="d-flex gap-2 flex-wrap">
-              <input
-                type="text"
-                className="form-control form-control-sm"
-                placeholder="Search name / ID..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                style={{ width: 200, borderRadius: 8, fontSize: 12 }}
-              />
-              <input
-                type="date"
-                className="form-control form-control-sm"
-                value={filterDate}
-                onChange={(e) => setFilterDate(e.target.value)}
-                style={{ width: 140, borderRadius: 8, fontSize: 12 }}
-              />
-              <select
-                className="form-select form-select-sm"
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                style={{ width: 140, borderRadius: 8, fontSize: 12 }}
-              >
-                <option value="">All Status</option>
-                {STATUSES.map((s) => (
-                  <option key={s}>{s}</option>
-                ))}
-              </select>
-              <button
-                className="btn btn-sm btn-outline-secondary rounded-pill px-3"
-                style={{ fontSize: 12 }}
-                onClick={fetchRecords}
-                title="Refresh"
-              >
-                <i className="bi bi-arrow-clockwise" />
-              </button>
+            <div style={{ fontSize: 12, color: "#64748b" }}>
+              {loading
+                ? "Loading…"
+                : `${records.length} record${records.length !== 1 ? "s" : ""} shown`}
             </div>
           </div>
-          <div className="d-flex gap-1">
-            {[
-              ["all", "All Records"],
-              ["today", "Today"],
-              ["week", "This Week"],
-            ].map(([val, label]) => (
-              <button
-                key={val}
-                onClick={() => setActiveTab(val)}
-                className="btn btn-sm rounded-pill px-3"
-                style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  marginBottom: 0,
-                  background: activeTab === val ? "#1e40af" : "transparent",
-                  color: activeTab === val ? "#fff" : "#64748b",
-                  border: activeTab === val ? "none" : "1px solid #e2e8f0",
-                }}
-              >
-                {label}
-              </button>
-            ))}
+          <div className="at-filters">
+            <input
+              className="at-finput"
+              style={{ width: 180 }}
+              type="text"
+              placeholder="Search name / ID…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <input
+              className="at-finput"
+              style={{ width: 140 }}
+              type="date"
+              value={filterDate}
+              onChange={(e) => setFilterDate(e.target.value)}
+            />
+            <select
+              className="at-finput"
+              style={{ width: 140 }}
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+            >
+              <option value="">All Status</option>
+              {STATUSES.map((s) => (
+                <option key={s}>{s}</option>
+              ))}
+            </select>
+            <button
+              className="at-pg-btn"
+              onClick={fetchRecords}
+              title="Refresh"
+            >
+              <i className="bi bi-arrow-clockwise"></i>
+            </button>
           </div>
         </div>
+        <div className="at-tabs">
+          {[
+            ["all", "All Records"],
+            ["today", "Today"],
+            ["week", "This Week"],
+          ].map(([val, label]) => (
+            <button
+              key={val}
+              className={`at-tab${activeTab === val ? " active" : ""}`}
+              onClick={() => setActiveTab(val)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
 
-        <div className="card-body p-0">
+        <div style={{ marginTop: 16 }}>
           {loading ? (
-            <div className="text-center py-5">
-              <div
-                className="spinner-border text-primary"
-                style={{ width: 32, height: 32 }}
-                role="status"
-              />
-              <p className="text-muted mt-3 mb-0" style={{ fontSize: 13 }}>
-                Loading records from database...
-              </p>
+            <div className="at-loading">
+              <div className="at-spinner"></div>
+              <span>Loading records…</span>
             </div>
           ) : records.length === 0 ? (
-            <div className="text-center py-5">
-              <div
-                style={{
-                  width: 64,
-                  height: 64,
-                  borderRadius: 16,
-                  background: "#f1f5f9",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  margin: "0 auto 16px",
-                }}
-              >
-                <i
-                  className="bi bi-calendar-x text-muted"
-                  style={{ fontSize: 28 }}
-                />
-              </div>
-              <p
-                className="text-muted mb-1 fw-semibold"
-                style={{ fontSize: 14 }}
-              >
-                No records found
-              </p>
-              <p className="text-muted mb-0" style={{ fontSize: 12 }}>
+            <div className="at-empty">
+              <i className="bi bi-calendar-x"></i>
+              <p>No records found</p>
+              <span>
                 {apiError
-                  ? "Check your backend connection."
+                  ? "Check backend console."
                   : "Start by marking attendance above."}
-              </p>
+              </span>
             </div>
           ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table
-                className="table align-middle mb-0"
-                style={{ fontSize: 12.5 }}
-              >
-                <thead>
-                  <tr
-                    style={{
-                      background: "#f8fafc",
-                      borderTop: "1px solid #f1f5f9",
-                    }}
-                  >
-                    {[
-                      "Employee",
-                      "Date",
-                      "Check In",
-                      "Check Out",
-                      "Work Hrs",
-                      "Status",
-                      "Actions",
-                    ].map((h) => (
-                      <th
-                        key={h}
-                        className="px-3 py-3 fw-semibold"
-                        style={{
-                          color: "#64748b",
-                          fontSize: 11,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.05em",
-                          whiteSpace: "nowrap",
-                          borderBottom: "1px solid #f1f5f9",
-                        }}
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {records.map((rec, idx) => {
-                    const meta = STATUS_META[rec.status] || {
-                      color: "secondary",
-                      icon: "bi-dash-circle",
-                    };
-                    return (
-                      <tr
-                        key={rec.id}
-                        style={{
-                          borderBottom: "1px solid #f8fafc",
-                          background: idx % 2 === 0 ? "#fff" : "#fafbfc",
-                        }}
-                      >
-                        <td className="px-3 py-3">
-                          <div className="d-flex align-items-center gap-2">
-                            <div
-                              style={{
-                                width: 32,
-                                height: 32,
-                                borderRadius: 8,
-                                background: `hsl(${(rec.employee_name.charCodeAt(0) * 7) % 360},70%,92%)`,
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                flexShrink: 0,
-                              }}
-                            >
-                              <span
+            <>
+              <div className="at-table-wrap">
+                <table className="at-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Employee</th>
+                      {showBranchColumn && <th>Branch</th>}
+                      <th>Date</th>
+                      <th>Check In</th>
+                      <th>Check Out</th>
+                      <th>Work Hrs</th>
+                      <th>Status</th>
+                      <th>Time</th>
+                      <th style={{ textAlign: "right" }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedRecords.map((rec, idx) => {
+                      const meta = STATUS_META[rec.status] || {
+                        bg: "#f1f5f9",
+                        color: "#475569",
+                        icon: "bi-dash-circle",
+                      };
+                      const hue = (rec.employee_name.charCodeAt(0) * 7) % 360;
+                      return (
+                        <tr key={rec.id}>
+                          <td className="at-td-num">{startIndex + idx + 1}</td>
+                          <td>
+                            <div className="at-emp-cell">
+                              <div
+                                className="at-avatar"
                                 style={{
-                                  fontSize: 11,
-                                  fontWeight: 700,
-                                  color: `hsl(${(rec.employee_name.charCodeAt(0) * 7) % 360},60%,35%)`,
+                                  background: `hsl(${hue},60%,90%)`,
+                                  color: `hsl(${hue},50%,35%)`,
                                 }}
                               >
                                 {rec.employee_name
@@ -1123,181 +1050,250 @@ export default function Attendance() {
                                   .map((w) => w[0])
                                   .join("")
                                   .toUpperCase()}
-                              </span>
-                            </div>
-                            <div>
-                              <div
-                                className="fw-semibold"
-                                style={{ color: "#0f172a", fontSize: 13 }}
-                              >
-                                {rec.employee_name}
                               </div>
-                              <div style={{ color: "#94a3b8", fontSize: 11 }}>
-                                {rec.employee_id || "—"}
+                              <div>
+                                <div className="at-emp-name">
+                                  {rec.employee_name}
+                                </div>
+                                <div className="at-emp-id">
+                                  {rec.employee_id || "—"}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </td>
-                        <td
-                          className="px-3"
-                          style={{
-                            whiteSpace: "nowrap",
-                            color: "#475569",
-                            fontWeight: 600,
-                          }}
-                        >
-                          {rec.date}
-                        </td>
-                        <td
-                          className="px-3"
-                          style={{
-                            color: "#475569",
-                            fontFamily: "monospace",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {rec.check_in ? formatTime12(rec.check_in) : "—"}
-                        </td>
-                        <td
-                          className="px-3"
-                          style={{
-                            color: "#475569",
-                            fontFamily: "monospace",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {rec.check_out ? formatTime12(rec.check_out) : "—"}
-                        </td>
-                        <td
-                          className="px-3 fw-bold"
-                          style={{ color: "#15803d", fontFamily: "monospace" }}
-                        >
-                          {rec.work_hours > 0
-                            ? `${parseFloat(rec.work_hours).toFixed(1)}h`
-                            : "—"}
-                        </td>
-                        <td className="px-3">
-                          <span
-                            className={`badge bg-${meta.color} bg-opacity-10 text-${meta.color} d-inline-flex align-items-center gap-1`}
+                          </td>
+                          {showBranchColumn && (
+                            <td style={{ fontSize: 12, color: "#475569" }}>
+                              {branchesMap[rec.branch_id] ||
+                                `Branch #${rec.branch_id}` ||
+                                "—"}
+                            </td>
+                          )}
+                          <td
                             style={{
-                              fontSize: 11,
                               fontWeight: 600,
-                              borderRadius: 6,
-                              padding: "3px 8px",
+                              color: "#374151",
+                              whiteSpace: "nowrap",
                             }}
                           >
-                            <i
-                              className={`bi ${meta.icon}`}
-                              style={{ fontSize: 10 }}
-                            />
-                            {rec.status}
-                          </span>
-                        </td>
-                        <td className="px-3">
-                          <div className="d-flex gap-1">
-                            <button
-                              className="btn btn-sm py-1 px-2"
-                              title="Edit"
-                              style={{
-                                borderRadius: 7,
-                                border: "1px solid #e2e8f0",
-                                background: "#f8fafc",
-                                color: "#475569",
-                                fontSize: 11,
-                              }}
-                              onClick={() => handleEdit(rec)}
+                            {rec.date}
+                          </td>
+                          <td>
+                            <span className="at-time-mono">
+                              {rec.check_in ? formatTime12(rec.check_in) : "—"}
+                            </span>
+                          </td>
+                          <td>
+                            <span className="at-time-mono">
+                              {rec.check_out
+                                ? formatTime12(rec.check_out)
+                                : "—"}
+                            </span>
+                          </td>
+                          <td>
+                            <span className="at-wh">
+                              {rec.work_hours > 0
+                                ? `${parseFloat(rec.work_hours).toFixed(1)}h`
+                                : "—"}
+                            </span>
+                          </td>
+                          <td>
+                            <span
+                              className="at-status-badge"
+                              style={{ background: meta.bg, color: meta.color }}
                             >
-                              <i className="bi bi-pencil" />
-                            </button>
-                            <button
-                              className="btn btn-sm py-1 px-2"
-                              title="Delete"
-                              style={{
-                                borderRadius: 7,
-                                border: "1px solid #fee2e2",
-                                background: "#fff5f5",
-                                color: "#ef4444",
-                                fontSize: 11,
-                              }}
-                              onClick={() => setDeleteConfirm(rec)}
+                              <i
+                                className={`bi ${meta.icon}`}
+                                style={{ fontSize: 10 }}
+                              ></i>
+                              {rec.status}
+                            </span>
+                          </td>
+                          <td>
+                            <span className="at-time-mono">
+                              {formatTime(rec.created_at)}
+                            </span>
+                          </td>
+                          <td>
+                            <div
+                              className="at-actions"
+                              style={{ justifyContent: "flex-end" }}
                             >
-                              <i className="bi bi-trash" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr
-                    style={{
-                      background: "#f8fafc",
-                      borderTop: "2px solid #e2e8f0",
+                              {canEditDelete ? (
+                                <>
+                                  <button
+                                    className="at-act at-act--edit"
+                                    onClick={() => handleEdit(rec)}
+                                    title="Edit"
+                                  >
+                                    <i className="bi bi-pencil-fill"></i>
+                                  </button>
+                                  <button
+                                    className="at-act at-act--del"
+                                    onClick={() => setDeleteConfirm(rec)}
+                                    title="Delete"
+                                  >
+                                    <i className="bi bi-trash-fill"></i>
+                                  </button>
+                                </>
+                              ) : (
+                                <span
+                                  style={{ color: "#cbd5e1", fontSize: 11 }}
+                                >
+                                  —
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="at-tfoot">
+                      <td colSpan={showBranchColumn ? 5 : 4}>
+                        Totals — {records.length} record
+                        {records.length !== 1 ? "s" : ""}
+                      </td>
+                      <td style={{ color: "#15803d", fontFamily: "monospace" }}>
+                        {records
+                          .reduce((s, r) => s + (Number(r.work_hours) || 0), 0)
+                          .toFixed(1)}
+                        h
+                      </td>
+                      <td colSpan={4}></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              <div className="at-pagination">
+                <div className="at-pg-left">
+                  Show
+                  <select
+                    className="at-pg-select"
+                    value={rowsPerPage}
+                    onChange={(e) => {
+                      setRowsPerPage(parseInt(e.target.value));
+                      setCurrentPage(1);
                     }}
                   >
-                    <td
-                      colSpan={4}
-                      className="px-3 py-2 fw-bold"
-                      style={{ fontSize: 12, color: "#475569" }}
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                    <option value={-1}>All</option>
+                  </select>
+                  entries per page
+                </div>
+                {rowsPerPage !== -1 && (
+                  <div className="at-pg-right">
+                    <span className="at-pg-info">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <button
+                      className="at-pg-btn"
+                      disabled={currentPage === 1}
+                      onClick={() => goToPage(currentPage - 1)}
                     >
-                      Totals — {records.length} record
-                      {records.length !== 1 ? "s" : ""}
-                    </td>
-                    <td
-                      className="px-3 fw-bold"
-                      style={{
-                        color: "#15803d",
-                        fontFamily: "monospace",
-                        fontSize: 12,
-                      }}
+                      <i className="bi bi-chevron-left"></i> Previous
+                    </button>
+                    <button
+                      className="at-pg-btn"
+                      disabled={currentPage === totalPages}
+                      onClick={() => goToPage(currentPage + 1)}
                     >
-                      {records
-                        .reduce((s, r) => s + (Number(r.work_hours) || 0), 0)
-                        .toFixed(1)}
-                      h
-                    </td>
-                    <td colSpan={2} />
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
+                      Next <i className="bi bi-chevron-right"></i>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer summary */}
+              <div className="at-footer">
+                <div className="at-status-summary">
+                  {STATUSES.map((s) => {
+                    const cnt = records.filter((r) => r.status === s).length;
+                    if (!cnt) return null;
+                    const m = STATUS_META[s] || {
+                      color: "#475569",
+                      icon: "bi-dash-circle",
+                    };
+                    return (
+                      <span key={s} className="at-ss-item">
+                        <i
+                          className={`bi ${m.icon}`}
+                          style={{ color: m.color }}
+                        ></i>
+                        {cnt} {s}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
           )}
         </div>
+      </div>
 
-        <div
-          className="card-footer bg-white border-0 px-4 py-3"
-          style={{ borderRadius: "0 0 16px 16px" }}
-        >
-          <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <span style={{ fontSize: 12, color: "#94a3b8" }}>
-              Showing{" "}
-              <strong style={{ color: "#475569" }}>{records.length}</strong>{" "}
-              records from MySQL
-            </span>
-            <div className="d-flex gap-3 flex-wrap">
-              {STATUSES.map((s) => {
-                const cnt = records.filter((r) => r.status === s).length;
-                if (!cnt) return null;
-                const m = STATUS_META[s] || {
-                  color: "secondary",
-                  icon: "bi-dash-circle",
-                };
-                return (
-                  <span
-                    key={s}
-                    className="d-flex align-items-center gap-1"
-                    style={{ fontSize: 11, color: "#64748b" }}
-                  >
-                    <i className={`bi ${m.icon} text-${m.color}`} />
-                    {cnt} {s}
-                  </span>
-                );
-              })}
+      {/* Delete Modal */}
+      {deleteConfirm && (
+        <div className="at-overlay" onClick={() => setDeleteConfirm(null)}>
+          <div className="at-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="at-modal__hd">
+              <div className="at-modal__title">
+                <i className="bi bi-trash"></i> Delete Record
+              </div>
+              <button
+                className="at-modal__close"
+                onClick={() => setDeleteConfirm(null)}
+              >
+                <i className="bi bi-x-lg"></i>
+              </button>
+            </div>
+            <div className="at-modal__body">
+              <div
+                style={{
+                  width: 52,
+                  height: 52,
+                  borderRadius: "50%",
+                  background: "#fef2f2",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  margin: "0 auto 14px",
+                  fontSize: 22,
+                  color: "#dc2626",
+                }}
+              >
+                <i className="bi bi-exclamation-triangle-fill"></i>
+              </div>
+              <p style={{ margin: "0 0 6px", fontWeight: 700, fontSize: 15 }}>
+                Remove attendance for{" "}
+                <strong>{deleteConfirm.employee_name}</strong>
+              </p>
+              <p style={{ margin: 0, fontSize: 13, color: "#64748b" }}>
+                on <strong>{deleteConfirm.date}</strong>? This action is
+                permanent.
+              </p>
+            </div>
+            <div className="at-modal__ft">
+              <button
+                className="at-btn at-btn--ghost"
+                onClick={() => setDeleteConfirm(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="at-btn at-btn--danger"
+                onClick={() => handleDelete(deleteConfirm.id)}
+              >
+                <i className="bi bi-trash"></i> Delete
+              </button>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

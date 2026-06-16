@@ -20,14 +20,16 @@ if (!$data) {
     exit;
 }
 
-$emp_name       = $data['emp_name']       ?? '';
-$emp_id         = $data['emp_id']         ?? '';
-$salary_type    = $data['salary_type']    ?? '';
-$start_time     = $data['start_time']     ?? '';
-$end_time       = $data['end_time']       ?? '';
+$emp_name       = trim($data['emp_name'] ?? '');
+$emp_id         = trim($data['emp_id'] ?? '');
+$salary_type    = trim($data['salary_type'] ?? '');
+$start_time     = trim($data['start_time'] ?? '');
+$end_time       = trim($data['end_time'] ?? '');
 $total_ot_hours = $data['total_ot_hours'] ?? '';
-$ot_date        = $data['ot_date']        ?? '';
+$ot_salary      = $data['ot_salary'] ?? 0;
+$ot_date        = trim($data['ot_date'] ?? '');
 
+// Validation
 if (empty($emp_name) || empty($emp_id) || empty($salary_type) ||
     empty($start_time) || empty($end_time) || $total_ot_hours === '' || empty($ot_date)) {
     http_response_code(400);
@@ -35,7 +37,13 @@ if (empty($emp_name) || empty($emp_id) || empty($salary_type) ||
     exit;
 }
 
-// 🔧 Get branch_id from employees table using emp_id (or emp_name as fallback)
+if (!is_numeric($ot_salary) || $ot_salary < 0) {
+    http_response_code(400);
+    echo json_encode(['message' => 'OT salary must be a valid positive number']);
+    exit;
+}
+
+// Get branch_id from employees table
 $branchId = null;
 $stmtEmp = $conn->prepare("SELECT branch_id FROM employees WHERE emp_id = ? OR employee_name = ? LIMIT 1");
 $stmtEmp->bind_param('ss', $emp_id, $emp_name);
@@ -52,19 +60,21 @@ if (!$branchId) {
     exit;
 }
 
-// Insert OT record
+// Insert OT record with salary
 $stmt = $conn->prepare(
-    'INSERT INTO ot_details (emp_name, emp_id, salary_type, start_time, end_time, total_ot_hours, ot_date, branch_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO ot_details (emp_name, emp_id, salary_type, start_time, end_time, total_ot_hours, ot_salary, ot_date, branch_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
 );
-
 if (!$stmt) {
     http_response_code(500);
     echo json_encode(['message' => 'Prepare failed', 'error' => $conn->error]);
     exit;
 }
 
-$stmt->bind_param('sssssssi', $emp_name, $emp_id, $salary_type, $start_time, $end_time, $total_ot_hours, $ot_date, $branchId);
+$stmt->bind_param('sssssddsi', 
+    $emp_name, $emp_id, $salary_type, $start_time, $end_time, 
+    $total_ot_hours, $ot_salary, $ot_date, $branchId
+);
 
 if ($stmt->execute()) {
     echo json_encode(['message' => 'OT details saved successfully']);

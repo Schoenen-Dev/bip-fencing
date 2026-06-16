@@ -1,7 +1,15 @@
 <?php
-// salary_api.php
-require_once __DIR__ . '/auth_middleware.php';
-require_once __DIR__ . '/db.php';
+// =============================================================
+//  salary_api.php
+//  Actions: employees, records, branch_total, save, update, delete
+// =============================================================
+
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+header('Content-Type: application/json');
+
+require_once __DIR__ . '/../auth_middleware.php';
+require_once __DIR__ . '/../db.php';
 
 function getEffectiveBranchId($user): ?int {
     if ($user['role'] === 'admin' && isset($user['view_branch_id']) && $user['view_branch_id'] !== null) {
@@ -15,9 +23,10 @@ function getEffectiveBranchId($user): ?int {
 
 $action          = $_GET['action'] ?? '';
 $effectiveBranch = getEffectiveBranchId($authUser);
+$conn            = getDB();
 
 // ─────────────────────────────────────────────────────────────
-// GET employees
+// 1. GET employees (filtered by branch)
 // ─────────────────────────────────────────────────────────────
 if ($action === 'employees') {
     if ($effectiveBranch !== null) {
@@ -36,12 +45,14 @@ if ($action === 'employees') {
         );
     }
     $stmt->execute();
-    echo json_encode($stmt->get_result()->fetch_all(MYSQLI_ASSOC));
+    $result = $stmt->get_result();
+    $employees = $result->fetch_all(MYSQLI_ASSOC);
+    echo json_encode($employees);
     exit;
 }
 
 // ─────────────────────────────────────────────────────────────
-// GET salary records
+// 2. GET salary records (filtered by branch)
 // ─────────────────────────────────────────────────────────────
 if ($action === 'records') {
     if ($effectiveBranch !== null) {
@@ -62,19 +73,20 @@ if ($action === 'records') {
         );
     }
     $stmt->execute();
-    echo json_encode($stmt->get_result()->fetch_all(MYSQLI_ASSOC));
+    $result = $stmt->get_result();
+    $records = $result->fetch_all(MYSQLI_ASSOC);
+    echo json_encode($records);
     exit;
 }
 
 // ─────────────────────────────────────────────────────────────
-// GET branch budget totals
+// 3. GET branch budget totals
 // ─────────────────────────────────────────────────────────────
 if ($action === 'branch_total') {
     if ($effectiveBranch === null) {
         $totalBranch = $conn->query(
             "SELECT COALESCE(SUM(amount), 0) AS total FROM branch_amounts"
         )->fetch_assoc()['total'];
-
         $totalPaid = $conn->query(
             "SELECT COALESCE(SUM(paid), 0) AS total FROM salaries"
         )->fetch_assoc()['total'];
@@ -108,9 +120,7 @@ if ($action === 'branch_total') {
 }
 
 // ─────────────────────────────────────────────────────────────
-// POST save salary
-// branch_id is resolved from the EMPLOYEE record — this
-// guarantees a valid FK value and avoids the constraint error.
+// 4. POST save salary (branch_id taken from employee)
 // ─────────────────────────────────────────────────────────────
 if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $data = json_decode(file_get_contents('php://input'), true);
@@ -125,7 +135,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // ── Resolve branch_id from the employee (guaranteed valid FK) ──
+    // Get branch_id from employee record
     $stmt = $conn->prepare(
         "SELECT branch_id FROM employees WHERE emp_id = ? LIMIT 1"
     );
@@ -145,10 +155,9 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $branchId = (int)$empRow['branch_id'];
 
-    // ── Budget check ───────────────────────────────────────────────
+    // Budget check
     $stmt = $conn->prepare(
-        "SELECT COALESCE(SUM(amount), 0) AS total
-           FROM branch_amounts WHERE branch_id = ?"
+        "SELECT COALESCE(SUM(amount), 0) AS total FROM branch_amounts WHERE branch_id = ?"
     );
     $stmt->bind_param('i', $branchId);
     $stmt->execute();
@@ -156,8 +165,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->close();
 
     $stmt = $conn->prepare(
-        "SELECT COALESCE(SUM(paid), 0) AS total
-           FROM salaries WHERE branch_id = ?"
+        "SELECT COALESCE(SUM(paid), 0) AS total FROM salaries WHERE branch_id = ?"
     );
     $stmt->bind_param('i', $branchId);
     $stmt->execute();
@@ -175,9 +183,8 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // ── Insert ─────────────────────────────────────────────────────
     $employeeName = $conn->real_escape_string($data['employeeName'] ?? '');
-    $salary       = (float)($data['salary']  ?? 0);
+    $salary       = (float)($data['salary'] ?? 0);
     $balance      = (float)($data['balance'] ?? 0);
     $type         = $conn->real_escape_string($data['type'] ?? '');
     $date         = $conn->real_escape_string($data['date'] ?? '');
@@ -201,5 +208,78 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+// ─────────────────────────────────────────────────────────────
+// 5. UPDATE salary record (admin only)
+// ─────────────────────────────────────────────────────────────
+if ($action === 'update' && $_SERVER['REQUEST_METHOD'] === 'PUT') {
+    // Only admin can update
+    if ($authUser['role'] !== 'admin') {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'Admin access required']);
+        exit;
+    }
+
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (!$data || !isset($data['id'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Invalid data']);
+        exit;
+    }
+
+    $id   = (int)$data['id'];
+    $paid = (float)($data['paid'] ?? 0);
+    $salary = (float)($data['salary'] ?? 0);
+    $type = $conn->real_escape_string($data['type'] ?? '');
+    $date = $conn->real_escape_string($data['date'] ?? '');
+
+    // Recalculate balance
+    $balance = $salary - $paid;
+
+    $stmt = $conn->prepare(
+        "UPDATE salaries SET salary=?, paid=?, balance=?, type=?, salary_date=? WHERE id=?"
+    );
+    $stmt->bind_param('dddssi', $salary, $paid, $balance, $type, $date, $id);
+
+    if ($stmt->execute()) {
+        echo json_encode(['success' => true, 'message' => 'Salary updated']);
+    } else {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => $stmt->error]);
+    }
+    $stmt->close();
+    exit;
+}
+
+// ─────────────────────────────────────────────────────────────
+// 6. DELETE salary record (admin only)
+// ─────────────────────────────────────────────────────────────
+if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'DELETE') {
+    if ($authUser['role'] !== 'admin') {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'Admin access required']);
+        exit;
+    }
+
+    $id = (int)($_GET['id'] ?? 0);
+    if (!$id) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Record ID required']);
+        exit;
+    }
+
+    $stmt = $conn->prepare("DELETE FROM salaries WHERE id = ?");
+    $stmt->bind_param('i', $id);
+    if ($stmt->execute()) {
+        echo json_encode(['success' => true, 'message' => 'Salary record deleted']);
+    } else {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => $stmt->error]);
+    }
+    $stmt->close();
+    exit;
+}
+
+// If no valid action
 echo json_encode(['success' => false, 'message' => 'Invalid action']);
+$conn->close();
 ?>

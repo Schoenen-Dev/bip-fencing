@@ -20,6 +20,7 @@ const OT = () => {
     end_time_minute: "00",
     end_time_ampm: "AM",
     ot_date: "",
+    ot_salary: "",
   });
 
   // Helper to get headers with admin branch selection
@@ -74,7 +75,8 @@ const OT = () => {
 
   const fetchOTRecords = async () => {
     try {
-      const response = await fetch(`${API_BASE}/get_ot_details.php`, {
+      // ✅ Updated URL: inside 'ot' folder
+      const response = await fetch(`${API_BASE}/ot/get_ot_details.php`, {
         headers: getHeaders(),
       });
       const data = await response.json();
@@ -152,6 +154,7 @@ const OT = () => {
       end_time_minute: "00",
       end_time_ampm: "AM",
       ot_date: "",
+      ot_salary: "",
     });
 
   const handleSubmit = async (e) => {
@@ -163,10 +166,12 @@ const OT = () => {
       start_time: getStartTimeFormatted(),
       end_time: getEndTimeFormatted(),
       total_ot_hours: totalOTHours,
+      ot_salary: parseFloat(formData.ot_salary) || 0,
       ot_date: formData.ot_date,
     };
     try {
-      const response = await fetch(`${API_BASE}/add_ot_details.php`, {
+      // ✅ Updated URL: inside 'ot' folder
+      const response = await fetch(`${API_BASE}/ot/add_ot_details.php`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -211,6 +216,9 @@ const OT = () => {
         .includes(search) ||
       String(record.total_ot_hours || "")
         .toLowerCase()
+        .includes(search) ||
+      String(record.ot_salary || "")
+        .toLowerCase()
         .includes(search)
     );
   });
@@ -220,8 +228,13 @@ const OT = () => {
     (sum, r) => sum + Number(r.total_ot_hours || 0),
     0,
   );
+  const totalSavedSalary = otRecords.reduce(
+    (sum, r) => sum + Number(r.ot_salary || 0),
+    0,
+  );
   const totalEmployees = new Set(otRecords.map((r) => r.emp_id).filter(Boolean))
     .size;
+
   const hourOptions = Array.from({ length: 12 }, (_, i) => {
     const hour = i + 1;
     const hourStr = String(hour).padStart(2, "0");
@@ -255,6 +268,10 @@ const OT = () => {
             <div className="summary-box">
               <span>Total Hours</span>
               <strong>{totalSavedHours.toFixed(1)} hrs</strong>
+            </div>
+            <div className="summary-box">
+              <span>Total Salary</span>
+              <strong>₹{totalSavedSalary.toFixed(2)}</strong>
             </div>
             <div className="summary-box">
               <span>Employees</span>
@@ -384,6 +401,23 @@ const OT = () => {
                 <label>Total Hours</label>
                 <input type="text" value={`${totalOTHours} hrs`} readOnly />
               </div>
+
+              <div className="form-group">
+                <label>
+                  OT Salary <b>*</b>
+                </label>
+                <input
+                  type="number"
+                  name="ot_salary"
+                  value={formData.ot_salary}
+                  onChange={handleChange}
+                  placeholder="Enter amount"
+                  step="0.01"
+                  min="0"
+                  required
+                />
+              </div>
+
               <div className="form-group">
                 <label>
                   Date <b>*</b>
@@ -429,6 +463,7 @@ const OT = () => {
                   <th>Start</th>
                   <th>End</th>
                   <th>Hours</th>
+                  <th>Salary (₹)</th>
                   <th>Date</th>
                 </tr>
               </thead>
@@ -441,12 +476,13 @@ const OT = () => {
                     <td>{rec.start_time}</td>
                     <td>{rec.end_time}</td>
                     <td>{rec.total_ot_hours} hrs</td>
+                    <td>₹{parseFloat(rec.ot_salary || 0).toFixed(2)}</td>
                     <td>{rec.ot_date}</td>
                   </tr>
                 ))}
                 {filteredRecords.length === 0 && (
                   <tr>
-                    <td colSpan="7" className="empty">
+                    <td colSpan="8" className="empty">
                       No OT records found
                     </td>
                   </tr>
@@ -467,13 +503,13 @@ const OT = () => {
         .page-header h2 i, .card h3 i { color: #008b3e; }
         .page-header p { margin: 0; color: #475569; font-size: 15px; }
         .view-btn, .action-row button { border: 0; background: #008b3e; color: #fff; min-height: 42px; padding: 0 16px; border-radius: 7px; display: inline-flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 800; cursor: pointer; white-space: nowrap; }
-        .summary-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
+        .summary-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
         .summary-box { background: #fff; border: 1px solid #dbe3ec; border-radius: 8px; padding: 14px 16px; box-shadow: 0 2px 6px rgba(15,23,42,0.08); }
         .summary-box span { display: block; color: #475569; font-size: 14px; font-weight: 700; margin-bottom: 6px; }
         .summary-box strong { color: #0f172a; font-size: 24px; font-weight: 800; }
         .card { background: #fff; border: 1px solid #dbe3ec; border-radius: 8px; box-shadow: 0 2px 6px rgba(15,23,42,0.08); padding: 18px; margin-bottom: 20px; }
         .card h3 { margin: 0 0 16px; display: flex; align-items: center; gap: 9px; font-size: 19px; font-weight: 800; }
-        .form-grid { display: grid; grid-template-columns: 1.5fr repeat(3, 1fr); gap: 14px; }
+        .form-grid { display: grid; grid-template-columns: 1.5fr repeat(4, 1fr); gap: 14px; }
         .form-group { display: flex; flex-direction: column; gap: 7px; }
         .form-group label { font-size: 14px; font-weight: 800; }
         .form-group label b { color: #ef233c; }

@@ -1,11 +1,16 @@
 <?php
 // =============================================================
-//  attendance.php  — with admin branch impersonation
-//  Uses $authUser['view_branch_id'] set by auth_middleware.php
+//  attendance.php — with admin branch impersonation
+//  Accepts token from URL ?token= as fallback
 // =============================================================
 
-require_once __DIR__ . '/auth_middleware.php'; // sets $authUser, $pdo
-require_once __DIR__ . '/db.php';              // sets getDB() / $conn (mysqli)
+// Allow token via GET parameter (for environments where HTTP_AUTHORIZATION is not set)
+if (isset($_GET['token'])) {
+    $_SERVER['HTTP_AUTHORIZATION'] = 'Bearer ' . $_GET['token'];
+}
+
+require_once __DIR__ . '/../auth_middleware.php';
+require_once __DIR__ . '/../db.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 $db     = getDB();
@@ -25,17 +30,13 @@ function cleanTime(?string $t): ?string {
     return $t;
 }
 
-// Helper: get effective branch ID for filtering / insertion
 function getEffectiveBranchId(array $user): ?int {
-    // Admin with a view branch (from X-Branch-ID header) → use that branch
     if ($user['role'] === 'admin' && $user['view_branch_id'] !== null) {
         return (int)$user['view_branch_id'];
     }
-    // Non‑admin → use their own branch
     if ($user['role'] !== 'admin' && $user['branch_id'] !== null) {
         return (int)$user['branch_id'];
     }
-    // Admin without view branch → NULL (means all branches)
     return null;
 }
 
@@ -47,7 +48,6 @@ if ($method === 'GET') {
     $params = [];
     $types  = '';
 
-    // Branch restriction
     if ($effectiveBranch !== null) {
         $where[]  = 'a.branch_id = ?';
         $params[] = $effectiveBranch;
@@ -110,10 +110,8 @@ if ($method === 'POST') {
     $checkOut= cleanTime($body['check_out'] ?? null);
     $wh      = is_numeric($body['work_hours'] ?? '') ? (float)$body['work_hours'] : null;
 
-    // Determine branch for the new record
     $branchId = $effectiveBranch;
     if ($branchId === null && $authUser['role'] === 'admin') {
-        // Admin without a view branch → may provide branch_id in body
         $branchId = (int)($body['branch_id'] ?? 0);
     }
     if (!$branchId) {
@@ -150,7 +148,6 @@ if ($method === 'PUT') {
     $id   = (int)($_GET['id'] ?? 0);
     if (!$id) { http_response_code(400); echo json_encode(['error' => 'id required']); exit; }
 
-    // Permission check: only records belonging to the effective branch can be edited
     $checkSql = "SELECT id FROM attendance WHERE id = ?";
     $checkParams = [$id];
     $checkTypes = 'i';
@@ -191,7 +188,6 @@ if ($method === 'DELETE') {
     $id = (int)($_GET['id'] ?? 0);
     if (!$id) { http_response_code(400); echo json_encode(['error' => 'id required']); exit; }
 
-    // Permission check same as PUT
     $checkSql = "SELECT id FROM attendance WHERE id = ?";
     $checkParams = [$id];
     $checkTypes = 'i';
