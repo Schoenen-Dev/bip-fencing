@@ -1,6 +1,10 @@
 <?php
-require_once __DIR__ . '/auth_middleware.php';
-require_once __DIR__ . '/db.php';
+if (isset($_GET['token'])) {
+    $_SERVER['HTTP_AUTHORIZATION'] = 'Bearer ' . $_GET['token'];
+}
+
+require_once __DIR__ . '/../auth_middleware.php';
+require_once __DIR__ . '/../db.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
@@ -10,7 +14,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 
 list($whereClause, $params) = branchFilter($authUser);
 
-$sql = "SELECT id, emp_name, emp_id, salary_type, start_time, end_time, total_ot_hours, ot_salary, ot_date, created_at 
+// ✅ ADD branch_id to the SELECT
+$sql = "SELECT id, emp_name, emp_id, salary_type, start_time, end_time, total_ot_hours, ot_salary, ot_date, created_at, branch_id 
         FROM ot_details $whereClause ORDER BY id DESC";
 
 $stmt = $conn->prepare($sql);

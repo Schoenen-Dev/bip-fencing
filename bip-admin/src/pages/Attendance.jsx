@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import Select from "react-select";
 
 const API_BASE = "http://localhost:8000";
 
@@ -105,111 +106,149 @@ const to24 = ({ hour12, minute, ampm }) => {
   return `${String(h).padStart(2, "0")}:${minute}`;
 };
 
+// Shared react-select styles — compact, green theme
+const rsTime = {
+  control: (b, s) => ({
+    ...b,
+    height: 40,
+    minHeight: 40,
+    borderRadius: 8,
+    borderColor: s.isFocused ? "#008b3e" : "#e2e8f0",
+    boxShadow: s.isFocused ? "0 0 0 3px rgba(0,139,62,.1)" : "none",
+    background: "#fafbfc",
+    fontSize: 13,
+    "&:hover": { borderColor: "#008b3e" },
+    cursor: "pointer",
+  }),
+  valueContainer: (b) => ({ ...b, padding: "0 6px" }),
+  indicatorSeparator: () => ({ display: "none" }),
+  dropdownIndicator: (b) => ({ ...b, padding: "0 4px", color: "#94a3b8" }),
+  menu: (b) => ({
+    ...b,
+    borderRadius: 8,
+    border: "1.5px solid #e2e8f0",
+    boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+    zIndex: 9999,
+  }),
+  menuList: (b) => ({ ...b, maxHeight: 160, padding: "2px 0" }),
+  option: (b, s) => ({
+    ...b,
+    fontSize: 13,
+    padding: "5px 8px",
+    textAlign: "center",
+    background: s.isSelected ? "#008b3e" : s.isFocused ? "#f0fdf4" : "#fff",
+    color: s.isSelected ? "#fff" : "#1e293b",
+  }),
+};
+
+const rsEmp = {
+  control: (b, s) => ({
+    ...b,
+    minHeight: 40,
+    borderRadius: 8,
+    borderColor: s.isFocused ? "#008b3e" : "#e2e8f0",
+    boxShadow: s.isFocused ? "0 0 0 3px rgba(0,139,62,.1)" : "none",
+    background: "#fafbfc",
+    fontSize: 14,
+    "&:hover": { borderColor: "#008b3e" },
+  }),
+  valueContainer: (b) => ({ ...b, padding: "0 12px" }),
+  indicatorSeparator: () => ({ display: "none" }),
+  dropdownIndicator: (b) => ({ ...b, padding: "0 8px", color: "#94a3b8" }),
+  menu: (b) => ({
+    ...b,
+    borderRadius: 8,
+    border: "1.5px solid #e2e8f0",
+    boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+    zIndex: 9999,
+  }),
+  menuList: (b) => ({ ...b, maxHeight: 200, padding: "2px 0" }),
+  option: (b, s) => ({
+    ...b,
+    fontSize: 14,
+    background: s.isSelected ? "#008b3e" : s.isFocused ? "#f0fdf4" : "#fff",
+    color: s.isSelected ? "#fff" : "#1e293b",
+  }),
+};
+
+const HOUR_OPTS = Array.from({ length: 12 }, (_, i) => ({
+  value: String(i + 1),
+  label: String(i + 1).padStart(2, "0"),
+}));
+const MIN_OPTS = [
+  "00",
+  "05",
+  "10",
+  "15",
+  "20",
+  "25",
+  "30",
+  "35",
+  "40",
+  "45",
+  "50",
+  "55",
+].map((m) => ({ value: m, label: m }));
+
 function TimePicker12({ value, onChange, name, required }) {
   const parts = to12Parts(value);
-  const [focused, setFocused] = useState(false);
-  const hours = Array.from({ length: 12 }, (_, i) => String(i + 1));
-  const minutes = [
-    "00",
-    "05",
-    "10",
-    "15",
-    "20",
-    "25",
-    "30",
-    "35",
-    "40",
-    "45",
-    "50",
-    "55",
-  ];
   const update = (field, val) => {
     const np = { ...parts, [field]: val };
     onChange({ target: { name, value: to24(np) } });
   };
-  const sel = {
-    border: "none",
-    outline: "none",
-    background: "transparent",
-    fontSize: 13,
-    color: "#1f2937",
-    cursor: "pointer",
-    padding: "0 2px",
-    fontFamily: "inherit",
-    fontWeight: 500,
-    appearance: "none",
-    WebkitAppearance: "none",
-    MozAppearance: "none",
-    lineHeight: "36px",
-  };
   return (
-    <div
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        height: 40,
-        border: `1.5px solid ${focused ? "#008b3e" : "#e2e8f0"}`,
-        borderRadius: 8,
-        background: "#fafbfc",
-        paddingLeft: 10,
-        paddingRight: 6,
-        gap: 0,
-        boxShadow: focused ? "0 0 0 3px rgba(0,139,62,0.1)" : "none",
-        transition: "border-color 0.15s, box-shadow 0.15s",
-      }}
-    >
+    <div style={{ display: "flex", alignItems: "center", height: 40, gap: 4 }}>
       <i
         className="bi bi-clock"
-        style={{
-          fontSize: 12,
-          color: "#9ca3af",
-          marginRight: 6,
-          flexShrink: 0,
-        }}
+        style={{ fontSize: 12, color: "#9ca3af", flexShrink: 0 }}
       />
-      <select
-        value={parts.hour12}
-        onChange={(e) => update("hour12", e.target.value)}
-        style={{ ...sel, width: 32, textAlign: "center" }}
-      >
-        <option value="">HH</option>
-        {hours.map((h) => (
-          <option key={h} value={h}>
-            {h.padStart(2, "0")}
-          </option>
-        ))}
-      </select>
+      <div style={{ width: 62, flexShrink: 0 }}>
+        <Select
+          menuPlacement="bottom"
+          menuPosition="fixed"
+          isSearchable={false}
+          value={
+            parts.hour12
+              ? {
+                  value: parts.hour12,
+                  label: String(parts.hour12).padStart(2, "0"),
+                }
+              : null
+          }
+          onChange={(opt) => update("hour12", opt.value)}
+          options={HOUR_OPTS}
+          styles={rsTime}
+          placeholder="HH"
+        />
+      </div>
       <span
         style={{
           color: "#374151",
           fontWeight: 700,
           fontSize: 14,
-          margin: "0 1px",
           flexShrink: 0,
         }}
       >
         :
       </span>
-      <select
-        value={parts.minute}
-        onChange={(e) => update("minute", e.target.value)}
-        style={{ ...sel, width: 32, textAlign: "center" }}
-      >
-        {minutes.map((m) => (
-          <option key={m} value={m}>
-            {m}
-          </option>
-        ))}
-      </select>
+      <div style={{ width: 62, flexShrink: 0 }}>
+        <Select
+          menuPlacement="bottom"
+          menuPosition="fixed"
+          isSearchable={false}
+          value={{ value: parts.minute, label: parts.minute }}
+          onChange={(opt) => update("minute", opt.value)}
+          options={MIN_OPTS}
+          styles={rsTime}
+        />
+      </div>
       <span
         style={{
           display: "inline-block",
           width: 1,
           height: 20,
           background: "#e5e7eb",
-          margin: "0 8px",
+          margin: "0 4px",
           flexShrink: 0,
         }}
       />
@@ -254,7 +293,7 @@ function TimePicker12({ value, onChange, name, required }) {
         ))}
       </div>
       {required && !value && (
-        <span style={{ color: "#ef4444", fontSize: 10, marginLeft: 4 }}>*</span>
+        <span style={{ color: "#ef4444", fontSize: 10, marginLeft: 2 }}>*</span>
       )}
     </div>
   );
@@ -386,16 +425,16 @@ export default function Attendance() {
     if (wh) setForm((f) => ({ ...f, work_hours: wh }));
   }, [form.check_in, form.check_out]);
 
-  const handleEmployeeSelect = (e) => {
-    const empId = e.target.value;
-    const emp = dbEmployees.find((em) => em.emp_id === empId);
-    if (emp)
-      setForm((f) => ({
-        ...f,
-        employee_id: emp.emp_id,
-        employee_name: emp.employee_name || emp.emp_name,
-      }));
-    else setForm((f) => ({ ...f, employee_id: "", employee_name: "" }));
+  const handleEmployeeSelect = (opt) => {
+    if (opt) {
+      const emp = dbEmployees.find((em) => em.emp_id === opt.value);
+      if (emp)
+        setForm((f) => ({
+          ...f,
+          employee_id: emp.emp_id,
+          employee_name: emp.employee_name || emp.emp_name,
+        }));
+    } else setForm((f) => ({ ...f, employee_id: "", employee_name: "" }));
   };
 
   const handleChange = (e) =>
@@ -409,13 +448,11 @@ export default function Attendance() {
     );
   };
 
-  // FIX: closeForm properly resets everything
   const closeForm = () => {
     setShowForm(false);
     setEditingId(null);
     setForm(emptyForm);
   };
-
   const handleOpenForm = () => {
     if (!canMarkAttendance) {
       showToast("Please select a specific branch to mark attendance.", "error");
@@ -424,7 +461,7 @@ export default function Attendance() {
     if (showForm && !editingId) {
       closeForm();
       return;
-    } // toggle off if already open in add mode
+    }
     setShowForm(true);
   };
 
@@ -552,6 +589,14 @@ export default function Attendance() {
   ).length;
   const showBranchColumn = isAdmin && !selectedBranch;
 
+  const empOptions = dbEmployees.map((emp) => ({
+    value: emp.emp_id,
+    label: `${emp.employee_name || emp.emp_name} (${emp.emp_id})`,
+  }));
+  const empValue = form.employee_id
+    ? empOptions.find((o) => o.value === form.employee_id) || null
+    : null;
+
   return (
     <div className="at-root">
       <style>{`
@@ -559,20 +604,17 @@ export default function Attendance() {
         .at-toast { position: fixed; top: 24px; right: 24px; z-index: 1200; display: flex; align-items: center; gap: 10px; padding: 13px 20px; border-radius: 10px; font-size: 14px; font-weight: 600; box-shadow: 0 8px 24px rgba(0,0,0,0.18); color: #fff; min-width: 240px; animation: at-slide .28s cubic-bezier(.4,0,.2,1); }
         .at-toast.success { background: #008b3e; } .at-toast.error { background: #dc2626; }
         @keyframes at-slide { from { transform: translateX(110%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-
         .at-header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 28px; border-bottom: 1.5px solid #e2e8f0; margin-bottom: 28px; flex-wrap: wrap; gap: 14px; }
         .at-header__left { display: flex; align-items: center; gap: 14px; }
         .at-header__icon { width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #008b3e, #00b84f); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 17px; flex-shrink: 0; box-shadow: 0 3px 10px rgba(0,139,62,.25); }
         .at-header__title { margin: 0 0 2px; font-size: 22px; font-weight: 800; letter-spacing: -.4px; }
         .at-header__sub { margin: 0; font-size: 13px; color: #64748b; }
-
         .at-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-bottom: 28px; }
         .at-stat { background: #fff; border: 1.5px solid var(--bd); border-radius: 12px; padding: 18px 20px; display: flex; align-items: center; gap: 14px; }
         .at-stat__icon { width: 44px; height: 44px; border-radius: 10px; background: var(--bg); color: var(--c); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
         .at-stat__label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #64748b; margin-bottom: 4px; }
         .at-stat__value { font-size: 22px; font-weight: 800; color: var(--c); }
         .at-stat__sub { font-size: 12px; color: #94a3b8; margin-top: 2px; }
-
         .at-btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 20px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; border: none; transition: box-shadow .15s, opacity .15s; }
         .at-btn--primary { background: linear-gradient(135deg,#008b3e,#00b84f); color: #fff; box-shadow: 0 2px 10px rgba(0,139,62,.3); }
         .at-btn--primary:hover { box-shadow: 0 4px 16px rgba(0,139,62,.38); }
@@ -581,11 +623,8 @@ export default function Attendance() {
         .at-btn--danger { background: #dc2626; color: #fff; }
         .at-btn--warn { background: #fef3c7; color: #b45309; border: 1.5px solid #fde68a; }
         .at-btn:disabled { opacity: .5; cursor: not-allowed; }
-
         .at-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 14px; padding: 24px; margin-bottom: 24px; }
         .at-card__head { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 22px; padding-bottom: 16px; border-bottom: 1px solid #f1f5f9; }
-        .at-card__head i { font-size: 17px; }
-
         .at-form-section { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: #94a3b8; margin: 0 0 12px; }
         .at-form-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-bottom: 20px; }
         .at-fg { display: flex; flex-direction: column; gap: 7px; }
@@ -596,8 +635,6 @@ export default function Attendance() {
         .at-input:disabled, .at-select:disabled { background: #f1f5f9; color: #94a3b8; }
         .at-readonly { height: 40px; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 0 12px; font-size: 14px; background: #f8fafc; color: #475569; font-weight: 600; display: flex; align-items: center; }
         .at-form-actions { display: flex; gap: 10px; padding-top: 8px; }
-        .at-alert { display: flex; align-items: center; gap: 10px; background: #fffbeb; border: 1px solid #fde68a; color: #92400e; border-radius: 8px; padding: 12px 16px; font-size: 14px; margin-bottom: 20px; }
-
         .at-tabs-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
         .at-tabs { display: flex; gap: 6px; }
         .at-tab { padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1.5px solid #e2e8f0; background: #f8fafc; color: #64748b; transition: all .15s; }
@@ -605,7 +642,6 @@ export default function Attendance() {
         .at-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
         .at-finput { height: 36px; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 0 11px; font-size: 13px; color: #1e293b; background: #fafbfc; outline: none; transition: border-color .15s; }
         .at-finput:focus { border-color: #008b3e; }
-
         .at-table-wrap { border-radius: 10px; border: 1.5px solid #e2e8f0; overflow-x: auto; }
         .at-table { width: 100%; border-collapse: collapse; font-size: 13px; }
         .at-table thead tr { background: #f8fafc; }
@@ -625,16 +661,14 @@ export default function Attendance() {
         .at-actions { display: flex; gap: 5px; }
         .at-act { width: 30px; height: 30px; border: none; border-radius: 7px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px; transition: transform .12s; }
         .at-act:hover { transform: scale(1.08); }
-        .at-act--edit { background: #dcfce7; color: #2563eb; }
+        .at-act--edit { background: #eff6ff; color: #2563eb; }
         .at-act--del { background: #fef2f2; color: #dc2626; }
-
         .at-empty { display: flex; flex-direction: column; align-items: center; padding: 52px 20px; color: #94a3b8; }
         .at-empty i { font-size: 40px; margin-bottom: 10px; }
         .at-empty p { margin: 0 0 4px; font-weight: 600; color: #64748b; font-size: 14px; }
         .at-loading { display: flex; align-items: center; gap: 12px; padding: 40px; justify-content: center; color: #64748b; }
         .at-spinner { width: 22px; height: 22px; border: 3px solid #e2e8f0; border-top-color: #008b3e; border-radius: 50%; animation: at-spin .7s linear infinite; }
         @keyframes at-spin { to { transform: rotate(360deg); } }
-
         .at-pagination { display: flex; justify-content: space-between; align-items: center; padding: 16px 0 0; border-top: 1px solid #f1f5f9; margin-top: 16px; flex-wrap: wrap; gap: 10px; }
         .at-pg-left { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #64748b; }
         .at-pg-select { height: 32px; border: 1.5px solid #e2e8f0; border-radius: 7px; padding: 0 8px; font-size: 13px; background: #fafbfc; cursor: pointer; outline: none; }
@@ -643,7 +677,6 @@ export default function Attendance() {
         .at-pg-btn { display: inline-flex; align-items: center; gap: 5px; padding: 6px 14px; border: 1.5px solid #e2e8f0; background: #fafbfc; border-radius: 8px; font-size: 13px; font-weight: 600; color: #374151; cursor: pointer; transition: background .15s; }
         .at-pg-btn:hover:not(:disabled) { background: #f1f5f9; }
         .at-pg-btn:disabled { opacity: .45; cursor: not-allowed; }
-
         .at-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.55); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; z-index: 1000; }
         .at-modal { background: #fff; border-radius: 16px; width: 460px; max-width: 92vw; box-shadow: 0 24px 60px rgba(15,23,42,.22); animation: at-mi .22s cubic-bezier(.4,0,.2,1); overflow: hidden; }
         @keyframes at-mi { from { transform: translateY(18px) scale(.97); opacity: 0; } to { transform: none; opacity: 1; } }
@@ -652,13 +685,112 @@ export default function Attendance() {
         .at-modal__close { width: 30px; height: 30px; border: none; background: #f1f5f9; border-radius: 7px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 13px; }
         .at-modal__body { padding: 24px 22px; text-align: center; }
         .at-modal__ft { padding: 14px 22px; border-top: 1px solid #f1f5f9; display: flex; justify-content: flex-end; gap: 10px; }
-
         .at-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding-top: 16px; border-top: 1px solid #f1f5f9; margin-top: 4px; }
         .at-status-summary { display: flex; gap: 14px; flex-wrap: wrap; }
         .at-ss-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #64748b; }
+        @media (max-width: 1100px) {
+          .at-root { width: 100%; max-width: 100%; min-width: 0; }
+          .at-stats { grid-template-columns: repeat(2,minmax(0,1fr)); }
+          .at-form-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+          .at-fg--2 { grid-column: span 2; }
+          .at-table { min-width: 1000px; }
+        }
 
-        @media (max-width: 1100px) { .at-stats { grid-template-columns: repeat(2,1fr); } .at-form-grid { grid-template-columns: repeat(2,1fr); } }
-        @media (max-width: 640px) { .at-stats { grid-template-columns: 1fr 1fr; } .at-form-grid { grid-template-columns: 1fr; } .at-filters { flex-direction: column; } }
+        @media (max-width: 768px) {
+          .at-root { width: 100%; max-width: 100%; min-width: 0; overflow-x: hidden; }
+          .at-header { align-items: flex-start; padding-bottom: 20px; margin-bottom: 20px; }
+          .at-header__left { width: 100%; min-width: 0; }
+          .at-header__left > div:last-child { min-width: 0; }
+          .at-header__title { font-size: 20px; }
+          .at-header__sub { line-height: 1.5; }
+          .at-header > .at-btn { width: 100%; justify-content: center; }
+
+          .at-stats {
+            grid-template-columns: repeat(2,minmax(0,1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+          }
+          .at-stat { padding: 14px; gap: 10px; min-width: 0; }
+          .at-stat__icon { width: 38px; height: 38px; font-size: 17px; }
+          .at-stat__label { font-size: 10px; }
+          .at-stat__value { font-size: 19px; }
+          .at-stat__sub { font-size: 10px; }
+
+          .at-card { padding: 16px; border-radius: 12px; margin-bottom: 16px; }
+          .at-form-grid { grid-template-columns: minmax(0,1fr); gap: 14px; }
+          .at-fg, .at-fg--2 { grid-column: auto; min-width: 0; }
+          .at-form-actions { flex-direction: column; }
+          .at-form-actions .at-btn { width: 100%; justify-content: center; }
+
+          .at-fg > div[style*="height: 40"] {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: auto;
+            overflow-y: visible;
+            padding-bottom: 2px;
+          }
+
+          .at-tabs-row { align-items: stretch; }
+          .at-tabs-row > div:first-child { width: 100%; }
+          .at-filters {
+            width: 100%;
+            display: grid;
+            grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+          }
+          .at-filters .at-finput { width: 100% !important; min-width: 0; }
+          .at-filters .at-finput:first-child { grid-column: 1 / -1; }
+          .at-filters .at-pg-btn { width: 100%; justify-content: center; }
+
+          .at-tabs {
+            width: 100%;
+            overflow-x: auto;
+            padding-bottom: 4px;
+            scrollbar-width: thin;
+            -webkit-overflow-scrolling: touch;
+          }
+          .at-tab { flex: 0 0 auto; white-space: nowrap; }
+
+          .at-table-wrap {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+          }
+          .at-table { min-width: 1000px; }
+
+          .at-pagination { flex-direction: column; align-items: stretch; }
+          .at-pg-left { justify-content: center; flex-wrap: wrap; }
+          .at-pg-right { justify-content: center; flex-wrap: wrap; }
+          .at-pg-info { width: 100%; text-align: center; }
+          .at-pg-right .at-pg-btn { flex: 1; justify-content: center; }
+
+          .at-footer { align-items: flex-start; }
+          .at-status-summary { gap: 10px; }
+
+          .at-toast {
+            top: 12px;
+            right: 12px;
+            left: 12px;
+            width: auto;
+            min-width: 0;
+          }
+          .at-overlay { padding: 16px; }
+          .at-modal { width: 100%; max-width: 460px; }
+        }
+
+        @media (max-width: 480px) {
+          .at-stats { grid-template-columns: 1fr; }
+          .at-filters { grid-template-columns: 1fr; }
+          .at-filters .at-finput:first-child { grid-column: auto; }
+          .at-card { padding: 14px 12px; }
+          .at-header__icon { width: 36px; height: 36px; }
+          .at-modal__hd, .at-modal__body, .at-modal__ft {
+            padding-left: 16px;
+            padding-right: 16px;
+          }
+          .at-modal__ft { flex-direction: column-reverse; }
+          .at-modal__ft .at-btn { width: 100%; justify-content: center; }
+        }
       `}</style>
 
       {toast.show && (
@@ -674,7 +806,6 @@ export default function Attendance() {
         </div>
       )}
 
-      {/* Header */}
       <div className="at-header">
         <div className="at-header__left">
           <div className="at-header__icon">
@@ -687,7 +818,6 @@ export default function Attendance() {
             </p>
           </div>
         </div>
-        {/* FIX: Button properly toggles form open/close and resets state */}
         <button
           className={`at-btn ${showForm ? "at-btn--warn" : "at-btn--primary"}`}
           disabled={!canMarkAttendance}
@@ -703,7 +833,6 @@ export default function Attendance() {
         </button>
       </div>
 
-      {/* Stats */}
       <div className="at-stats">
         {[
           {
@@ -764,7 +893,6 @@ export default function Attendance() {
         ))}
       </div>
 
-      {/* Form */}
       {showForm && canMarkAttendance && (
         <div className="at-card">
           <div className="at-card__head">
@@ -783,22 +911,17 @@ export default function Attendance() {
                 <label className="at-label">
                   Employee Name <span style={{ color: "#ef4444" }}>*</span>
                 </label>
-                <select
-                  className="at-select"
-                  value={form.employee_id}
+                <Select
+                  menuPlacement="bottom"
+                  menuPosition="fixed"
+                  isClearable
+                  isDisabled={empLoading}
+                  placeholder={empLoading ? "Loading…" : "Select employee…"}
+                  value={empValue}
                   onChange={handleEmployeeSelect}
-                  required
-                  disabled={empLoading}
-                >
-                  <option value="">
-                    {empLoading ? "Loading…" : "Select employee…"}
-                  </option>
-                  {dbEmployees.map((emp) => (
-                    <option key={emp.emp_id} value={emp.emp_id}>
-                      {emp.employee_name || emp.emp_name} ({emp.emp_id})
-                    </option>
-                  ))}
-                </select>
+                  options={empOptions}
+                  styles={rsEmp}
+                />
               </div>
               <div className="at-fg">
                 <label className="at-label">Employee ID</label>
@@ -910,7 +1033,6 @@ export default function Attendance() {
               >
                 <i className="bi bi-arrow-counterclockwise" /> Reset
               </button>
-              {/* FIX: Cancel Edit uses closeForm to fully reset */}
               {editingId && (
                 <button
                   type="button"
@@ -925,7 +1047,6 @@ export default function Attendance() {
         </div>
       )}
 
-      {/* Records Table */}
       <div className="at-card">
         <div className="at-tabs-row">
           <div>
@@ -989,7 +1110,6 @@ export default function Attendance() {
             </button>
           ))}
         </div>
-
         <div style={{ marginTop: 16 }}>
           {loading ? (
             <div className="at-loading">
@@ -1165,8 +1285,6 @@ export default function Attendance() {
                   </tfoot>
                 </table>
               </div>
-
-              {/* Pagination */}
               <div className="at-pagination">
                 <div className="at-pg-left">
                   Show
@@ -1208,8 +1326,6 @@ export default function Attendance() {
                   </div>
                 )}
               </div>
-
-              {/* Footer summary */}
               <div className="at-footer">
                 <div className="at-status-summary">
                   {STATUSES.map((s) => {
@@ -1236,7 +1352,6 @@ export default function Attendance() {
         </div>
       </div>
 
-      {/* Delete Modal */}
       {deleteConfirm && (
         <div className="at-overlay" onClick={() => setDeleteConfirm(null)}>
           <div className="at-modal" onClick={(e) => e.stopPropagation()}>

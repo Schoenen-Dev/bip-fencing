@@ -25,11 +25,11 @@ if (!$body) {
 $name    = trim($body['employee_name'] ?? '');
 $empId   = trim($body['emp_id'] ?? '');
 $dept    = trim($body['department'] ?? '');
-$dest    = isset($body['destination']) ? trim($body['destination']) : null;
-$gender  = isset($body['gender']) && in_array($body['gender'], ['Male', 'Female', 'Other']) ? $body['gender'] : null;
-$email   = isset($body['email']) ? trim($body['email']) : null;
-$phone   = isset($body['phone_number']) ? trim($body['phone_number']) : null;
-$address = isset($body['address']) ? trim($body['address']) : null;
+$dest    = trim($body['destination'] ?? '');
+$gender  = trim($body['gender'] ?? '');
+$email   = trim($body['email'] ?? '');
+$phone   = trim($body['phone_number'] ?? '');
+$address = trim($body['address'] ?? '');
 $salType = trim($body['salary_type'] ?? '');
 $doj     = trim($body['date_of_joining'] ?? '');
 
@@ -41,34 +41,102 @@ if (!$name || !$empId || !$dept || !$salType || !$doj) {
 
 $db = getDB();
 
-// Permission check: admin can edit any; branch users only their branch
+/* --------------------------------------------------
+   Permission check
+---------------------------------------------------*/
 if ($authUser['role'] !== 'admin') {
-    $check = $db->prepare("SELECT id FROM employees WHERE id = ? AND branch_id = ?");
-    $check->bind_param('ii', $id, $authUser['branch_id']);
+    $check = $db->prepare(
+        "SELECT id
+         FROM employees
+         WHERE id = ? AND branch_id = ?"
+    );
+    $check->bind_param("ii", $id, $authUser['branch_id']);
     $check->execute();
+
     if (!$check->get_result()->fetch_assoc()) {
         http_response_code(403);
         echo json_encode(['error' => 'Access denied']);
         exit;
     }
+
+    $check->close();
 }
 
-$stmt = $db->prepare("
-    UPDATE employees SET 
-        employee_name=?, emp_id=?, department=?, destination=?, gender=?, email=?, phone_number=?, address=?, salary_type=?, date_of_joining=?
-    WHERE id=?
-");
+/* --------------------------------------------------
+   Check duplicate Employee ID / Phone Number
+---------------------------------------------------*/
+$duplicate = $db->prepare(
+    "SELECT id
+     FROM employees
+     WHERE (emp_id = ? OR phone_number = ?)
+     AND id != ?"
+);
+
+$duplicate->bind_param(
+    "ssi",
+    $empId,
+    $phone,
+    $id
+);
+
+$duplicate->execute();
+
+if ($duplicate->get_result()->num_rows > 0) {
+    http_response_code(409);
+    echo json_encode([
+        'error' => 'Employee ID or Mobile Number already exists.'
+    ]);
+    exit;
+}
+
+$duplicate->close();
+
+/* --------------------------------------------------
+   Update employee
+---------------------------------------------------*/
+$stmt = $db->prepare(
+    "UPDATE employees
+     SET
+        employee_name = ?,
+        emp_id = ?,
+        department = ?,
+        destination = ?,
+        gender = ?,
+        email = ?,
+        phone_number = ?,
+        address = ?,
+        salary_type = ?,
+        date_of_joining = ?
+     WHERE id = ?"
+);
+
 $stmt->bind_param(
-    'ssssssssssi',
-    $name, $empId, $dept, $dest, $gender, $email, $phone, $address, $salType, $doj, $id
+    "ssssssssssi",
+    $name,
+    $empId,
+    $dept,
+    $dest,
+    $gender,
+    $email,
+    $phone,
+    $address,
+    $salType,
+    $doj,
+    $id
 );
 
 if ($stmt->execute()) {
-    echo json_encode(['success' => true, 'message' => 'Employee updated']);
+    echo json_encode([
+        'success' => true,
+        'message' => 'Employee updated successfully'
+    ]);
 } else {
     http_response_code(500);
-    echo json_encode(['error' => $stmt->error]);
+    echo json_encode([
+        'error' => $stmt->error
+    ]);
 }
+
 $stmt->close();
 $db->close();
 ?>

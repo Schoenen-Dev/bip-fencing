@@ -799,7 +799,7 @@ const AdminFeatures = () => {
       )}
 
       <style>{`
-        .af-root { color: #0f172a; position: relative; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        .af-root { width: 100%; max-width: 100%; min-width: 0; color: #0f172a; position: relative; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
 
         /* Toast */
         .af-toast { position: fixed; top: 24px; right: 24px; z-index: 1200; display: flex; align-items: center; gap: 10px; padding: 13px 20px; border-radius: 10px; font-size: 14px; font-weight: 600; box-shadow: 0 8px 24px rgba(0,0,0,0.18); color: #fff; min-width: 240px; animation: af-slide .28s cubic-bezier(.4,0,.2,1); }
@@ -916,15 +916,184 @@ const AdminFeatures = () => {
 
         /* Responsive */
         @media (max-width: 1100px) {
-          .af-stats { grid-template-columns: repeat(2, 1fr); }
-          .af-filters { grid-template-columns: 1fr 1fr 1fr; }
-          .af-form-grid { grid-template-columns: repeat(2, 1fr); }
+          .af-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .af-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+          .af-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .af-table { min-width: 900px; }
         }
-        @media (max-width: 640px) {
-          .af-stats { grid-template-columns: 1fr 1fr; }
-          .af-filters { grid-template-columns: 1fr 1fr; }
-          .af-form-grid { grid-template-columns: 1fr; }
-          .af-modal__body { grid-template-columns: 1fr; }
+
+        @media (max-width: 768px) {
+          .af-root {
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+            overflow-x: hidden;
+          }
+
+          .af-header {
+            align-items: flex-start;
+            gap: 12px;
+            padding-bottom: 20px;
+            margin-bottom: 20px;
+          }
+          .af-header > div:last-child { min-width: 0; }
+          .af-header__title { font-size: 20px; }
+          .af-header__sub { line-height: 1.5; }
+
+          .af-stats {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+          }
+          .af-stat {
+            min-width: 0;
+            padding: 14px;
+            gap: 10px;
+          }
+          .af-stat__body { min-width: 0; }
+          .af-stat__icon {
+            width: 38px;
+            height: 38px;
+            font-size: 17px;
+          }
+          .af-stat__label { font-size: 10px; }
+          .af-stat__value {
+            font-size: 15px;
+            overflow-wrap: anywhere;
+          }
+
+          .af-alert {
+            align-items: flex-start;
+            font-size: 13px;
+            line-height: 1.5;
+          }
+
+          .af-card {
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+          }
+          .af-card__head {
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+          }
+          .af-count {
+            margin-left: auto;
+            white-space: nowrap;
+          }
+
+          .af-form-grid {
+            grid-template-columns: minmax(0, 1fr);
+            gap: 14px;
+          }
+          .af-fg,
+          .af-fg--full {
+            grid-column: auto;
+            min-width: 0;
+          }
+          .af-form-actions { justify-content: stretch; }
+          .af-form-actions .af-btn {
+            width: 100%;
+            justify-content: center;
+          }
+
+          .af-filters {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+          }
+          .af-fgrp,
+          .af-finput {
+            min-width: 0;
+            width: 100%;
+          }
+          .af-filters .af-fgrp:first-child,
+          .af-filters .af-fgrp:last-child {
+            grid-column: 1 / -1;
+          }
+
+          .af-table-wrap {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+          }
+          .af-table { min-width: 900px; }
+
+          .af-pagination {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          .af-pg-left {
+            justify-content: center;
+            flex-wrap: wrap;
+          }
+          .af-pg-right {
+            justify-content: center;
+            flex-wrap: wrap;
+          }
+          .af-pg-info {
+            width: 100%;
+            text-align: center;
+          }
+          .af-pg-right .af-pg-btn {
+            flex: 1;
+            justify-content: center;
+          }
+
+          .af-toast {
+            top: 12px;
+            right: 12px;
+            left: 12px;
+            width: auto;
+            min-width: 0;
+          }
+
+          .af-overlay {
+            padding: 16px;
+            align-items: center;
+          }
+          .af-modal {
+            width: 100%;
+            max-width: 560px;
+            max-height: calc(100vh - 32px);
+          }
+          .af-modal--sm {
+            width: 100%;
+            max-width: 380px;
+          }
+          .af-modal__body {
+            grid-template-columns: minmax(0, 1fr);
+          }
+        }
+
+        @media (max-width: 480px) {
+          .af-stats { grid-template-columns: 1fr; }
+
+          .af-card { padding: 14px 12px; }
+          .af-header__icon {
+            width: 36px;
+            height: 36px;
+          }
+
+          .af-filters { grid-template-columns: 1fr; }
+          .af-filters .af-fgrp:first-child,
+          .af-filters .af-fgrp:last-child {
+            grid-column: auto;
+          }
+
+          .af-modal__header,
+          .af-modal__body,
+          .af-modal__footer {
+            padding-left: 16px;
+            padding-right: 16px;
+          }
+          .af-modal__footer {
+            flex-direction: column-reverse;
+          }
+          .af-modal__footer .af-btn {
+            width: 100%;
+            justify-content: center;
+          }
         }
       `}</style>
     </div>

@@ -23,6 +23,11 @@ CREATE TABLE `employees` (
   FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+ALTER TABLE employees
+ADD CONSTRAINT unique_empid UNIQUE(emp_id),
+ADD CONSTRAINT unique_phone UNIQUE(phone_number);
+ALTER TABLE employees MODIFY COLUMN phone_number VARCHAR(15) NOT NULL;
+
 
 -------------------------------------------------------- Admin Features ------------------------------------------------------------------------------
 
@@ -88,6 +93,7 @@ CREATE TABLE IF NOT EXISTS `attendance` (
 -------------------------------------------------------overtime Management ------------------------------------------------------------------------------
 
 DROP TABLE IF EXISTS `ot_details`;
+
 CREATE TABLE `ot_details` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `emp_name` varchar(100) NOT NULL,
@@ -101,5 +107,6 @@ CREATE TABLE `ot_details` (
   `branch_id` int(11) NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_employee_date` (`emp_id`, `ot_date`),
   KEY `branch_id` (`branch_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

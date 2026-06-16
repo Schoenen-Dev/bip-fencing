@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import Select from "react-select";
 
 const API = "http://localhost:8000/salary/salary_api.php";
 
@@ -12,6 +13,36 @@ const getHeaders = () => {
     if (viewBranch) headers["X-Branch-ID"] = viewBranch;
   }
   return headers;
+};
+
+const rsEmp = {
+  control: (b, s) => ({
+    ...b,
+    minHeight: 40,
+    borderRadius: 8,
+    borderColor: s.isFocused ? "#008b3e" : "#e2e8f0",
+    boxShadow: s.isFocused ? "0 0 0 3px rgba(0,139,62,.1)" : "none",
+    background: "#fafbfc",
+    fontSize: 14,
+    "&:hover": { borderColor: "#008b3e" },
+  }),
+  valueContainer: (b) => ({ ...b, padding: "0 12px" }),
+  indicatorSeparator: () => ({ display: "none" }),
+  dropdownIndicator: (b) => ({ ...b, padding: "0 8px", color: "#94a3b8" }),
+  menu: (b) => ({
+    ...b,
+    borderRadius: 8,
+    border: "1.5px solid #e2e8f0",
+    boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+    zIndex: 9999,
+  }),
+  menuList: (b) => ({ ...b, maxHeight: 200, padding: "2px 0" }),
+  option: (b, s) => ({
+    ...b,
+    fontSize: 14,
+    background: s.isSelected ? "#008b3e" : s.isFocused ? "#f0fdf4" : "#fff",
+    color: s.isSelected ? "#fff" : "#1e293b",
+  }),
 };
 
 const emptyForm = {
@@ -129,9 +160,9 @@ export default function Salary() {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  const handleEmployeeSelect = (e) => {
-    const id = e.target.value;
-    const emp = employees.find((em) => em.emp_id === id);
+  // FIX: react-select returns option object, not event
+  const handleEmployeeSelect = (opt) => {
+    const emp = opt ? employees.find((em) => em.emp_id === opt.value) : null;
     setForm((prev) => ({
       ...prev,
       employeeId: emp ? emp.emp_id : "",
@@ -264,13 +295,13 @@ export default function Salary() {
       ? filteredRecords
       : filteredRecords.slice(startIndex, startIndex + rowsPerPage);
 
-  const formatTime = (ts) => {
-    if (!ts) return "—";
-    return new Date(ts).toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+  const formatTime = (ts) =>
+    ts
+      ? new Date(ts).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "—";
   const inr = (v) => `₹${Number(v).toLocaleString("en-IN")}`;
   const noBranchProps = {
     disabled: !hasBranch,
@@ -300,6 +331,14 @@ export default function Salary() {
     );
   };
 
+  const empOptions = employees.map((emp) => ({
+    value: emp.emp_id,
+    label: `${emp.emp_name} (${emp.emp_id})`,
+  }));
+  const empValue = form.employeeId
+    ? empOptions.find((o) => o.value === form.employeeId) || null
+    : null;
+
   return (
     <>
       <style>{`
@@ -307,28 +346,23 @@ export default function Salary() {
         .sl-toast { position: fixed; top: 24px; right: 24px; z-index: 1200; display: flex; align-items: center; gap: 10px; padding: 13px 20px; border-radius: 10px; font-size: 14px; font-weight: 600; box-shadow: 0 8px 24px rgba(0,0,0,0.18); color: #fff; min-width: 240px; animation: sl-in .28s cubic-bezier(.4,0,.2,1); }
         .sl-toast.success { background: #008b3e; } .sl-toast.error { background: #dc2626; }
         @keyframes sl-in { from { transform: translateX(110%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-
         .sl-header { display: flex; align-items: center; gap: 14px; padding-bottom: 28px; border-bottom: 1.5px solid #e2e8f0; margin-bottom: 28px; }
         .sl-header__icon { width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #008b3e, #00b84f); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 17px; flex-shrink: 0; box-shadow: 0 3px 10px rgba(0,139,62,.25); }
         .sl-header__title { margin: 0 0 2px; font-size: 22px; font-weight: 800; letter-spacing: -.4px; }
         .sl-header__sub { margin: 0; font-size: 13px; color: #64748b; }
-
         .sl-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 28px; }
         .sl-stat { background: #fff; border: 1.5px solid var(--bd); border-radius: 12px; padding: 18px 20px; }
         .sl-stat__label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #64748b; margin-bottom: 8px; }
         .sl-stat__value { font-size: 20px; font-weight: 800; color: var(--c); font-family: "SF Mono","Fira Code",monospace; }
         .sl-skeleton { animation: sl-pulse 1.5s infinite; background: #e5e7eb; border-radius: 4px; height: 28px; width: 130px; display: inline-block; }
         @keyframes sl-pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-
         .sl-tabs { display: flex; gap: 4px; border-bottom: 1.5px solid #e2e8f0; margin-bottom: 24px; }
         .sl-tab { display: flex; align-items: center; gap: 8px; padding: 13px 20px; border: none; background: transparent; font-size: 14px; font-weight: 600; color: #64748b; cursor: pointer; border-bottom: 2.5px solid transparent; margin-bottom: -1.5px; border-radius: 6px 6px 0 0; transition: color .15s, border-color .15s; }
         .sl-tab:hover { background: #f8fafc; color: #1e293b; }
         .sl-tab.active { color: #008b3e; border-bottom-color: #008b3e; }
-
         .sl-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 14px; padding: 24px; margin-bottom: 24px; }
         .sl-card__head { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 22px; padding-bottom: 16px; border-bottom: 1px solid #f1f5f9; }
         .sl-card__head i { color: #008b3e; font-size: 17px; }
-
         .sl-form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
         .sl-fg { display: flex; flex-direction: column; gap: 7px; }
         .sl-fg--2 { grid-column: span 2; }
@@ -338,21 +372,18 @@ export default function Salary() {
         .sl-input:focus, .sl-select:focus { border-color: #008b3e; background: #fff; box-shadow: 0 0 0 3px rgba(0,139,62,.1); }
         .sl-input:disabled, .sl-select:disabled { background: #f1f5f9; color: #94a3b8; cursor: not-allowed; }
         .sl-hint { font-size: 12px; color: #64748b; margin-top: 3px; }
-
         .sl-btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 20px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; border: none; transition: box-shadow .15s; }
         .sl-btn--primary { background: linear-gradient(135deg,#008b3e,#009e46); color:#fff; box-shadow: 0 2px 8px rgba(0,139,62,.3); }
         .sl-btn--primary:hover { box-shadow: 0 4px 16px rgba(0,139,62,.38); }
         .sl-btn--ghost { background: #f8fafc; color: #374151; border: 1.5px solid #e2e8f0; }
         .sl-btn--ghost:hover { background: #f1f5f9; }
+        .sl-btn--danger { background: #dc2626; color: #fff; }
         .sl-form-actions { display: flex; gap: 10px; margin-top: 22px; justify-content: flex-end; }
-
         .sl-alert { display: flex; align-items: center; gap: 10px; background: #fffbeb; border: 1px solid #fde68a; color: #92400e; border-radius: 8px; padding: 12px 16px; font-size: 14px; margin-bottom: 20px; }
         .sl-error { color: #dc2626; font-size: 13px; margin-top: 8px; }
-
         .sl-filters { display: grid; grid-template-columns: 2fr 2fr 1fr auto; gap: 8px; margin-bottom: 20px; align-items: center; }
         .sl-finput { height: 36px; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 0 11px; font-size: 13px; color: #1e293b; background: #fafbfc; width: 100%; box-sizing: border-box; outline: none; }
         .sl-finput:focus { border-color: #008b3e; }
-
         .sl-table-wrap { border-radius: 10px; border: 1.5px solid #e2e8f0; overflow-x: auto; }
         .sl-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
         .sl-table thead tr { background: #f8fafc; }
@@ -362,7 +393,6 @@ export default function Salary() {
         .sl-table tbody tr:hover td { background: #f8fffe; }
         .sl-td-num { color: #94a3b8; font-size: 12px; width: 36px; }
         .sl-emp-name { font-weight: 700; font-size: 13.5px; }
-        .sl-emp-id { font-size: 12px; color: #64748b; }
         .sl-id-tag { background: #f1f5f9; color: #475569; border-radius: 6px; padding: 2px 8px; font-size: 12px; font-weight: 700; font-family: "SF Mono","Fira Code",monospace; }
         .sl-paid { color: #15803d; font-weight: 700; font-family: monospace; }
         .sl-balance { color: #dc2626; font-weight: 700; font-family: monospace; }
@@ -375,14 +405,12 @@ export default function Salary() {
         .sl-act--view { background: #dcfce7; color: #15803d; }
         .sl-act--edit { background: #eff6ff; color: #2563eb; }
         .sl-act--del  { background: #fef2f2; color: #dc2626; }
-
         .sl-empty { display: flex; flex-direction: column; align-items: center; padding: 52px 20px; color: #94a3b8; }
         .sl-empty i { font-size: 40px; margin-bottom: 10px; }
         .sl-empty p { margin: 0; font-weight: 600; color: #64748b; }
         .sl-loading { display: flex; align-items: center; gap: 12px; padding: 40px; justify-content: center; color: #64748b; font-size: 14px; }
         .sl-spinner { width: 20px; height: 20px; border: 3px solid #e2e8f0; border-top-color: #008b3e; border-radius: 50%; animation: sl-spin .7s linear infinite; }
         @keyframes sl-spin { to { transform: rotate(360deg); } }
-
         .sl-pagination { display: flex; justify-content: space-between; align-items: center; margin-top: 18px; padding-top: 16px; border-top: 1px solid #f1f5f9; flex-wrap: wrap; gap: 10px; }
         .sl-pg-left { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #64748b; }
         .sl-pg-select { height: 32px; border: 1.5px solid #e2e8f0; border-radius: 7px; padding: 0 8px; font-size: 13px; background: #fafbfc; cursor: pointer; outline: none; }
@@ -391,7 +419,6 @@ export default function Salary() {
         .sl-pg-btn { display: inline-flex; align-items: center; gap: 5px; padding: 6px 14px; border: 1.5px solid #e2e8f0; background: #fafbfc; border-radius: 8px; font-size: 13px; font-weight: 600; color: #374151; cursor: pointer; }
         .sl-pg-btn:hover:not(:disabled) { background: #f1f5f9; }
         .sl-pg-btn:disabled { opacity: .45; cursor: not-allowed; }
-
         .sl-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.55); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; z-index: 1000; animation: sl-fi .18s ease; }
         @keyframes sl-fi { from { opacity: 0; } to { opacity: 1; } }
         .sl-modal { background: #fff; border-radius: 16px; width: 520px; max-width: 92vw; max-height: 88vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 24px 60px rgba(15,23,42,.22); animation: sl-mi .22s cubic-bezier(.4,0,.2,1); }
@@ -406,8 +433,6 @@ export default function Salary() {
         .sl-modal__ft { padding: 14px 22px; border-top: 1px solid #f1f5f9; display: flex; justify-content: flex-end; gap: 10px; }
         .sl-view-row { display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid #f8fafc; font-size: 14px; }
         .sl-view-row:last-child { border-bottom: none; }
-        .sl-btn--danger { background: #dc2626; color: #fff; box-shadow: 0 2px 8px rgba(220,38,38,.25); }
-
         @media (max-width: 900px) { .sl-stats { grid-template-columns: 1fr 1fr; } .sl-form-grid { grid-template-columns: 1fr 1fr; } .sl-filters { grid-template-columns: 1fr 1fr; } }
         @media (max-width: 600px) { .sl-stats { grid-template-columns: 1fr; } .sl-form-grid { grid-template-columns: 1fr; } .sl-filters { grid-template-columns: 1fr; } }
       `}</style>
@@ -426,7 +451,6 @@ export default function Salary() {
           </div>
         )}
 
-        {/* Header */}
         <div className="sl-header">
           <div className="sl-header__icon">
             <i className="bi bi-cash-stack"></i>
@@ -437,7 +461,6 @@ export default function Salary() {
           </div>
         </div>
 
-        {/* Stats */}
         <div className="sl-stats">
           {[
             {
@@ -475,7 +498,6 @@ export default function Salary() {
           </div>
         )}
 
-        {/* Tabs */}
         <div className="sl-tabs">
           <button
             className={`sl-tab${view === "form" ? " active" : ""}`}
@@ -498,7 +520,6 @@ export default function Salary() {
           </button>
         </div>
 
-        {/* Add Form */}
         {view === "form" && (
           <div className="sl-card">
             <div className="sl-card__head">
@@ -515,33 +536,19 @@ export default function Salary() {
               <div className="sl-form-grid">
                 <div className="sl-fg sl-fg--2">
                   <label className="sl-label">Select Employee</label>
-                  {empLoading ? (
-                    <div
-                      className="sl-input"
-                      style={{
-                        color: "#9ca3af",
-                        display: "flex",
-                        alignItems: "center",
-                      }}
-                    >
-                      Loading…
-                    </div>
-                  ) : (
-                    <select
-                      className="sl-select"
-                      value={form.employeeId}
-                      onChange={handleEmployeeSelect}
-                      required
-                      {...noBranchProps}
-                    >
-                      <option value="">— Select Employee —</option>
-                      {employees.map((emp) => (
-                        <option key={emp.emp_id} value={emp.emp_id}>
-                          {emp.emp_name} ({emp.emp_id})
-                        </option>
-                      ))}
-                    </select>
-                  )}
+                  <Select
+                    menuPlacement="bottom"
+                    menuPosition="fixed"
+                    isClearable
+                    isDisabled={!hasBranch || empLoading}
+                    placeholder={
+                      empLoading ? "Loading…" : "— Select Employee —"
+                    }
+                    value={empValue}
+                    onChange={handleEmployeeSelect}
+                    options={empOptions}
+                    styles={rsEmp}
+                  />
                   <span className="sl-hint">
                     Employee name & ID will be auto-filled
                   </span>
@@ -647,7 +654,6 @@ export default function Salary() {
           </div>
         )}
 
-        {/* Table */}
         {view === "table" && (
           <div className="sl-card">
             <div className="sl-card__head">
@@ -716,7 +722,6 @@ export default function Salary() {
                 <i className="bi bi-plus-circle"></i> Add New
               </button>
             </div>
-
             {error && <div className="sl-error">{error}</div>}
             {loading ? (
               <div className="sl-loading">
@@ -874,7 +879,6 @@ export default function Salary() {
           </div>
         )}
 
-        {/* View Modal */}
         {viewRecord && (
           <div className="sl-overlay" onClick={() => setViewRecord(null)}>
             <div className="sl-modal" onClick={(e) => e.stopPropagation()}>
@@ -937,7 +941,6 @@ export default function Salary() {
           </div>
         )}
 
-        {/* Edit Modal */}
         {editModal && (
           <div className="sl-overlay" onClick={() => setEditModal(null)}>
             <div className="sl-modal" onClick={(e) => e.stopPropagation()}>
@@ -1053,7 +1056,6 @@ export default function Salary() {
           </div>
         )}
 
-        {/* Delete Modal */}
         {deleteConfirm && (
           <div className="sl-overlay" onClick={() => setDeleteConfirm(null)}>
             <div
@@ -1119,4 +1121,3 @@ export default function Salary() {
     </>
   );
 }
-  

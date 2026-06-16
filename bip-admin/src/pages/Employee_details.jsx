@@ -22,7 +22,7 @@ const Employee_details = () => {
   const isBranchSelected =
     userRole === "admin" ? !!localStorage.getItem("admin_view_branch") : true;
 
-  const [activeTab, setActiveTab] = useState("add");
+  const [activeTab, setActiveTab] = useState("records");
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -161,6 +161,25 @@ const Employee_details = () => {
       );
       return;
     }
+    // Validate gender
+    if (!formData.gender) {
+      showToast("Please select a gender.", "error");
+      return;
+    }
+
+    // Validate Indian phone number
+    const phoneRegex = /^[6-9]\d{9}$/;
+    if (
+      !formData.phone_number ||
+      !phoneRegex.test(formData.phone_number.replace(/\s/g, ""))
+    ) {
+      showToast(
+        "Please enter a valid 10-digit Indian mobile number (starting with 6-9).",
+        "error",
+      );
+      return;
+    }
+
     try {
       const url = editId
         ? `${API_BASE}/update_employee.php?id=${editId}`
@@ -404,7 +423,7 @@ const Employee_details = () => {
                 {
                   name: "phone_number",
                   label: "Phone Number",
-                  req: false,
+                  req: true,
                   type: "text",
                 },
                 { name: "address", label: "Address", req: false, type: "text" },
@@ -428,11 +447,14 @@ const Employee_details = () => {
               ))}
 
               <div className="ep-fg">
-                <label className="ep-label">Gender</label>
+                <label className="ep-label">
+                  Gender<span className="ep-req">*</span>
+                </label>
                 <select
                   name="gender"
                   value={formData.gender}
                   onChange={handleChange}
+                  required
                   disabled={!isBranchSelected && userRole === "admin"}
                   className="ep-input"
                 >

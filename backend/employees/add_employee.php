@@ -57,6 +57,30 @@ if ($authUser['role'] === 'admin') {
 }
 
 $db = getDB();
+
+// Check duplicate Employee ID or Mobile Number
+$check = $db->prepare("
+    SELECT id
+    FROM employees
+    WHERE emp_id = ?
+       OR phone_number = ?
+");
+
+$check->bind_param("ss", $empId, $phone);
+$check->execute();
+
+if ($check->get_result()->num_rows > 0) {
+    http_response_code(409);
+    echo json_encode([
+        "error" => "Employee ID or Mobile Number already exists."
+    ]);
+    $check->close();
+    $db->close();
+    exit;
+}
+
+$check->close();
+
 $stmt = $db->prepare(
     'INSERT INTO employees 
         (employee_name, emp_id, department, destination, gender, email, phone_number, address, salary_type, date_of_joining, branch_id)

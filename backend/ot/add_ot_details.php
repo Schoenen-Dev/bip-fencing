@@ -4,8 +4,13 @@ error_reporting(0);
 ini_set('display_errors', 0);
 header('Content-Type: application/json');
 
-require_once __DIR__ . '/auth_middleware.php';
-require_once __DIR__ . '/db.php';
+// Allow token via GET parameter (for environments where HTTP_AUTHORIZATION is not set)
+if (isset($_GET['token'])) {
+    $_SERVER['HTTP_AUTHORIZATION'] = 'Bearer ' . $_GET['token'];
+}
+
+require_once __DIR__ . '/../auth_middleware.php';
+require_once __DIR__ . '/../db.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -29,7 +34,7 @@ $total_ot_hours = $data['total_ot_hours'] ?? '';
 $ot_salary      = $data['ot_salary'] ?? 0;
 $ot_date        = trim($data['ot_date'] ?? '');
 
-// Validation
+// Validate required fields
 if (empty($emp_name) || empty($emp_id) || empty($salary_type) ||
     empty($start_time) || empty($end_time) || $total_ot_hours === '' || empty($ot_date)) {
     http_response_code(400);
@@ -43,7 +48,7 @@ if (!is_numeric($ot_salary) || $ot_salary < 0) {
     exit;
 }
 
-// Get branch_id from employees table
+// Get branch_id from employees table (needed for branch filtering later)
 $branchId = null;
 $stmtEmp = $conn->prepare("SELECT branch_id FROM employees WHERE emp_id = ? OR employee_name = ? LIMIT 1");
 $stmtEmp->bind_param('ss', $emp_id, $emp_name);
@@ -60,7 +65,18 @@ if (!$branchId) {
     exit;
 }
 
-// Insert OT record with salary
+// Check for duplicate entry (emp_id + ot_date) – client-side also checks, but double‑safe
+$checkStmt = $conn->prepare("SELECT id FROM ot_details WHERE emp_id = ? AND ot_date = ?");
+$checkStmt->bind_param('ss', $emp_id, $ot_date);
+$checkStmt->execute();
+if ($checkStmt->get_result()->num_rows > 0) {
+    http_response_code(409);
+    echo json_encode(['message' => 'OT entry already exists for this employee on this date']);
+    exit;
+}
+$checkStmt->close();
+
+// Insert new OT record
 $stmt = $conn->prepare(
     'INSERT INTO ot_details (emp_name, emp_id, salary_type, start_time, end_time, total_ot_hours, ot_salary, ot_date, branch_id)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'

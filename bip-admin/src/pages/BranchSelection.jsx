@@ -2,44 +2,43 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 export default function BranchSelection() {
-const [selectedBranch, setSelectedBranch] = useState(null);
-const navigate = useNavigate();
+  const [selectedBranch, setSelectedBranch] = useState(null);
+  const navigate = useNavigate();
 
-const branches = [
-  {
-    id: 1,
-    name: "Branch A",
-    code: "BRA",
-    location: "Main Street, Downtown",
-    color: "#10b981",
-    bg: "#d1fae5",
-  },
-  {
-    id: 2,
-    name: "Branch B",
-    code: "BRB",
-    location: "Industrial Area, Sector 5",
-    color: "#3b82f6",
-    bg: "#dbeafe",
-  },
-  {
-    id: 3,
-    name: "Branch C",
-    code: "BRC",
-    location: "Westside Commercial Hub",
-    color: "#f59e0b",
-    bg: "#fed7aa",
-  },
-];
+  const branches = [
+    {
+      id: 1,
+      name: "Branch A",
+      code: "BRA",
+      location: "Main Street, Downtown",
+      color: "#10b981",
+      bg: "#d1fae5",
+    },
+    {
+      id: 2,
+      name: "Branch B",
+      code: "BRB",
+      location: "Industrial Area, Sector 5",
+      color: "#1a5c38",
+      bg: "#d1fae5",
+    },
+    {
+      id: 3,
+      name: "Branch C",
+      code: "BRC",
+      location: "Westside Commercial Hub",
+      color: "#f59e0b",
+      bg: "#fed7aa",
+    },
+  ];
 
-const handleSubmit = () => {
-  if (!selectedBranch) return;
-  const branch = branches.find((b) => b.id === selectedBranch);
-  localStorage.setItem("admin_view_branch", selectedBranch);
-  localStorage.setItem("admin_view_branch_name", branch.name); // ✅ store branch name
-  navigate("/dashboard");
-};
-
+  const handleSubmit = () => {
+    if (!selectedBranch) return;
+    const branch = branches.find((b) => b.id === selectedBranch);
+    localStorage.setItem("admin_view_branch", selectedBranch);
+    localStorage.setItem("admin_view_branch_name", branch.name);
+    navigate("/dashboard");
+  };
 
   return (
     <div className="branch-selection-page">
@@ -114,7 +113,7 @@ const handleSubmit = () => {
       <style>{`
         .branch-selection-page {
           min-height: 100vh;
-          background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+          background: linear-gradient(135deg, #0a1f13 0%, #1a3a27 100%);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -143,13 +142,13 @@ const handleSubmit = () => {
         .logo-icon {
           width: 56px;
           height: 56px;
-          background: linear-gradient(135deg, #008b3e, #00b4a0);
+          background: linear-gradient(135deg, #1a3a27, #1a5c38);
           border-radius: 18px;
           display: inline-flex;
           align-items: center;
           justify-content: center;
           margin-bottom: 1rem;
-          box-shadow: 0 8px 16px rgba(0, 139, 62, 0.2);
+          box-shadow: 0 8px 16px rgba(26, 92, 56, 0.3);
         }
 
         .logo-icon i {
@@ -164,7 +163,8 @@ const handleSubmit = () => {
           margin: 0 0 0.25rem;
         }
 
-        .selection-header p {
+        .selection-header > p,
+        .logo-wrapper > p {
           font-size: 11px;
           letter-spacing: 1.5px;
           color: #64748b;
@@ -188,7 +188,7 @@ const handleSubmit = () => {
 
         .branch-cards {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
           gap: 1.5rem;
           margin-bottom: 2.5rem;
         }
@@ -202,18 +202,17 @@ const handleSubmit = () => {
           display: flex;
           align-items: flex-start;
           gap: 1rem;
-          position: relative;
           background: white;
         }
 
         .branch-card:hover {
           transform: translateY(-4px);
-          border-color: #008b3e;
+          border-color: #1a5c38;
           box-shadow: 0 12px 24px -12px rgba(0, 0, 0, 0.15);
         }
 
         .branch-card.selected {
-          border-color: #008b3e;
+          border-color: #1a5c38;
           background: #f0fdf4;
         }
 
@@ -227,13 +226,9 @@ const handleSubmit = () => {
           flex-shrink: 0;
         }
 
-        .branch-icon i {
-          font-size: 24px;
-        }
+        .branch-icon i { font-size: 24px; }
 
-        .branch-info {
-          flex: 1;
-        }
+        .branch-info { flex: 1; }
 
         .branch-info h3 {
           font-size: 18px;
@@ -262,18 +257,10 @@ const handleSubmit = () => {
           gap: 4px;
         }
 
-        .branch-location i {
-          font-size: 11px;
-          color: #94a3b8;
-        }
+        .branch-location i { font-size: 11px; color: #94a3b8; }
 
-        .selection-indicator {
-          margin-left: auto;
-        }
-
-        .selection-indicator i {
-          font-size: 22px;
-        }
+        .selection-indicator { margin-left: auto; }
+        .selection-indicator i { font-size: 22px; }
 
         .selection-actions {
           display: flex;
@@ -283,7 +270,7 @@ const handleSubmit = () => {
         }
 
         .btn-continue {
-          background: #008b3e;
+          background: #1a5c38;
           color: white;
           border: none;
           padding: 12px 28px;
@@ -298,7 +285,7 @@ const handleSubmit = () => {
         }
 
         .btn-continue:hover:not(:disabled) {
-          background: #006b2f;
+          background: #164d2f;
           transform: scale(1.02);
         }
 
@@ -325,15 +312,13 @@ const handleSubmit = () => {
         }
 
         @media (max-width: 700px) {
-          .selection-container {
-            padding: 1.5rem;
-          }
-          .branch-cards {
-            grid-template-columns: 1fr;
-          }
-          .selection-header h2 {
-            font-size: 24px;
-          }
+          .branch-selection-page { padding: 1rem; }
+          .selection-container { padding: 1.5rem; border-radius: 24px; }
+          .branch-cards { grid-template-columns: 1fr; gap: 1rem; }
+          .selection-header h2 { font-size: 22px; }
+          .selection-header h1 { font-size: 20px; }
+          .btn-continue, .btn-skip { width: 100%; justify-content: center; }
+          .selection-actions { flex-direction: column; }
         }
       `}</style>
     </div>
