@@ -416,3 +416,23 @@ CREATE TABLE invoice_items (
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+--  Migration: invoice_counters
+--  Run this ONCE on your existing bipfencing database.
+--  Safe to re-run — it never drops or deletes anything.
+-- =============================================================
+
+USE bipfencing;
+
+CREATE TABLE IF NOT EXISTS invoice_counters (
+  branch_id   INT UNSIGNED NOT NULL,
+  last_number INT UNSIGNED NOT NULL DEFAULT 0,
+  PRIMARY KEY (branch_id),
+  CONSTRAINT fk_invoice_counters_branch
+    FOREIGN KEY (branch_id) REFERENCES branches(id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT IGNORE INTO invoice_counters (branch_id, last_number) VALUES
+  (1, 0),
+  (2, 0),
+  (3, 0);
