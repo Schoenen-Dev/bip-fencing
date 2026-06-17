@@ -1,16 +1,28 @@
 <?php
 
-// Do NOT force JSON for HTML pages
+// JSON by default
 if (!defined('HTML_RESPONSE')) {
     header('Content-Type: application/json; charset=utf-8');
 }
 
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Branch-ID');
+// Allow your React app
+header("Access-Control-Allow-Origin: http://localhost:5173");
+header("Access-Control-Allow-Credentials: true");
 
+// Allow methods
+header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
+
+// Allow headers
+header("Access-Control-Allow-Headers: Authorization, Content-Type, X-Branch-ID");
+
+// Expose headers
+header("Access-Control-Expose-Headers: Authorization");
+
+// Cache preflight
+header("Access-Control-Max-Age: 86400");
+
+// OPTIONS request
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(204);
+    http_response_code(200);
     exit;
 }
-?>

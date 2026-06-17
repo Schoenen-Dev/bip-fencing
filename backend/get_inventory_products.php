@@ -1,10 +1,20 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+error_reporting(0);
+ini_set('display_errors', 0);
 header('Content-Type: application/json');
 
+if (isset($_GET['token'])) {
+    $_SERVER['HTTP_AUTHORIZATION'] = 'Bearer ' . $_GET['token'];
+}
+
 require_once __DIR__ . '/auth_middleware.php';
-require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/db_pdo.php';
+
+if (!isset($authUser) || empty($authUser)) {
+    http_response_code(401);
+    echo json_encode(['error' => 'Unauthorized – invalid token']);
+    exit;
+}
 
 function getEffectiveBranchId($user): ?int {
     if ($user['role'] === 'admin' && isset($user['view_branch_id']) && $user['view_branch_id'] !== null) {
@@ -17,54 +27,45 @@ function getEffectiveBranchId($user): ?int {
 }
 
 $branchId = getEffectiveBranchId($authUser);
-$conn = getDB();
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
 
-// If no branch selected (admin viewing all branches), aggregate across all branches
-if ($branchId === null) {
-    $sql = "
-        SELECT 
-            pb.product_id,
-            pb.product_name,
-            SUM(pb.quantity) AS total_purchased,
-            COALESCE(SUM(pb.quantity) - SUM(COALESCE(sd.deducted_qty, 0)), SUM(pb.quantity)) AS current_stock,
-            AVG(pb.rate) AS rate
-        FROM purchase_bills pb
-        LEFT JOIN stock_deductions sd ON sd.product_id = pb.product_id
-        GROUP BY pb.product_id, pb.product_name
-        ORDER BY pb.product_name
-    ";
-    $result = $conn->query($sql);
-    $products = [];
-    while ($row = $result->fetch_assoc()) {
-        $products[] = $row;
+try {
+    if ($branchId === null) {
+        // Admin viewing all branches – aggregate
+        $sql = "SELECT product_id, product_name, 
+                       SUM(total_purchased) AS total_purchased,
+                       SUM(current_stock) AS current_stock,
+                       AVG(rate) AS rate
+                FROM purchase_stock
+                WHERE 1=1";
+        $params = [];
+        if ($search !== '') {
+            $sql .= " AND (product_name LIKE ? OR product_id LIKE ?)";
+            $params[] = "%$search%";
+            $params[] = "%$search%";
+        }
+        $sql .= " GROUP BY product_id, product_name ORDER BY product_name";
+    } else {
+        $sql = "SELECT product_id, product_name, total_purchased, current_stock, rate
+                FROM purchase_stock
+                WHERE branch_id = ?";
+        $params = [$branchId];
+        if ($search !== '') {
+            $sql .= " AND (product_name LIKE ? OR product_id LIKE ?)";
+            $params[] = "%$search%";
+            $params[] = "%$search%";
+        }
+        $sql .= " ORDER BY product_name";
     }
-    echo json_encode($products);
-    $conn->close();
-    exit;
-}
 
-// Branch‑specific query
-$sql = "
-    SELECT 
-        pb.product_id,
-        pb.product_name,
-        COALESCE(ps.total_purchased, SUM(pb.quantity)) AS total_purchased,
-        COALESCE(ps.current_stock, SUM(pb.quantity)) AS current_stock,
-        COALESCE(ps.rate, AVG(pb.rate)) AS rate
-    FROM purchase_bills pb
-    LEFT JOIN product_stock ps ON ps.product_id = pb.product_id AND ps.branch_id = ?
-    WHERE pb.branch_id = ?
-    GROUP BY pb.product_id, pb.product_name
-    ORDER BY pb.product_name
-";
-$stmt = $conn->prepare($sql);
-$stmt->bind_param('ii', $branchId, $branchId);
-$stmt->execute();
-$result = $stmt->get_result();
-$products = [];
-while ($row = $result->fetch_assoc()) {
-    $products[] = $row;
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $products = $stmt->fetchAll();
+    echo json_encode($products);
+
+} catch (PDOException $e) {
+    http_response_code(500);
+    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
 }
-echo json_encode($products);
-$conn->close();
+exit;
 ?>

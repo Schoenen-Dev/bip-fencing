@@ -95,11 +95,21 @@ $bank_ifsc            = $s('bank_ifsc');
 $bank_branch          = $s('bank_branch');
 
 // ── Step 1: Auto-create or find client by phone ───────────────
+// ── Step 1: Auto-create or find client by phone ───────────────
+if ($buyer_phone) {
+    $buyer_phone = preg_replace('/\D/', '', $buyer_phone);
+}
+
 $client_id = null;
 if ($buyer_phone) {
     // Check if client with this phone exists in this branch
-    $cChk = $conn->prepare("SELECT id FROM clients WHERE phone = ? AND branch_id = ?");
-    $cChk->bind_param('si', $buyer_phone, $branch_id);
+    if ($branch_id === null) {
+        $cChk = $conn->prepare("SELECT id FROM clients WHERE phone = ? AND branch_id IS NULL");
+        $cChk->bind_param('s', $buyer_phone);
+    } else {
+        $cChk = $conn->prepare("SELECT id FROM clients WHERE phone = ? AND branch_id = ?");
+        $cChk->bind_param('si', $buyer_phone, $branch_id);
+    }
     $cChk->execute();
     $existingClient = $cChk->get_result()->fetch_assoc();
     $cChk->close();
@@ -270,6 +280,8 @@ echo json_encode([
     'id'        => $invoice_id,
     'client_id' => $client_id,
     'action'    => $action,
+    'debug_phone' => $buyer_phone,
+    'debug_branch_id' => $branch_id,
 ]);
 
 $conn->close();

@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 
 const API_URL = "http://localhost:8000/products.php";
 
-// ─── Helper to get headers with admin branch selection ──────────────────────
 const getHeaders = () => {
   const headers = {
     Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -40,6 +39,7 @@ function mapFromDB(p) {
     stockQty: p.stock_qty,
     minStock: p.min_stock,
     description: p.description,
+    branchId: p.branch_id,
   };
 }
 
@@ -50,10 +50,36 @@ export default function Products() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [addStockQty, setAddStockQty] = useState("");
+  const [stockAlert, setStockAlert] = useState("");
+
+  // Get user role and current branch from localStorage
+  const userRole = localStorage.getItem("role");
+  const isAdmin = userRole === "admin";
+  const currentBranchId =
+    localStorage.getItem("admin_view_branch") ||
+    localStorage.getItem("branch_id");
 
   useEffect(() => {
     fetchProducts();
   }, []);
+
+  // FIXED: Check if product name already exists ONLY in the current branch
+  const isProductNameDuplicate = (productName, excludeId = null) => {
+    if (!productName || !productName.trim()) return false;
+
+    const lowerCaseName = productName.toLowerCase().trim();
+
+    // Only check products that belong to the current branch
+    const currentBranchProducts = products.filter(
+      (p) => p.branchId === currentBranchId,
+    );
+
+    return currentBranchProducts.some(
+      (p) =>
+        p.productName.toLowerCase().trim() === lowerCaseName &&
+        p.id !== excludeId, // Exclude the current product when editing
+    );
+  };
 
   async function fetchProducts() {
     setLoading(true);
@@ -62,7 +88,34 @@ export default function Products() {
       const res = await fetch(API_URL, { headers: getHeaders() });
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const data = await res.json();
-      setProducts(data.map(mapFromDB));
+      const loaded = data.map(mapFromDB);
+      setProducts(loaded);
+
+      // Stock alert check
+      const outItems = loaded.filter((p) => Number(p.stockQty) === 0);
+      const lowItems = loaded.filter(
+        (p) =>
+          Number(p.stockQty) > 0 &&
+          Number(p.minStock) > 0 &&
+          Number(p.stockQty) <= Number(p.minStock),
+      );
+
+      if (outItems.length > 0 || lowItems.length > 0) {
+        const msgs = [];
+        if (outItems.length)
+          msgs.push(
+            `🔴 Out of Stock: ${outItems.map((p) => p.productName).join(", ")}`,
+          );
+        if (lowItems.length)
+          msgs.push(
+            `🟡 Low Stock: ${lowItems
+              .map((p) => `${p.productName} (${p.stockQty} left)`)
+              .join(", ")}`,
+          );
+        setStockAlert(msgs.join("\n"));
+      } else {
+        setStockAlert("");
+      }
     } catch (err) {
       setError("❌ Could not load products. Is PHP server running?");
     } finally {
@@ -76,6 +129,21 @@ export default function Products() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+
+    // Validate product name
+    if (!form.productName.trim()) {
+      setError("❌ Product name is required");
+      return;
+    }
+
+    // FIXED: Check for duplicate product name only within the same branch
+    if (isProductNameDuplicate(form.productName, editingId)) {
+      setError(
+        `❌ Product "${form.productName}" already exists in this branch. Please use a different product name for this branch.`,
+      );
+      return;
+    }
+
     try {
       let res;
       if (editingId !== null) {
@@ -164,6 +232,7 @@ export default function Products() {
         .pf-label .req { color: #ef4444; font-size: 13px; line-height: 1; }
         .pf-input, .pf-select, .pf-textarea { width: 100%; padding: 9px 13px; border: 1.5px solid #d1d5db; border-radius: 7px; font-size: 13.5px; color: #1f2937; background: #ffffff; outline: none; box-sizing: border-box; font-family: inherit; transition: border-color 0.15s, box-shadow 0.15s; }
         .pf-input:focus, .pf-select:focus, .pf-textarea:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.12); }
+        .pf-input-error { border-color: #ef4444 !important; background: #fef2f2 !important; }
         .pf-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; cursor: pointer; }
         .pf-section { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px 22px; margin-bottom: 14px; }
         .pf-section-title { font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 18px; display: flex; align-items: center; gap: 7px; }
@@ -171,6 +240,7 @@ export default function Products() {
         .pf-btn-save { background: #2563eb; color: #fff; border: none; border-radius: 7px; padding: 10px 24px; font-size: 13.5px; font-weight: 600; cursor: pointer; }
         .pf-btn-save:hover { background: #1d4ed8; }
         .pf-btn-reset { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 7px; padding: 10px 24px; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+        .pf-btn-reset:hover { background: #e5e7eb; }
         .pf-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
         .pf-table th { color: #6b7280; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 14px; border-bottom: 1px solid #e5e7eb; text-align: left; white-space: nowrap; background: #f9fafb; }
         .pf-table td { padding: 11px 14px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; color: #1f2937; }
@@ -185,6 +255,8 @@ export default function Products() {
         .pf-editing-bar { background: #fff8e1; border: 1px solid #ffe082; border-radius: 8px; padding: 9px 14px; font-size: 13px; color: #92400e; font-weight: 600; display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
         .pf-editing-bar button { margin-left: auto; background: none; border: 1px solid #fbbf24; border-radius: 5px; padding: 2px 10px; font-size: 12px; cursor: pointer; color: #92400e; font-weight: 600; }
         .pf-error { background: #fee2e2; border: 1px solid #fca5a5; color: #991b1b; border-radius: 8px; padding: 10px 16px; font-size: 13px; margin-bottom: 14px; }
+        .pf-stock-alert { background: #fffbeb; border: 1px solid #f59e0b; border-radius: 8px; padding: 10px 16px; font-size: 13px; margin-bottom: 14px; color: #92400e; white-space: pre-line; position: relative; }
+        .pf-stock-alert-close { position: absolute; top: 8px; right: 12px; background: none; border: none; font-size: 17px; cursor: pointer; color: #92400e; line-height: 1; }
         .pf-empty { text-align: center; padding: 36px; color: #9ca3af; font-size: 13.5px; }
         .pf-grid-3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 16px; }
         .pf-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
@@ -202,6 +274,21 @@ export default function Products() {
       >
         🗂️ Products
       </h2>
+
+      {stockAlert && (
+        <div className="pf-stock-alert">
+          <strong>⚠️ Stock Alert</strong>
+          <br />
+          {stockAlert}
+          <button
+            className="pf-stock-alert-close"
+            onClick={() => setStockAlert("")}
+            title="Dismiss"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {error && <div className="pf-error">{error}</div>}
 
@@ -224,13 +311,18 @@ export default function Products() {
                 Product Name <span className="req">*</span>
               </label>
               <input
-                className="pf-input"
+                className={`pf-input ${error?.includes("already exists") ? "pf-input-error" : ""}`}
                 name="productName"
                 value={form.productName}
                 onChange={handleChange}
                 placeholder="e.g. Chain Link Fence Roll"
                 required
               />
+              {error?.includes("already exists") && (
+                <span style={{ fontSize: 11, color: "#ef4444", marginTop: 4 }}>
+                  ⚠️ This product name already exists in this branch
+                </span>
+              )}
             </div>
             <div className="pf-field">
               <label className="pf-label">SKU / Code</label>
@@ -436,7 +528,7 @@ export default function Products() {
               {loading ? (
                 <tr>
                   <td colSpan={8} className="pf-empty">
-                    Loading products…
+                    Loading products...
                   </td>
                 </tr>
               ) : products.length === 0 ? (
@@ -472,25 +564,33 @@ export default function Products() {
                       <td style={{ color: "#6b7280", fontFamily: "monospace" }}>
                         {p.sku || "—"}
                       </td>
-                      <td>{p.category}</td>
+                      <td>{p.category || "—"}</td>
                       <td>{p.unit}</td>
                       <td style={{ fontWeight: 600 }}>
                         {Number(p.sellingPrice).toFixed(2)}
                       </td>
                       <td>{stockBadge(p.stockQty, p.minStock)}</td>
                       <td>
-                        <button
-                          className="pf-btn-edit"
-                          onClick={() => handleEdit(p)}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          className="pf-btn-delete"
-                          onClick={() => handleDelete(p.id)}
-                        >
-                          Delete
-                        </button>
+                        {isAdmin ? (
+                          <>
+                            <button
+                              className="pf-btn-edit"
+                              onClick={() => handleEdit(p)}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="pf-btn-delete"
+                              onClick={() => handleDelete(p.id)}
+                            >
+                              Delete
+                            </button>
+                          </>
+                        ) : (
+                          <span style={{ fontSize: 12, color: "#9ca3af" }}>
+                            —
+                          </span>
+                        )}
                       </td>
                     </tr>
                   );

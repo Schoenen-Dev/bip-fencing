@@ -1,112 +1,218 @@
 <?php
 // =============================================================
-//  auth_middleware.php
-//  Include at top of every protected backend file.
-//  Sets: $authUser = [ id, username, role, branch_id, ... ]
-//  Also sets $authUser['view_branch_id'] for admin impersonation
+// auth_middleware.php
 // =============================================================
 
 require_once __DIR__ . '/cors.php';
+require_once __DIR__ . '/db_pdo.php';
 
-// ── Read Bearer token from Authorization header ───────────────
-$authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+// -------------------------------------------------------------
+// Read Authorization Header
+// -------------------------------------------------------------
+$authHeader = '';
+
+if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
+    $authHeader = trim($_SERVER['HTTP_AUTHORIZATION']);
+}
+
+if (!$authHeader && isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
+    $authHeader = trim($_SERVER['REDIRECT_HTTP_AUTHORIZATION']);
+}
+
 if (!$authHeader && function_exists('getallheaders')) {
     $headers = getallheaders();
-    foreach ($headers as $key => $val) {
-        if (strcasecmp($key, 'Authorization') === 0) {
-            $authHeader = $val;
+
+    foreach ($headers as $key => $value) {
+        if (strtolower($key) === 'authorization') {
+            $authHeader = trim($value);
             break;
         }
     }
 }
+
 if (!$authHeader && function_exists('apache_request_headers')) {
-    $headers    = apache_request_headers();
-    foreach ($headers as $key => $val) {
-        if (strcasecmp($key, 'Authorization') === 0) {
-            $authHeader = $val;
+    $headers = apache_request_headers();
+
+    foreach ($headers as $key => $value) {
+        if (strtolower($key) === 'authorization') {
+            $authHeader = trim($value);
             break;
         }
     }
 }
 
+// -------------------------------------------------------------
+// Get Token
+// -------------------------------------------------------------
 $token = '';
-if (preg_match('/Bearer\s+(.+)/i', $authHeader, $m)) {
-    $token = trim($m[1]);
+
+// Authorization: Bearer xxxxx
+if (!empty($authHeader) && preg_match('/Bearer\s+(.+)$/i', $authHeader, $matches)) {
+    $token = trim($matches[1]);
 }
 
-if (!$token) {
+// GET ?token=
+if (empty($token) && !empty($_GET['token'])) {
+    $token = trim($_GET['token']);
+}
+
+// POST token
+if (empty($token) && !empty($_POST['token'])) {
+    $token = trim($_POST['token']);
+}
+
+// JSON body
+if (empty($token)) {
+
+    $raw = file_get_contents("php://input");
+
+    if (!empty($raw)) {
+
+        $json = json_decode($raw, true);
+
+        if (json_last_error() === JSON_ERROR_NONE) {
+
+            if (!empty($json['token'])) {
+                $token = trim($json['token']);
+            }
+        }
+    }
+}
+
+// -------------------------------------------------------------
+// No Token
+// -------------------------------------------------------------
+if (empty($token)) {
+
     http_response_code(401);
-    echo json_encode(['error' => 'Unauthorised — no token provided']);
+
+    echo json_encode([
+        "error" => "Unauthorised - no token provided"
+    ]);
+
     exit;
 }
 
-// ── Validate token against sessions table ────────────────────
-require_once __DIR__ . '/db_pdo.php'; // PDO connection → $pdo
+// -------------------------------------------------------------
+// Validate Session
+// -------------------------------------------------------------
+$sql = "
+SELECT
+    u.id,
+    u.username,
+    u.full_name,
+    u.role,
+    u.branch_id,
+    u.is_active,
+    b.name AS branch_name,
+    b.code AS branch_code,
+    s.created_at
+FROM sessions s
+INNER JOIN users u
+    ON s.user_id = u.id
+LEFT JOIN branches b
+    ON b.id = u.branch_id
+WHERE s.id = ?
+LIMIT 1
+";
 
-$stmt = $pdo->prepare(
-    "SELECT u.id, u.username, u.full_name, u.role, u.branch_id, u.is_active,
-            b.name AS branch_name, b.code AS branch_code,
-            s.created_at AS session_created
-     FROM sessions s
-     JOIN users    u ON u.id = s.user_id
-     LEFT JOIN branches b ON b.id = u.branch_id
-     WHERE s.id = ?
-     LIMIT 1"
-);
+$stmt = $pdo->prepare($sql);
 $stmt->execute([$token]);
-$authUser = $stmt->fetch();
 
-if (!$authUser || !$authUser['is_active']) {
+$authUser = $stmt->fetch(PDO::FETCH_ASSOC);
+
+if (!$authUser) {
+
     http_response_code(401);
-    echo json_encode(['error' => 'Unauthorised — invalid or expired token']);
+
+    echo json_encode([
+        "error" => "Unauthorised - invalid session"
+    ]);
+
     exit;
 }
 
-// ── Admin branch impersonation ─────────────────────────────────
-// If admin, read X-Branch-ID header to decide which branch to view
-$authUser['view_branch_id'] = null;
+if ((int)$authUser['is_active'] !== 1) {
+
+    http_response_code(403);
+
+    echo json_encode([
+        "error" => "User account disabled"
+    ]);
+
+    exit;
+}
+
+// -------------------------------------------------------------
+// Read X-Branch-ID
+// -------------------------------------------------------------
+$branchHeader = '';
+
+if (isset($_SERVER['HTTP_X_BRANCH_ID'])) {
+    $branchHeader = trim($_SERVER['HTTP_X_BRANCH_ID']);
+}
+
+if (!$branchHeader && function_exists('getallheaders')) {
+
+    $headers = getallheaders();
+
+    foreach ($headers as $key => $value) {
+
+        if (strtolower($key) === 'x-branch-id') {
+            $branchHeader = trim($value);
+            break;
+        }
+    }
+}
+
+// -------------------------------------------------------------
+// Effective Branch
+// -------------------------------------------------------------
 if ($authUser['role'] === 'admin') {
-    $viewBranch = $_SERVER['HTTP_X_BRANCH_ID'] ?? '';
-    if (!$viewBranch && function_exists('getallheaders')) {
-        $headers = getallheaders();
-        foreach ($headers as $key => $val) {
-            if (strcasecmp($key, 'X-Branch-ID') === 0) {
-                $viewBranch = $val;
-                break;
-            }
-        }
+
+    if ($branchHeader !== '' && is_numeric($branchHeader)) {
+
+        $authUser['view_branch_id'] = (int)$branchHeader;
+
+    } else {
+
+        $authUser['view_branch_id'] = null;
     }
-    if (!$viewBranch && function_exists('apache_request_headers')) {
-        $headers    = apache_request_headers();
-        foreach ($headers as $key => $val) {
-            if (strcasecmp($key, 'X-Branch-ID') === 0) {
-                $viewBranch = $val;
-                break;
-            }
-        }
-    }
-    if ($viewBranch && is_numeric($viewBranch)) {
-        $authUser['view_branch_id'] = (int)$viewBranch;
-    }
+
 } else {
-    // Non-admin always sees only their own branch
-    $authUser['view_branch_id'] = $authUser['branch_id'];
+
+    $authUser['view_branch_id'] = (int)$authUser['branch_id'];
 }
 
-// ── Branch filter helpers (now use view_branch_id) ────────────
-// Returns [WHERE clause string, params array] for use in queries.
-function branchFilter(array $user): array {
-    if ($user['role'] === 'admin' && $user['view_branch_id'] === null) {
-        return ['', []]; // admin with no branch selected → all branches
-    }
-    return ['WHERE branch_id = ?', [(int)$user['view_branch_id']]];
-}
-
-// Same but for queries that already have a WHERE clause
-function branchAnd(array $user): array {
-    if ($user['role'] === 'admin' && $user['view_branch_id'] === null) {
+// -------------------------------------------------------------
+// Helper Functions
+// -------------------------------------------------------------
+function branchFilter(array $user): array
+{
+    if (
+        $user['role'] === 'admin' &&
+        $user['view_branch_id'] === null
+    ) {
         return ['', []];
     }
-    return ['AND branch_id = ?', [(int)$user['view_branch_id']]];
+
+    return [
+        'WHERE branch_id = ?',
+        [(int)$user['view_branch_id']]
+    ];
 }
-?>
+
+function branchAnd(array $user): array
+{
+    if (
+        $user['role'] === 'admin' &&
+        $user['view_branch_id'] === null
+    ) {
+        return ['', []];
+    }
+
+    return [
+        'AND branch_id = ?',
+        [(int)$user['view_branch_id']]
+    ];
+}

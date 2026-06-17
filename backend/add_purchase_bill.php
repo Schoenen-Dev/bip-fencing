@@ -6,19 +6,6 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/auth_middleware.php';
 require_once __DIR__ . '/db.php';
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['message' => 'Method not allowed']);
-    exit;
-}
-
-$data = json_decode(file_get_contents('php://input'), true);
-if (!$data) {
-    http_response_code(400);
-    echo json_encode(['message' => 'Invalid JSON data']);
-    exit;
-}
-
 function getEffectiveBranchId($user): ?int {
     if ($user['role'] === 'admin' && isset($user['view_branch_id']) && $user['view_branch_id'] !== null) {
         return (int)$user['view_branch_id'];
@@ -32,81 +19,135 @@ function getEffectiveBranchId($user): ?int {
 $branchId = getEffectiveBranchId($authUser);
 if ($branchId === null) {
     http_response_code(400);
-    echo json_encode(['message' => 'No branch selected. Please select a branch from the topbar.']);
+    echo json_encode(['message' => 'Please select a specific branch to add purchase bills.']);
     exit;
 }
 
-$company_name  = trim($data['company_name'] ?? '');
-$product_name  = trim($data['product_name'] ?? '');
-$product_id    = trim($data['product_id'] ?? '');
-$quantity      = (float)($data['quantity'] ?? 0);
-$rate          = (float)($data['rate'] ?? 0);
-$invoice_no    = trim($data['invoice_no'] ?? '');
-$total_amount  = (float)($data['total_amount'] ?? 0);
-
-if (empty($company_name) || empty($product_name) || $quantity <= 0 || $rate <= 0 || empty($invoice_no)) {
+$data = json_decode(file_get_contents('php://input'), true);
+if (!$data) {
     http_response_code(400);
-    echo json_encode(['message' => 'Company Name, Product Name, Quantity, Rate and Invoice No are required']);
+    echo json_encode(['message' => 'Invalid JSON']);
     exit;
+}
+
+$company_name = trim($data['company_name'] ?? '');
+$invoice_no   = trim($data['invoice_no'] ?? '');
+$bill_date    = trim($data['bill_date'] ?? '');
+$notes        = trim($data['notes'] ?? '');
+$items        = $data['items'] ?? [];
+
+if (empty($company_name) || empty($invoice_no) || empty($bill_date) || !is_array($items) || count($items) === 0) {
+    http_response_code(400);
+    echo json_encode(['message' => 'Company name, invoice no, date and at least one product item are required']);
+    exit;
+}
+
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $bill_date)) {
+    http_response_code(400);
+    echo json_encode(['message' => 'Invalid date format. Use YYYY-MM-DD']);
+    exit;
+}
+
+$total_amount = 0.0;
+$cleanItems = [];
+
+foreach ($items as $idx => $item) {
+    $pid   = trim($item['product_id'] ?? '');
+    $pname = trim($item['product_name'] ?? '');
+    $qty   = (float)($item['quantity'] ?? 0);
+    $rate  = (float)($item['rate'] ?? 0);
+
+    if ($pid === '' || $pname === '' || $qty <= 0 || $rate < 0) {
+        http_response_code(400);
+        echo json_encode(['message' => "Item #" . ($idx + 1) . ": product ID, name and valid quantity/rate are required"]);
+        exit;
+    }
+
+    $amount = $qty * $rate;
+    $total_amount += $amount;
+
+    $cleanItems[] = [
+        'product_id'   => $pid,
+        'product_name' => $pname,
+        'quantity'     => $qty,
+        'rate'         => $rate,
+        'amount'       => $amount,
+    ];
 }
 
 $conn = getDB();
+$conn->begin_transaction();
 
-// 1. Insert into purchase_bills
-$stmt = $conn->prepare("
-    INSERT INTO purchase_bills 
-    (company_name, product_name, product_id, quantity, rate, invoice_no, total_amount, branch_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-");
-if (!$stmt) {
-    http_response_code(500);
-    echo json_encode(['message' => 'Prepare failed: ' . $conn->error]);
-    exit;
-}
-// 8 placeholders: s,s,s,d,d,s,d,i => 'sssddsdi'
-$stmt->bind_param('sssddsdi', $company_name, $product_name, $product_id, $quantity, $rate, $invoice_no, $total_amount, $branchId);
-if (!$stmt->execute()) {
-    http_response_code(500);
-    echo json_encode(['message' => 'Insert failed: ' . $stmt->error]);
-    exit;
-}
-$stmt->close();
+try {
+    $stmt = $conn->prepare(
+        "INSERT INTO purchase_bills (company_name, invoice_no, bill_date, total_amount, notes, branch_id)
+         VALUES (?, ?, ?, ?, ?, ?)"
+    );
+    $stmt->bind_param('sssdsi', $company_name, $invoice_no, $bill_date, $total_amount, $notes, $branchId);
+    $stmt->execute();
+    $billId = (int)$conn->insert_id;
+    $stmt->close();
 
-// 2. Update or insert product_stock
-$check = $conn->prepare("SELECT id, total_purchased, current_stock, rate FROM product_stock WHERE product_id = ? AND branch_id = ?");
-$check->bind_param('si', $product_id, $branchId);
-$check->execute();
-$existing = $check->get_result()->fetch_assoc();
-$check->close();
+    $itemStmt = $conn->prepare(
+        "INSERT INTO purchase_bill_items
+            (purchase_bill_id, product_id, product_name, quantity, rate, amount, branch_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?)"
+    );
 
-if ($existing) {
-    $old_total = (float)$existing['total_purchased'];
-    $old_stock = (float)$existing['current_stock'];
-    $old_rate = (float)$existing['rate'];
-    $new_total = $old_total + $quantity;
-    $new_stock = $old_stock + $quantity;
-    $new_rate = ($old_total * $old_rate + $quantity * $rate) / $new_total;
-    $update = $conn->prepare("UPDATE product_stock SET total_purchased = ?, current_stock = ?, rate = ? WHERE product_id = ? AND branch_id = ?");
-    // 5 placeholders: d,d,d,s,i => 'dddsi'
-    $update->bind_param('dddsi', $new_total, $new_stock, $new_rate, $product_id, $branchId);
-    if (!$update->execute()) {
-        http_response_code(500);
-        echo json_encode(['message' => 'Update product_stock failed: ' . $update->error]);
-        exit;
+    $stockSelectStmt = $conn->prepare(
+        "SELECT current_stock, total_purchased FROM purchase_stock WHERE product_id = ? AND branch_id = ?"
+    );
+
+    $stockUpdateStmt = $conn->prepare(
+        "UPDATE purchase_stock
+            SET total_purchased = total_purchased + ?,
+                current_stock    = current_stock + ?,
+                rate             = ?,
+                product_name     = ?
+          WHERE product_id = ? AND branch_id = ?"
+    );
+
+    $stockInsertStmt = $conn->prepare(
+        "INSERT INTO purchase_stock
+            (product_id, product_name, total_purchased, current_stock, rate, branch_id)
+         VALUES (?, ?, ?, ?, ?, ?)"
+    );
+
+    foreach ($cleanItems as $item) {
+        $pid    = $item['product_id'];
+        $pname  = $item['product_name'];
+        $qty    = $item['quantity'];
+        $rate   = $item['rate'];
+        $amount = $item['amount'];
+
+        $itemStmt->bind_param('issdddi', $billId, $pid, $pname, $qty, $rate, $amount, $branchId);
+        $itemStmt->execute();
+
+        $stockSelectStmt->bind_param('si', $pid, $branchId);
+        $stockSelectStmt->execute();
+        $stockRow = $stockSelectStmt->get_result()->fetch_assoc();
+
+        if ($stockRow) {
+            $stockUpdateStmt->bind_param('dddssi', $qty, $qty, $rate, $pname, $pid, $branchId);
+            $stockUpdateStmt->execute();
+        } else {
+            $stockInsertStmt->bind_param('ssdddi', $pid, $pname, $qty, $qty, $rate, $branchId);
+            $stockInsertStmt->execute();
+        }
     }
-    $update->close();
-} else {
-    $insert = $conn->prepare("INSERT INTO product_stock (product_id, product_name, total_purchased, current_stock, rate, branch_id) VALUES (?, ?, ?, ?, ?, ?)");
-    // 6 placeholders: s,s,d,d,d,i => 'ssdddi'
-    $insert->bind_param('ssdddi', $product_id, $product_name, $quantity, $quantity, $rate, $branchId);
-    if (!$insert->execute()) {
-        http_response_code(500);
-        echo json_encode(['message' => 'Insert product_stock failed: ' . $insert->error]);
-        exit;
-    }
-    $insert->close();
+
+    $itemStmt->close();
+    $stockSelectStmt->close();
+    $stockUpdateStmt->close();
+    $stockInsertStmt->close();
+
+    $conn->commit();
+    echo json_encode(['message' => 'Purchase bill saved successfully', 'bill_id' => $billId]);
+} catch (Exception $e) {
+    $conn->rollback();
+    http_response_code(500);
+    echo json_encode(['message' => 'Error: ' . $e->getMessage()]);
 }
 
-echo json_encode(['message' => 'Purchase bill saved and stock updated successfully']);
 $conn->close();
 ?>
