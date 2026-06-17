@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
+import { apiFetch } from "../utils/api";
 
 const getHeaders = () => {
   const headers = {
@@ -64,7 +65,6 @@ const Employee_details = () => {
   const [editId, setEditId] = useState(null);
   const [showModal, setShowModal] = useState(false);
 
-  const API_BASE = "http://localhost:8000/employees";
 
   const showToast = (message, type = "success") => {
     setToast({ show: true, message, type });
@@ -103,9 +103,7 @@ const Employee_details = () => {
       if (activeFilters.date_to)
         params.append("date_to", activeFilters.date_to);
 
-      const response = await fetch(`${API_BASE}/get_employees.php?${params}`, {
-        headers: getHeaders(),
-      });
+      const response = await apiFetch(`/employees/get_employees.php?${params}`);
       if (!response.ok) {
         if (response.status === 401) {
           showToast("Session expired. Please log in again.", "error");
@@ -185,11 +183,15 @@ const Employee_details = () => {
         ? `${API_BASE}/update_employee.php?id=${editId}`
         : `${API_BASE}/add_employee.php`;
       const method = editId ? "PUT" : "POST";
-      const response = await fetch(url, {
-        method,
-        headers: getHeaders(),
-        body: JSON.stringify(formData),
-      });
+const response = await apiFetch(
+  editId
+    ? `/employees/update_employee.php?id=${editId}`
+    : "/employees/add_employee.php",
+  {
+    method: editId ? "PUT" : "POST",
+    body: JSON.stringify(formData),
+  },
+);
       if (response.ok) {
         showToast(
           editId
@@ -239,10 +241,12 @@ const Employee_details = () => {
     if (!window.confirm("Are you sure you want to delete this employee?"))
       return;
     try {
-      const response = await fetch(`${API_BASE}/delete_employee.php?id=${id}`, {
-        method: "DELETE",
-        headers: getHeaders(),
-      });
+     const response = await apiFetch(
+       `/employees/delete_employee.php?id=${id}`,
+       {
+         method: "DELETE",
+       },
+     );
       if (response.ok) {
         showToast("Employee deleted successfully");
         fetchEmployees(pagination.page, pagination.limit);
@@ -259,12 +263,9 @@ const Employee_details = () => {
   useEffect(() => {
     const fetchCount = async () => {
       try {
-        const response = await fetch(
-          `${API_BASE}/get_employees.php?page=1&limit=1`,
-          {
-            headers: getHeaders(),
-          },
-        );
+       const response = await apiFetch(
+         "/employees/get_employees.php?page=1&limit=1",
+       );
         if (response.ok) {
           const result = await response.json();
           setPagination((prev) => ({ ...prev, total: result.total || 0 }));
