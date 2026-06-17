@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 
-const API_BASE = "http://localhost:8000/admin";
+const API_BASE = "https://backend.bipfencing.in/backend";
 
 const getHeaders = () => {
   const headers = {
