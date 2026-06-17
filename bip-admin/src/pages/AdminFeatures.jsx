@@ -90,7 +90,7 @@ const AdminFeatures = () => {
     setError("");
     try {
       const response = await apiFetch(
-        "/backend/admin/admin_feature_get_branch_amounts.php",
+        "/admin/admin_feature_get_branch_amounts.php",
       );
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
@@ -148,7 +148,7 @@ const AdminFeatures = () => {
     }
     try {
       const response = await apiFetch(
-        "/backend/admin/admin_feature_add_branch_amount.php",
+        "/admin/admin_feature_add_branch_amount.php",
         {
           method: "POST",
           body: JSON.stringify(formData),
@@ -214,7 +214,7 @@ const AdminFeatures = () => {
     }
     try {
       const response = await apiFetch(
-        "/backend/admin/admin_feature_update_branch_amount.php",
+        "/admin/admin_feature_update_branch_amount.php",
         {
           method: "PUT",
           body: JSON.stringify(payload),
@@ -235,7 +235,7 @@ const AdminFeatures = () => {
     if (!deleteConfirm) return;
     try {
      const response = await apiFetch(
-       `/backend/admin/admin_feature_delete_branch_amount.php?id=${deleteConfirm}`,
+       `/admin/admin_feature_delete_branch_amount.php?id=${deleteConfirm}`,
        {
          method: "DELETE",
        },
