@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { apiFetch } from "../utils/api";
 
-const API_BASE = "https://backend.bipfencing.in/backend/admin";
 
 const getHeaders = () => {
   const headers = {
@@ -89,9 +89,8 @@ const AdminFeatures = () => {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(
-        `${API_BASE}/admin_feature_get_branch_amounts.php`,
-        { headers: getHeaders() },
+      const response = await apiFetch(
+        "/backend/admin/admin_feature_get_branch_amounts.php",
       );
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
@@ -148,11 +147,10 @@ const AdminFeatures = () => {
       return;
     }
     try {
-      const response = await fetch(
-        `${API_BASE}/admin_feature_add_branch_amount.php`,
+      const response = await apiFetch(
+        "/backend/admin/admin_feature_add_branch_amount.php",
         {
           method: "POST",
-          headers: getHeaders(),
           body: JSON.stringify(formData),
         },
       );
@@ -215,9 +213,12 @@ const AdminFeatures = () => {
       return;
     }
     try {
-      const response = await fetch(
-        `${API_BASE}/admin_feature_update_branch_amount.php`,
-        { method: "PUT", headers: getHeaders(), body: JSON.stringify(payload) },
+      const response = await apiFetch(
+        "/backend/admin/admin_feature_update_branch_amount.php",
+        {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        },
       );
       const result = await response.json();
       if (response.ok) {
@@ -233,10 +234,12 @@ const AdminFeatures = () => {
   const handleDelete = async () => {
     if (!deleteConfirm) return;
     try {
-      const response = await fetch(
-        `${API_BASE}/admin_feature_delete_branch_amount.php?id=${deleteConfirm}`,
-        { method: "DELETE", headers: getHeaders() },
-      );
+     const response = await apiFetch(
+       `/backend/admin/admin_feature_delete_branch_amount.php?id=${deleteConfirm}`,
+       {
+         method: "DELETE",
+       },
+     );
       const result = await response.json();
       if (response.ok) {
         showToast(result.message);
