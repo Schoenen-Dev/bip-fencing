@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 const LOGO_SRC = "/logo.png";
-const API_BASE = "http://localhost:8000";
+const API_BASE = "https://backend.bipfencing.in/backend";
 
 export default function Login() {
   const [username, setUsername] = useState("");
