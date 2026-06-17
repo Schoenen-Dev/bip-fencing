@@ -5,8 +5,10 @@ if (!defined('HTML_RESPONSE')) {
     header('Content-Type: application/json; charset=utf-8');
 }
 
-// Allow your React app
-header("Access-Control-Allow-Origin: http://localhost:5173");
+// Allow your deployed React app
+header("Access-Control-Allow-Origin: https://bip-fencing.vercel.app");
+
+// If you use cookies or sessions
 header("Access-Control-Allow-Credentials: true");
 
 // Allow methods
@@ -21,7 +23,7 @@ header("Access-Control-Expose-Headers: Authorization");
 // Cache preflight
 header("Access-Control-Max-Age: 86400");
 
-// OPTIONS request
+// Handle preflight requests
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
