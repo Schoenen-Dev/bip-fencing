@@ -1,9 +1,8 @@
 // ✅ v3 — Logo image, 2-col meta, hide blank fields, sessionStorage persistence
 
 import React, { useState, useEffect } from "react";
+import { apiFetch } from "../utils/api";
 
-const API_URL = "http://localhost:8000/products.php";
-const INVOICE_NO_URL = "http://localhost:8000/get_invoice_number.php";
 const SESSION_KEY = "bip_tax_invoice_form";
 
 const COMPANY = {
@@ -235,18 +234,6 @@ const sectionHead = {
   paddingBottom: 1,
 };
 
-const getHeaders = () => {
-  const headers = {
-    Authorization: `Bearer ${localStorage.getItem("token")}`,
-    "Content-Type": "application/json",
-  };
-  const role = localStorage.getItem("role");
-  if (role === "admin") {
-    const viewBranch = localStorage.getItem("admin_view_branch");
-    if (viewBranch) headers["X-Branch-ID"] = viewBranch;
-  }
-  return headers;
-};
 // ═════════════════════════════════════════════════════════════════════════════
 export default function TaxInvoice() {
   const [step, setStep] = useState(1);
@@ -290,7 +277,7 @@ export default function TaxInvoice() {
 
   const fetchInvoiceNoPeek = async () => {
     try {
-      const res = await fetch(INVOICE_NO_URL, { headers: getHeaders() });
+      apiFetch("/get_invoice_number.php");
       const data = await res.json();
       if (data.success) {
         setForm((prev) =>
@@ -340,7 +327,7 @@ export default function TaxInvoice() {
 
   async function fetchSavedProducts() {
     try {
-      const res = await fetch(API_URL, { headers: getHeaders() });
+      apiFetch("/products.php");
       if (!res.ok) return;
       const data = await res.json();
       setSavedProducts(
@@ -483,9 +470,8 @@ export default function TaxInvoice() {
           return false;
         }
         const newStock = currentStock - usedQty;
-        const updateRes = await fetch(`${API_URL}?id=${match.id}`, {
-          method: "PUT",
-          headers: getHeaders(),
+       apiFetch(`/products.php?id=${match.id}`,{
+    method:"PUT",
           body: JSON.stringify({
             productName: match.product_name,
             sku: match.sku,
@@ -532,10 +518,9 @@ export default function TaxInvoice() {
     let invoiceNoToUse = form.invoiceNo;
     if (!form.invoiceNoLocked) {
       try {
-        const res = await fetch(INVOICE_NO_URL, {
-          method: "POST",
-          headers: getHeaders(),
-        });
+       apiFetch("/get_invoice_number.php", {
+         method: "POST",
+       });
         const data = await res.json();
         if (!data.success) {
           alert(
@@ -611,9 +596,11 @@ export default function TaxInvoice() {
           taxableAmt: r.taxableAmt,
         })),
       };
-      const res = await fetch("http://localhost:8000/save_invoice.php", {
+      apiFetch("/save_invoice.php", {
         method: "POST",
-        headers: { ...getHeaders(), "Content-Type": "application/json" },
+       headers:{
+    "Content-Type":"application/json"
+},
         body: JSON.stringify(payload),
       });
       const result = await res.json();
