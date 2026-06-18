@@ -1,33 +1,17 @@
 import React, { useState, useEffect } from "react";
+import { apiFetch } from "../utils/api";
 
-const API_BASE = "http://localhost:8000";
+const safeFetchJSON = async (path, options = {}) => {
+  const response = await apiFetch(path, options);
 
-const getHeaders = () => {
-  const headers = {
-    Authorization: `Bearer ${localStorage.getItem("token")}`,
-    "Content-Type": "application/json",
-  };
-  const role = localStorage.getItem("role");
-  if (role === "admin") {
-    const viewBranch = localStorage.getItem("admin_view_branch");
-    if (viewBranch) headers["X-Branch-ID"] = viewBranch;
-  }
-  return headers;
-};
+  const text = await response.text();
 
-const safeFetchJSON = async (url, options = {}) => {
+  console.log("🔵 Raw response:", text.substring(0, 200));
+
   try {
-    const response = await fetch(url, options);
-    const text = await response.text();
-    console.log("🔵 Raw response from", url, text.substring(0, 200));
-    try {
-      return JSON.parse(text);
-    } catch (e) {
-      throw new Error(`Invalid JSON response: ${text.substring(0, 300)}`);
-    }
-  } catch (error) {
-    console.error("🔴 Network error:", error);
-    throw error;
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`Invalid JSON response: ${text.substring(0, 300)}`);
   }
 };
 
@@ -56,12 +40,12 @@ export default function PurchaseInventory() {
     setLoading(true);
     setError("");
     try {
-      const token = localStorage.getItem("token");
+  
       const params = new URLSearchParams();
       if (searchTerm) params.append("search", searchTerm);
-      if (token) params.append("token", token);
-      const url = `${API_BASE}/get_inventory_products.php?${params.toString()}`;
-      const data = await safeFetchJSON(url, { headers: getHeaders() });
+      const data = await safeFetchJSON(
+        `/get_inventory_products.php?${params.toString()}`,
+      );
       if (data.error && data.error.includes("No branch selected")) {
         setBranchSelected(false);
         setError(
@@ -83,14 +67,14 @@ export default function PurchaseInventory() {
 
   const fetchHistory = async () => {
     try {
-      const token = localStorage.getItem("token");
       const params = new URLSearchParams();
       if (historySearch) params.append("search", historySearch);
       if (historyFrom) params.append("date_from", historyFrom);
       if (historyTo) params.append("date_to", historyTo);
       if (token) params.append("token", token);
-      const url = `${API_BASE}/get_stock_deductions.php?${params.toString()}`;
-      const data = await safeFetchJSON(url, { headers: getHeaders() });
+      const data = await safeFetchJSON(
+        `/get_stock_deductions.php?${params.toString()}`,
+      );
       setHistory(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
@@ -133,11 +117,8 @@ export default function PurchaseInventory() {
       return;
     }
     try {
-      const token = localStorage.getItem("token");
-      const url = `${API_BASE}/deduct_stock.php?token=${encodeURIComponent(token)}`;
-      const data = await safeFetchJSON(url, {
+      const data = await safeFetchJSON("/deduct_stock.php", {
         method: "POST",
-        headers: getHeaders(),
         body: JSON.stringify({
           product_id: selectedProduct,
           deduct_qty: qty,
