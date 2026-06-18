@@ -68,13 +68,15 @@ export default function PurchaseInventory() {
   const fetchHistory = async () => {
     try {
       const params = new URLSearchParams();
+
       if (historySearch) params.append("search", historySearch);
       if (historyFrom) params.append("date_from", historyFrom);
       if (historyTo) params.append("date_to", historyTo);
-      if (token) params.append("token", token);
+
       const data = await safeFetchJSON(
         `/get_stock_deductions.php?${params.toString()}`,
       );
+
       setHistory(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
