@@ -460,14 +460,11 @@ export default function Attendance() {
     }
     setApiError("");
     try {
-      const token = localStorage.getItem("token");
-      if (!token) throw new Error("No token");
+
       const payload = { ...form };
       if (isAdmin && selectedBranch)
         payload.branch_id = parseInt(selectedBranch);
-      const url = editingId
-        ? `${API_BASE}/attendance/attendance.php?id=${editingId}&token=${encodeURIComponent(token)}`
-        : `${API_BASE}/attendance/attendance.php?token=${encodeURIComponent(token)}`;
+     
      const res = await apiFetch(
        editingId
          ? `/attendance/attendance.php?id=${editingId}`
