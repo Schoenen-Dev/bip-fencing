@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import Select from "react-select";
-
-const API = "http://localhost:8000/salary/salary_api.php";
+import { apiFetch } from "../utils/api";
 
 const getHeaders = () => {
   const headers = {
@@ -101,9 +100,7 @@ export default function Salary() {
     setBudgetLoading(true);
     setBudgetError("");
     try {
-      const res = await fetch(`${API}?action=branch_total`, {
-        headers: getHeaders(),
-      });
+      const res = await apiFetch("/salary/salary_api.php?action=branch_total");
       const data = await res.json();
       if (data.error) setBudgetError(data.error);
       else
@@ -121,7 +118,7 @@ export default function Salary() {
 
   const fetchEmployees = () => {
     setEmpLoading(true);
-    fetch(`${API}?action=employees`, { headers: getHeaders() })
+    apiFetch("/salary/salary_api.php?action=employees")
       .then((r) => r.json())
       .then((data) => setEmployees(Array.isArray(data) ? data : []))
       .catch(() => setEmployees([]))
@@ -131,7 +128,7 @@ export default function Salary() {
   const fetchRecords = () => {
     setLoading(true);
     setError("");
-    fetch(`${API}?action=records`, { headers: getHeaders() })
+    apiFetch("/salary/salary_api.php?action=records")
       .then((r) => r.json())
       .then((data) => setRecords(Array.isArray(data) ? data : []))
       .catch((err) => {
@@ -202,11 +199,10 @@ export default function Salary() {
       return;
     }
     try {
-      const res = await fetch(`${API}?action=save`, {
-        method: "POST",
-        headers: getHeaders(),
-        body: JSON.stringify(form),
-      });
+     const res = await apiFetch("/salary/salary_api.php?action=save", {
+       method: "POST",
+       body: JSON.stringify(form),
+     });
       const data = await res.json();
       if (data.success) {
         showToast("Salary Saved Successfully");
@@ -235,11 +231,10 @@ export default function Salary() {
   const handleUpdate = async () => {
     if (!editModal) return;
     try {
-      const res = await fetch(`${API}?action=update`, {
-        method: "PUT",
-        headers: getHeaders(),
-        body: JSON.stringify(editModal),
-      });
+    const res = await apiFetch("/salary/salary_api.php?action=update", {
+      method: "PUT",
+      body: JSON.stringify(editModal),
+    });
       const data = await res.json();
       if (data.success) {
         showToast("Salary updated successfully");
@@ -254,10 +249,12 @@ export default function Salary() {
 
   const handleDelete = async (id, employeeName) => {
     try {
-      const res = await fetch(`${API}?action=delete&id=${id}`, {
-        method: "DELETE",
-        headers: getHeaders(),
-      });
+     const res = await apiFetch(
+       `/salary/salary_api.php?action=delete&id=${id}`,
+       {
+         method: "DELETE",
+       },
+     );
       const data = await res.json();
       if (data.success) {
         showToast(`Deleted record for ${employeeName}`);
