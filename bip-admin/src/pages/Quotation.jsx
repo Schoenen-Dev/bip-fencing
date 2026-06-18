@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from "react";
-
-const API_BASE = "http://localhost:8000";
-const PROD_API = `${API_BASE}/products.php`;
-const QUOTE_API = `${API_BASE}/quotation_api.php`;
+import { apiFetch } from "../utils/api";
 
 const COMPANY = {
   name: "BIP FENCING CONTRACT WORK",
@@ -15,18 +12,6 @@ const COMPANY = {
 
 const DECLARATION =
   "We declare that this quotation shows the actual price of the goods described and that all particulars are true and correct.";
-
-const getHeaders = () => {
-  const h = {
-    Authorization: `Bearer ${localStorage.getItem("token")}`,
-    "Content-Type": "application/json",
-  };
-  if (localStorage.getItem("role") === "admin") {
-    const vb = localStorage.getItem("admin_view_branch");
-    if (vb) h["X-Branch-ID"] = vb;
-  }
-  return h;
-};
 
 const fmt2 = (n) =>
   Number(n || 0).toLocaleString("en-IN", {
@@ -223,7 +208,7 @@ export default function Quotation() {
 
   const fetchProducts = async () => {
     try {
-      const res = await fetch(PROD_API, { headers: getHeaders() });
+      const res = await apiFetch("/products.php");
       const data = await res.json();
       if (Array.isArray(data)) setProducts(data);
     } catch (_) {}
@@ -232,7 +217,7 @@ export default function Quotation() {
   const fetchQuotations = async () => {
     setLoading(true);
     try {
-      const res = await fetch(QUOTE_API, { headers: getHeaders() });
+    const res = await apiFetch("/quotation_api.php");
       const data = await res.json();
       setRecords(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -243,7 +228,7 @@ export default function Quotation() {
   };
 
   const fetchSingleQuotation = async (id) => {
-    const res = await fetch(`${QUOTE_API}?id=${id}`, { headers: getHeaders() });
+    const res = await apiFetch(`/quotation_api.php?id=${id}`);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     return data;
@@ -352,11 +337,10 @@ export default function Quotation() {
     try {
       const method = editId ? "PUT" : "POST";
       const payload = editId ? { ...form, id: editId } : form;
-      const res = await fetch(QUOTE_API, {
-        method,
-        headers: getHeaders(),
-        body: JSON.stringify(payload),
-      });
+     const res = await apiFetch("/quotation_api.php", {
+       method,
+       body: JSON.stringify(payload),
+     });
       const data = await res.json();
       if (res.ok) {
         alert(data.message);
@@ -430,9 +414,8 @@ export default function Quotation() {
   const handleDelete = async () => {
     if (!deleteId) return;
     try {
-      const res = await fetch(`${QUOTE_API}?id=${deleteId}`, {
+      const res = await apiFetch(`/quotation_api.php?id=${deleteId}`, {
         method: "DELETE",
-        headers: getHeaders(),
       });
       const data = await res.json();
       if (res.ok) {
