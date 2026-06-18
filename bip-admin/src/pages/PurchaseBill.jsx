@@ -1,19 +1,5 @@
 import React, { useState, useEffect } from "react";
-
-const API_BASE = "http://localhost:8000";
-
-const getHeaders = () => {
-  const headers = {
-    Authorization: `Bearer ${localStorage.getItem("token")}`,
-    "Content-Type": "application/json",
-  };
-  const role = localStorage.getItem("role");
-  if (role === "admin") {
-    const viewBranch = localStorage.getItem("admin_view_branch");
-    if (viewBranch) headers["X-Branch-ID"] = viewBranch;
-  }
-  return headers;
-};
+import { apiFetch } from "../utils/api";
 
 const emptyItem = () => ({
   product_id: "",
@@ -54,9 +40,8 @@ export default function PurchaseBill() {
       Object.entries(activeFilters).forEach(([k, v]) => {
         if (v) params.append(k, v);
       });
-      const res = await fetch(
-        `${API_BASE}/get_purchase_bills.php?${params.toString()}`,
-        { headers: getHeaders() },
+      const res = await apiFetch(
+        `/get_purchase_bills.php?${params.toString()}`,
       );
       const data = await res.json();
       setBills(Array.isArray(data) ? data : []);
@@ -148,9 +133,8 @@ export default function PurchaseBill() {
     }
 
     try {
-      const res = await fetch(`${API_BASE}/add_purchase_bill.php`, {
+      const res = await apiFetch("/add_purchase_bill.php", {
         method: "POST",
-        headers: getHeaders(),
         body: JSON.stringify(form),
       });
       const data = await res.json();
