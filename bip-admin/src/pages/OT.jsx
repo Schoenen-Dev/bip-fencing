@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Select from "react-select";
+import { apiFetch } from "../utils/api";
 
 const OT = () => {
-  const API_BASE = "http://localhost:8000";
 
   const [employees, setEmployees] = useState([]);
   const [otRecords, setOtRecords] = useState([]);
@@ -87,10 +87,7 @@ const OT = () => {
   const fetchBranches = async () => {
     if (!isAllBranches) return;
     try {
-      const res = await fetch(
-        `${API_BASE}/branches/get_branches.php?simple=1`,
-        { headers: getHeaders() },
-      );
+     const res = await apiFetch("/branches/get_branches.php?simple=1");
       if (!res.ok) return;
       const data = await res.json();
       const list = Array.isArray(data) ? data : data.branches || [];
@@ -104,10 +101,7 @@ const OT = () => {
 
   const fetchEmployees = async () => {
     try {
-      const res = await fetch(
-        `${API_BASE}/employees/get_employees.php?simple=1`,
-        { headers: getHeaders() },
-      );
+      const res = await apiFetch("/employees/get_employees.php?simple=1");
       if (!res.ok) throw new Error();
       const data = await res.json();
       setEmployees(Array.isArray(data) ? data : data.data || []);
@@ -118,9 +112,7 @@ const OT = () => {
 
   const fetchOTRecords = async () => {
     try {
-      const res = await fetch(`${API_BASE}/ot/get_ot_details.php`, {
-        headers: getHeaders(),
-      });
+      const res = await apiFetch("/ot/get_ot_details.php");
       if (!res.ok) throw new Error();
       const data = await res.json();
       setOtRecords(Array.isArray(data) ? data : []);
@@ -225,15 +217,15 @@ const OT = () => {
       ot_date: formData.ot_date,
     };
     try {
-      const token = localStorage.getItem("token");
-      const url = editingId
-        ? `${API_BASE}/ot/update_ot_details.php?id=${editingId}&token=${encodeURIComponent(token)}`
-        : `${API_BASE}/ot/add_ot_details.php?token=${encodeURIComponent(token)}`;
-      const res = await fetch(url, {
+    const res = await apiFetch(
+      editingId
+        ? `/ot/update_ot_details.php?id=${editingId}`
+        : "/ot/add_ot_details.php",
+      {
         method: editingId ? "PUT" : "POST",
-        headers: getHeaders(true),
         body: JSON.stringify(payload),
-      });
+      },
+    );
       const result = await res.json();
       if (res.ok) {
         showToast(editingId ? "OT record updated" : "OT details saved");
@@ -284,10 +276,11 @@ const OT = () => {
   const handleDelete = async () => {
     if (!deleteConfirm) return;
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(
-        `${API_BASE}/ot/delete_ot_details.php?id=${deleteConfirm.id}&token=${encodeURIComponent(token)}`,
-        { method: "DELETE", headers: getHeaders() },
+      const res = await apiFetch(
+        `/ot/delete_ot_details.php?id=${deleteConfirm.id}`,
+        {
+          method: "DELETE",
+        },
       );
       const result = await res.json();
       if (res.ok) {
