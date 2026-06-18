@@ -277,7 +277,7 @@ export default function TaxInvoice() {
 
   const fetchInvoiceNoPeek = async () => {
     try {
-      apiFetch("/get_invoice_number.php");
+      const res = await apiFetch("/get_invoice_number.php");
       const data = await res.json();
       if (data.success) {
         setForm((prev) =>
@@ -327,9 +327,11 @@ export default function TaxInvoice() {
 
   async function fetchSavedProducts() {
     try {
-      apiFetch("/products.php");
-      if (!res.ok) return;
-      const data = await res.json();
+     const res = await apiFetch("/products.php");
+
+     if (!res.ok) return;
+
+     const data = await res.json();
       setSavedProducts(
         data.map((p) => ({
           id: p.id,
@@ -448,7 +450,7 @@ export default function TaxInvoice() {
   const reduceStock = async () => {
     setStockReducing(true);
     try {
-      const res = await fetch(API_URL, { headers: getHeaders() });
+      const res = await apiFetch("/products.php");
       if (!res.ok) throw new Error("Failed to fetch products");
       const dbProducts = await res.json();
       let anyReduced = false;
@@ -470,21 +472,25 @@ export default function TaxInvoice() {
           return false;
         }
         const newStock = currentStock - usedQty;
-       apiFetch(`/products.php?id=${match.id}`,{
-    method:"PUT",
-          body: JSON.stringify({
-            productName: match.product_name,
-            sku: match.sku,
-            category: match.category,
-            unit: match.unit,
-            sellingPrice: match.selling_price,
-            stockQty: newStock,
-            minStock: match.min_stock,
-            description: match.description,
-          }),
-        });
-        if (!updateRes.ok)
-          throw new Error(`Failed to update stock for "${match.product_name}"`);
+       const updateRes = await apiFetch(`/products.php?id=${match.id}`, {
+         method: "PUT",
+         body: JSON.stringify({
+           productName: match.product_name,
+           sku: match.sku,
+           category: match.category,
+           unit: match.unit,
+           sellingPrice: match.selling_price,
+           stockQty: newStock,
+           minStock: match.min_stock,
+           description: match.description,
+         }),
+       });
+
+       if (!updateRes.ok)
+         if (!updateRes.ok)
+           throw new Error(
+             `Failed to update stock for "${match.product_name}"`,
+           );
         anyReduced = true;
       }
       if (anyReduced) {
@@ -518,10 +524,11 @@ export default function TaxInvoice() {
     let invoiceNoToUse = form.invoiceNo;
     if (!form.invoiceNoLocked) {
       try {
-       apiFetch("/get_invoice_number.php", {
-         method: "POST",
-       });
-        const data = await res.json();
+      const res = await apiFetch("/get_invoice_number.php", {
+        method: "POST",
+      });
+
+      const data = await res.json();
         if (!data.success) {
           alert(
             data.message === "no_branch_selected"
@@ -596,14 +603,12 @@ export default function TaxInvoice() {
           taxableAmt: r.taxableAmt,
         })),
       };
-      apiFetch("/save_invoice.php", {
-        method: "POST",
-       headers:{
-    "Content-Type":"application/json"
-},
-        body: JSON.stringify(payload),
-      });
-      const result = await res.json();
+     const res = await apiFetch("/save_invoice.php", {
+       method: "POST",
+       body: JSON.stringify(payload),
+     });
+
+     const result = await res.json();
       if (!result.success)
         console.error("Invoice save failed:", result.message);
     } catch (err) {
