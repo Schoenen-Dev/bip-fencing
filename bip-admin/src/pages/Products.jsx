@@ -1,21 +1,5 @@
 import { useState, useEffect } from "react";
-
-const API_URL = "http://localhost:8000/products.php";
-
-const getHeaders = () => {
-  const headers = {
-    Authorization: `Bearer ${localStorage.getItem("token")}`,
-    "Content-Type": "application/json",
-  };
-  const role = localStorage.getItem("role");
-  if (role === "admin") {
-    const viewBranch = localStorage.getItem("admin_view_branch");
-    if (viewBranch) {
-      headers["X-Branch-ID"] = viewBranch;
-    }
-  }
-  return headers;
-};
+import { apiFetch } from "../utils/api";
 
 const emptyForm = {
   productName: "",
@@ -85,7 +69,7 @@ export default function Products() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(API_URL, { headers: getHeaders() });
+      const res = await apiFetch("/products.php");
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const data = await res.json();
       const loaded = data.map(mapFromDB);
@@ -149,17 +133,18 @@ export default function Products() {
       if (editingId !== null) {
         const extra = Number(addStockQty) || 0;
         const finalQty = Number(form.stockQty) + extra;
-        res = await fetch(`${API_URL}?id=${editingId}`, {
+        res = await apiFetch(`/products.php?id=${editingId}`, {
           method: "PUT",
-          headers: getHeaders(),
-          body: JSON.stringify({ ...form, stockQty: finalQty }),
+          body: JSON.stringify({
+            ...form,
+            stockQty: finalQty,
+          }),
         });
       } else {
-        res = await fetch(API_URL, {
-          method: "POST",
-          headers: getHeaders(),
-          body: JSON.stringify(form),
-        });
+       res = await apiFetch("/products.php", {
+         method: "POST",
+         body: JSON.stringify(form),
+       });
       }
       if (!res.ok) {
         const e = await res.json();
@@ -194,10 +179,9 @@ export default function Products() {
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this product?")) return;
     try {
-      const res = await fetch(`${API_URL}?id=${id}`, {
-        method: "DELETE",
-        headers: getHeaders(),
-      });
+     const res = await apiFetch(`/products.php?id=${id}`, {
+       method: "DELETE",
+     });
       if (!res.ok) throw new Error("Delete failed");
       setProducts((prev) => prev.filter((p) => p.id !== id));
       if (editingId === id) {
