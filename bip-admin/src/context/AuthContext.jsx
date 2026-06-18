@@ -1,4 +1,5 @@
 import { createContext, useContext, useState } from "react";
+import { apiFetch } from "../utils/api"; // adjust path if needed
 import { useNavigate } from "react-router-dom";
 
 const AuthContext = createContext(null);
@@ -10,21 +11,24 @@ export function AuthProvider({ children }) {
 
   const navigate = useNavigate();
 
-  const logout = () => {
-    // call logout.php to destroy session
-    const token = localStorage.getItem("token");
-    if (token) {
-      fetch("http://localhost:8000/logout.php", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      }).catch(() => {});
-    }
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    sessionStorage.clear(); // wipe any unsaved drafts (e.g. Tax Invoice form) so the next branch login starts clean
-    setIsAuthenticated(false);
-    navigate("/login");
-  };
+const logout = async () => {
+  try {
+    await apiFetch("/logout.php", {
+      method: "POST",
+    });
+  } catch (err) {
+    // Ignore logout API errors and continue clearing local data
+    console.error("Logout request failed:", err);
+  }
+
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+  localStorage.removeItem("selectedBranch");
+  sessionStorage.clear();
+
+  setIsAuthenticated(false);
+  navigate("/login", { replace: true });
+};
 
   // called by Login.jsx after successful PHP login
   const setAuth = () => {
