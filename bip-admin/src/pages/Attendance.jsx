@@ -1,30 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Select from "react-select";
+import { apiFetch } from "../utils/api";
 
-const API_BASE = "http://localhost:8000";
-
-const getHeaders = () => {
-  const headers = {
-    Authorization: `Bearer ${localStorage.getItem("token")}`,
-    "Content-Type": "application/json",
-  };
-  const role = localStorage.getItem("role");
-  if (role === "admin") {
-    const vb = localStorage.getItem("admin_view_branch");
-    if (vb) headers["X-Branch-ID"] = vb;
-  }
-  return headers;
-};
-
-async function fetchJSON(url, options = {}) {
-  const res = await fetch(url, options);
-  const text = await res.text();
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw new Error(`Backend error: ${text.substring(0, 200)}`);
-  }
-}
 
 const STATUSES = [
   "Present",
@@ -350,10 +327,8 @@ export default function Attendance() {
       try {
         const token = localStorage.getItem("token");
         if (!token) return;
-        const data = await fetchJSON(
-          `${API_BASE}/branches/get_branches.php?token=${encodeURIComponent(token)}&simple=1`,
-          { headers: getHeaders() },
-        );
+        const res = await apiFetch("/branches/get_branches.php?simple=1");
+        const data = await res.json();
         const list = Array.isArray(data) ? data : data.branches || [];
         const map = {};
         list.forEach((b) => {
@@ -377,10 +352,10 @@ export default function Attendance() {
       if (search) params.set("search", search);
       if (activeTab !== "all") params.set("tab", activeTab);
       params.set("token", token);
-      const data = await fetchJSON(
-        `${API_BASE}/attendance/attendance.php?${params}`,
-        { headers: getHeaders() },
-      );
+     const res = await apiFetch(
+       `/attendance/attendance.php?${params.toString()}`,
+     );
+     const data = await res.json();
       if (data.error) throw new Error(data.error);
       setRecords(data.records || []);
       setStats(data.stats || { total_employees: 0, today: {}, all_time: {} });
@@ -403,10 +378,8 @@ export default function Attendance() {
       try {
         const token = localStorage.getItem("token");
         if (!token) throw new Error("No token");
-        const data = await fetchJSON(
-          `${API_BASE}/employees/get_employees.php?token=${encodeURIComponent(token)}&simple=1`,
-          { headers: getHeaders() },
-        );
+      const res = await apiFetch("/employees/get_employees.php?simple=1");
+      const data = await res.json();
         setDbEmployees(Array.isArray(data) ? data : data.employees || []);
       } catch (err) {
         setEmpError(err.message);
@@ -495,11 +468,17 @@ export default function Attendance() {
       const url = editingId
         ? `${API_BASE}/attendance/attendance.php?id=${editingId}&token=${encodeURIComponent(token)}`
         : `${API_BASE}/attendance/attendance.php?token=${encodeURIComponent(token)}`;
-      const data = await fetchJSON(url, {
-        method: editingId ? "PUT" : "POST",
-        headers: getHeaders(),
-        body: JSON.stringify(payload),
-      });
+     const res = await apiFetch(
+       editingId
+         ? `/attendance/attendance.php?id=${editingId}`
+         : "/attendance/attendance.php",
+       {
+         method: editingId ? "PUT" : "POST",
+         body: JSON.stringify(payload),
+       },
+     );
+
+     const data = await res.json();
       if (data.error) throw new Error(data.error);
       showToast(editingId ? "Attendance updated!" : "Attendance marked!");
       closeForm();
@@ -545,10 +524,11 @@ export default function Attendance() {
     try {
       const token = localStorage.getItem("token");
       if (!token) throw new Error("No token");
-      const data = await fetchJSON(
-        `${API_BASE}/attendance/attendance.php?id=${id}&token=${encodeURIComponent(token)}`,
-        { method: "DELETE", headers: getHeaders() },
-      );
+      const res = await apiFetch(`/attendance/attendance.php?id=${id}`, {
+        method: "DELETE",
+      });
+
+      const data = await res.json();
       if (data.error) throw new Error(data.error);
       setDeleteConfirm(null);
       showToast("Attendance record deleted");
