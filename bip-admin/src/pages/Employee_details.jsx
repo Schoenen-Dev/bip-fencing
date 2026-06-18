@@ -179,10 +179,6 @@ const Employee_details = () => {
     }
 
     try {
-      const url = editId
-        ? `${API_BASE}/update_employee.php?id=${editId}`
-        : `${API_BASE}/add_employee.php`;
-      const method = editId ? "PUT" : "POST";
 const response = await apiFetch(
   editId
     ? `/employees/update_employee.php?id=${editId}`
