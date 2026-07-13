@@ -44,7 +44,12 @@ if (empty($data['items']) || !is_array($data['items'])) {
     exit;
 }
 
-$branch_id = $authUser['branch_id'] ?? null;
+$branch_id = null;
+if (($authUser['role'] ?? null) === 'admin' && isset($authUser['view_branch_id'])) {
+    $branch_id = $authUser['view_branch_id'];
+} elseif (($authUser['role'] ?? null) !== 'admin') {
+    $branch_id = $authUser['branch_id'] ?? null;
+}
 
 // ── Helpers ───────────────────────────────────────────────────
 $s = fn($k) => isset($data[$k]) && $data[$k] !== '' ? (string)$data[$k] : null;

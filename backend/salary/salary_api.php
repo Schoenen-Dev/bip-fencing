@@ -189,15 +189,32 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $type         = $conn->real_escape_string($data['type'] ?? '');
     $date         = $conn->real_escape_string($data['date'] ?? '');
 
-    $stmt = $conn->prepare(
-        "INSERT INTO salaries
-            (employeeName, employeeId, salary, paid, balance, type, salary_date, branch_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-    );
-    $stmt->bind_param(
-        'ssdddssi',
-        $employeeName, $employeeId, $salary, $paid, $balance, $type, $date, $branchId
-    );
+   $stmt = $conn->prepare(
+    "INSERT INTO salaries
+    (
+        employeeName,
+        employeeId,
+        salary,
+        paid,
+        type,
+        salary_date,
+        branch_id
+    )
+    VALUES
+    (?, ?, ?, ?, ?, ?, ?)"
+);
+
+$stmt->bind_param(
+    "ssddssi",
+    $employeeName,
+    $employeeId,
+    $salary,
+    $paid,
+    $type,
+    $date,
+    $branchId
+);
+    
 
     if ($stmt->execute()) {
         echo json_encode(['success' => true, 'message' => 'Salary saved']);
@@ -235,10 +252,24 @@ if ($action === 'update' && $_SERVER['REQUEST_METHOD'] === 'PUT') {
     // Recalculate balance
     $balance = $salary - $paid;
 
-    $stmt = $conn->prepare(
-        "UPDATE salaries SET salary=?, paid=?, balance=?, type=?, salary_date=? WHERE id=?"
-    );
-    $stmt->bind_param('dddssi', $salary, $paid, $balance, $type, $date, $id);
+   $stmt = $conn->prepare(
+    "UPDATE salaries
+     SET
+        salary=?,
+        paid=?,
+        type=?,
+        salary_date=?
+     WHERE id=?"
+);
+
+$stmt->bind_param(
+    "ddssi",
+    $salary,
+    $paid,
+    $type,
+    $date,
+    $id
+);
 
     if ($stmt->execute()) {
         echo json_encode(['success' => true, 'message' => 'Salary updated']);

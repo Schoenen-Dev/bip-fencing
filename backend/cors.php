@@ -5,8 +5,17 @@ if (!defined('HTML_RESPONSE')) {
     header('Content-Type: application/json; charset=utf-8');
 }
 
-// Allow your deployed React app
-header("Access-Control-Allow-Origin: https://bip-fencing.vercel.app");
+// Allowed frontend domains
+$allowedOrigins = [
+    'https://www.bipbilling.co.in',
+    'https://bipbilling.co.in',
+    'https://bip-fencing.vercel.app',
+    'http://localhost:5173'
+];
+
+if (isset($_SERVER['HTTP_ORIGIN']) && in_array($_SERVER['HTTP_ORIGIN'], $allowedOrigins)) {
+    header("Access-Control-Allow-Origin: " . $_SERVER['HTTP_ORIGIN']);
+}
 
 // If you use cookies or sessions
 header("Access-Control-Allow-Credentials: true");

@@ -1,4 +1,4 @@
-const API_BASE = "https://backend.bipfencing.in/backend";
+const API_BASE = "http://localhost:8000";
 
 export const apiFetch = (path, options = {}) => {
   const token = localStorage.getItem("token");

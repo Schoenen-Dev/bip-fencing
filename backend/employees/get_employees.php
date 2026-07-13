@@ -1,4 +1,7 @@
 <?php
+
+require_once __DIR__ . '/../cors.php';
+
 // Allow token via GET parameter (for environments where HTTP_AUTHORIZATION is not set)
 if (isset($_GET['token'])) {
     $_SERVER['HTTP_AUTHORIZATION'] = 'Bearer ' . $_GET['token'];

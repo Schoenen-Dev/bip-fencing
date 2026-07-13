@@ -4,7 +4,8 @@
 //  Your existing db.php (mysqli) stays unchanged.
 // =============================================================
 
-define('PDO_HOST',    'localhost');
+define('PDO_HOST',    '127.0.0.1');
+define('PDO_PORT',    3306);
 define('PDO_DB',      'bipfencing');
 define('PDO_USER',    'root');
 define('PDO_PASS',    '');
@@ -12,7 +13,7 @@ define('PDO_CHARSET', 'utf8mb4');
 
 try {
     $pdo = new PDO(
-        "mysql:host=" . PDO_HOST . ";dbname=" . PDO_DB . ";charset=" . PDO_CHARSET,
+        "mysql:host=" . PDO_HOST . ";port=" . PDO_PORT . ";dbname=" . PDO_DB . ";charset=" . PDO_CHARSET,
         PDO_USER,
         PDO_PASS,
         [

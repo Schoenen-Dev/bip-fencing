@@ -1,438 +1,834 @@
--- =============================================================
---  BIP Fencing — Database Schema
---  Database: bipfencing
--- =============================================================
+-- phpMyAdmin SQL Dump
+-- version 5.2.1
+-- https://www.phpmyadmin.net/
+--
+-- Host: localhost:3306
+-- Generation Time: Jul 13, 2026 at 11:40 AM
+-- Server version: 5.7.23-23
+-- PHP Version: 8.1.34
 
-CREATE DATABASE IF NOT EXISTS bipfencing
-  DEFAULT CHARACTER SET utf8mb4
-  DEFAULT COLLATE utf8mb4_unicode_ci;
+SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+START TRANSACTION;
+SET time_zone = "+00:00";
 
-USE bipfencing;
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
 
--- -------------------------------------------------------------
--- Table: branches  (MUST be first — referenced by many tables)
--- -------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS branches (
-  id         INT UNSIGNED  NOT NULL AUTO_INCREMENT,
-  name       VARCHAR(100)  NOT NULL,
-  code       VARCHAR(20)   NOT NULL,
-  is_active  TINYINT(1)    NOT NULL DEFAULT 1,
-  created_at DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_code (code)
+--
+-- Database: `bipfencing`
+--
+
+CREATE DATABASE IF NOT EXISTS `bipfencing` DEFAULT CHARACTER SET utf8mb4;
+USE `bipfencing`;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `attendance`
+--
+
+CREATE TABLE `attendance` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `employee_id` varchar(100) NOT NULL,
+  `employee_name` varchar(255) NOT NULL,
+  `date` date NOT NULL,
+  `status` enum('Present','Absent','Half Day','Late','On Leave','Holiday','Work From Site') NOT NULL DEFAULT 'Present',
+  `leave_type` varchar(50) DEFAULT NULL,
+  `check_in` time DEFAULT NULL,
+  `check_out` time DEFAULT NULL,
+  `work_hours` decimal(5,2) DEFAULT NULL,
+  `branch_id` int(10) UNSIGNED NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-INSERT IGNORE INTO branches (id, name, code) VALUES
-  (1, 'Branch A', 'BRA'),
-  (2, 'Branch B', 'BRB'),
-  (3, 'Branch C', 'BRC');
+-- --------------------------------------------------------
 
--- -------------------------------------------------------------
--- Table: users
--- -------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS users (
-  id         INT UNSIGNED  NOT NULL AUTO_INCREMENT,
-  username   VARCHAR(60)   NOT NULL,
-  password   VARCHAR(255)  NOT NULL,
-  full_name  VARCHAR(120)  NOT NULL DEFAULT '',
-  role       ENUM('admin','branch_user') NOT NULL DEFAULT 'branch_user',
-  branch_id  INT UNSIGNED  DEFAULT NULL,
-  is_active  TINYINT(1)    NOT NULL DEFAULT 1,
-  created_at DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_username (username),
-  KEY idx_branch (branch_id)
+--
+-- Table structure for table `branches`
+--
+
+CREATE TABLE `branches` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `name` varchar(100) NOT NULL,
+  `code` varchar(20) NOT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT '1',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-INSERT IGNORE INTO users (username, password, full_name, role, branch_id) VALUES
-  ('admin',    'Admin@123',    'Administrator', 'admin',       NULL),
-  ('branch_a', 'BranchA@123', 'Branch A User', 'branch_user', 1),
-  ('branch_b', 'BranchB@123', 'Branch B User', 'branch_user', 2),
-  ('branch_c', 'BranchC@123', 'Branch C User', 'branch_user', 3);
+--
+-- Dumping data for table `branches`
+--
 
--- -------------------------------------------------------------
--- Table: sessions
--- -------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS sessions (
-  id          VARCHAR(64)   NOT NULL,
-  user_id     INT UNSIGNED  NOT NULL,
-  ip_address  VARCHAR(45)   DEFAULT NULL,
-  user_agent  TEXT          DEFAULT NULL,
-  created_at  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  KEY idx_user (user_id)
+INSERT INTO `branches` (`id`, `name`, `code`, `is_active`, `created_at`) VALUES
+(1, 'Branch A', 'BRA', 1, '2026-06-10 10:36:06'),
+(2, 'Branch B', 'BRB', 1, '2026-06-10 10:36:06'),
+(3, 'Branch C', 'BRC', 1, '2026-06-10 10:36:06');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `branch_amounts`
+--
+
+CREATE TABLE `branch_amounts` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `branch_id` int(10) UNSIGNED NOT NULL,
+  `branch_name` varchar(255) NOT NULL,
+  `amount` decimal(12,2) NOT NULL,
+  `payment_date` date NOT NULL,
+  `note` text,
+  `received_by` varchar(100) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- -------------------------------------------------------------
--- Table: employees
--- -------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS employees (
-  id               INT UNSIGNED    NOT NULL AUTO_INCREMENT,
-  employee_name    VARCHAR(150)    NOT NULL,
-  emp_id           VARCHAR(50)     NOT NULL,
-  department       VARCHAR(100)    NOT NULL,
-  salary_type      ENUM('monthly','weekly','daily') NOT NULL,
-  date_of_joining  DATE            NOT NULL,
-  phone_number     VARCHAR(20)     DEFAULT NULL,
-  address          TEXT            DEFAULT NULL,
-  branch_id        INT UNSIGNED    DEFAULT NULL,
-  created_at       TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+-- --------------------------------------------------------
 
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_emp_id (emp_id),
-  KEY idx_branch_id (branch_id)
+--
+-- Table structure for table `clients`
+--
+
+CREATE TABLE `clients` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `name` varchar(150) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `phone` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `address` text COLLATE utf8mb4_unicode_ci,
+  `gst` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `branch_id` int(10) UNSIGNED DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- -------------------------------------------------------------
--- Table: attendance
--- -------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS attendance (
-  id             INT UNSIGNED   NOT NULL AUTO_INCREMENT,
-  employee_id    VARCHAR(50)    NOT NULL,
-  employee_name  VARCHAR(150)   NOT NULL,
-  date           DATE           NOT NULL,
-  status         ENUM(
-                   'Present','Absent','Half Day',
-                   'Late','On Leave','Holiday','Work From Site'
-                 ) NOT NULL DEFAULT 'Present',
-  leave_type     VARCHAR(80)    DEFAULT NULL,
-  check_in       TIME           DEFAULT NULL,
-  check_out      TIME           DEFAULT NULL,
-  work_hours     DECIMAL(5,2)   DEFAULT NULL,
-  branch_id      INT UNSIGNED   DEFAULT NULL,
-  created_at     TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at     TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP
-                                ON UPDATE CURRENT_TIMESTAMP,
+-- --------------------------------------------------------
 
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_emp_date (employee_id, date),
-  KEY idx_date   (date),
-  KEY idx_status (status),
-  KEY idx_emp_id (employee_id),
-  KEY idx_branch_id (branch_id),
+--
+-- Table structure for table `client_payments`
+--
 
-  CONSTRAINT fk_att_emp
-    FOREIGN KEY (employee_id)
-    REFERENCES employees (emp_id)
-    ON UPDATE CASCADE
-    ON DELETE RESTRICT
+CREATE TABLE `client_payments` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `client_id` int(10) UNSIGNED NOT NULL,
+  `amount` decimal(12,2) NOT NULL,
+  `note` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `payment_date` date NOT NULL,
+  `branch_id` int(10) UNSIGNED DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- -------------------------------------------------------------
--- Table: salaries
--- -------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS salaries (
-  id            INT UNSIGNED    NOT NULL AUTO_INCREMENT,
-  employeeName  VARCHAR(150)    NOT NULL,
-  employeeId    VARCHAR(50)     NOT NULL,
-  salary        DECIMAL(10,2)   NOT NULL DEFAULT 0,
-  paid          DECIMAL(10,2)   NOT NULL DEFAULT 0,
-  balance       DECIMAL(10,2)   NOT NULL DEFAULT 0,
-  type          VARCHAR(50)     NOT NULL,
-  salary_date   DATE            NOT NULL,
-  branch_id     INT UNSIGNED    NOT NULL,
-  created_at    TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+-- --------------------------------------------------------
 
-  PRIMARY KEY (id),
-  KEY idx_emp_id    (employeeId),
-  KEY idx_sal_date  (salary_date),
-  KEY idx_branch_id (branch_id),
+--
+-- Table structure for table `employees`
+--
 
-  CONSTRAINT fk_sal_emp
-    FOREIGN KEY (employeeId)
-    REFERENCES employees (emp_id)
-    ON UPDATE CASCADE
-    ON DELETE RESTRICT,
-
-  CONSTRAINT fk_sal_branch
-    FOREIGN KEY (branch_id)
-    REFERENCES branches (id)
-    ON UPDATE CASCADE
-    ON DELETE RESTRICT
-
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- -------------------------------------------------------------
--- Table: ot_details
--- -------------------------------------------------------------
-DROP TABLE IF EXISTS ot_details;
-
-CREATE TABLE ot_details (
-  id              INT AUTO_INCREMENT PRIMARY KEY,
-  emp_name        VARCHAR(100)  NOT NULL,
-  emp_id          VARCHAR(50)   NOT NULL,
-  salary_type     VARCHAR(50)   NOT NULL,
-  start_time      VARCHAR(20)   NOT NULL,
-  end_time        VARCHAR(20)   NOT NULL,
-  total_ot_hours  DECIMAL(10,2) NOT NULL,
-  ot_date         DATE          NOT NULL,
-  branch_id       INT UNSIGNED  DEFAULT NULL,
-  created_at      TIMESTAMP     DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- -------------------------------------------------------------
--- Table: products
--- -------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS products (
-  id            INT UNSIGNED  NOT NULL AUTO_INCREMENT,
-  product_name  VARCHAR(255)  NOT NULL,
-  sku           VARCHAR(100)  UNIQUE DEFAULT NULL,
-  category      VARCHAR(100)  DEFAULT NULL,
-  unit          VARCHAR(50)   NOT NULL DEFAULT 'Pcs',
-  selling_price DECIMAL(12,2) NOT NULL DEFAULT 0.00,
-  stock_qty     INT           NOT NULL DEFAULT 0,
-  min_stock     INT           NOT NULL DEFAULT 0,
-  description   TEXT          DEFAULT NULL,
-  branch_id     INT UNSIGNED  DEFAULT NULL,
-  created_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP
-                ON UPDATE CURRENT_TIMESTAMP,
-
-  PRIMARY KEY (id),
-  KEY idx_product_name (product_name),
-  KEY idx_category (category),
-  KEY idx_sku (sku)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- -------------------------------------------------------------
--- Table: branch_amounts
--- -------------------------------------------------------------
-DROP TABLE IF EXISTS branch_amounts;
-
-CREATE TABLE branch_amounts (
-  id           INT UNSIGNED   AUTO_INCREMENT PRIMARY KEY,
-  branch_id    INT UNSIGNED   NOT NULL,
-  branch_name  VARCHAR(255)   NOT NULL,
-  amount       DECIMAL(12,2)  NOT NULL,
-  payment_date DATE           NOT NULL,
-  note         TEXT           DEFAULT NULL,
-  created_at   TIMESTAMP      DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_branch_amounts_branch
-    FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE INDEX idx_branch_amounts_branch ON branch_amounts(branch_id);
-
--- -------------------------------------------------------------
--- Table: purchase_bills
--- -------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS purchase_bills (
-  id            INT UNSIGNED  NOT NULL AUTO_INCREMENT,
-  company_name  VARCHAR(255)  NOT NULL,
-  product_name  VARCHAR(255)  NOT NULL,
-  product_id    VARCHAR(100)  DEFAULT NULL,
-  quantity      DECIMAL(12,2) NOT NULL,
-  rate          DECIMAL(12,2) NOT NULL,
-  invoice_no    VARCHAR(100)  NOT NULL,
-  total_amount  DECIMAL(12,2) NOT NULL,
-  branch_id     INT UNSIGNED  NOT NULL,
-  created_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  KEY idx_pb_branch (branch_id),
-  CONSTRAINT fk_purchase_bills_branch
-    FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE CASCADE
+CREATE TABLE `employees` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `employee_name` varchar(255) NOT NULL,
+  `emp_id` varchar(100) NOT NULL,
+  `department` varchar(255) NOT NULL,
+  `destination` varchar(255) DEFAULT NULL,
+  `gender` enum('Male','Female','Other') DEFAULT NULL,
+  `email` varchar(255) DEFAULT NULL,
+  `phone_number` varchar(15) NOT NULL,
+  `address` text,
+  `salary_type` enum('monthly','weekly','daily') NOT NULL,
+  `date_of_joining` date NOT NULL,
+  `branch_id` int(10) UNSIGNED NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- -------------------------------------------------------------
--- Table: product_stock
--- -------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS product_stock (
-  id               INT UNSIGNED  NOT NULL AUTO_INCREMENT,
-  product_id       VARCHAR(100)  NOT NULL,
-  product_name     VARCHAR(255)  NOT NULL,
-  total_purchased  DECIMAL(12,2) NOT NULL DEFAULT 0.00,
-  current_stock    DECIMAL(12,2) NOT NULL DEFAULT 0.00,
-  rate             DECIMAL(12,2) NOT NULL DEFAULT 0.00,
-  branch_id        INT UNSIGNED  NOT NULL,
-  last_updated     TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  UNIQUE KEY product_branch (product_id, branch_id),
-  KEY idx_ps_branch (branch_id),
-  CONSTRAINT fk_product_stock_branch
-    FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE CASCADE
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `invoices`
+--
+
+CREATE TABLE `invoices` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `copy_type` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `payment_mode` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `gst_rate` decimal(5,2) NOT NULL DEFAULT '18.00',
+  `invoice_no` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `invoice_date` date NOT NULL,
+  `reference_no` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `buyers_order_no` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `dated` date DEFAULT NULL,
+  `dispatch_doc_no` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `delivery_note_date` date DEFAULT NULL,
+  `dispatched_through` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `destination` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `bill_of_lading` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `motor_vehicle_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `eway_required` varchar(5) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `eway_number` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `consignee_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `consignee_address` text COLLATE utf8mb4_unicode_ci,
+  `consignee_state` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `consignee_state_code` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `buyer_name` varchar(150) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `buyer_address` text COLLATE utf8mb4_unicode_ci,
+  `buyer_phone` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `buyer_gst` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `buyer_state` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `buyer_state_code` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `subtotal` decimal(12,2) DEFAULT '0.00',
+  `cgst_rate` decimal(5,2) DEFAULT '0.00',
+  `cgst_amount` decimal(12,2) DEFAULT '0.00',
+  `sgst_rate` decimal(5,2) DEFAULT '0.00',
+  `sgst_amount` decimal(12,2) DEFAULT '0.00',
+  `total_tax` decimal(12,2) DEFAULT '0.00',
+  `round_off` decimal(8,2) DEFAULT '0.00',
+  `net_amount` decimal(12,2) DEFAULT '0.00',
+  `open_balance` decimal(12,2) DEFAULT '0.00',
+  `closing_balance` decimal(12,2) DEFAULT '0.00',
+  `bank_holder_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `bank_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `bank_account_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `bank_ifsc` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `bank_branch` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `branch_id` int(10) UNSIGNED DEFAULT NULL,
+  `client_id` int(10) UNSIGNED DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `invoice_counters`
+--
+
+CREATE TABLE `invoice_counters` (
+  `branch_id` int(10) UNSIGNED NOT NULL,
+  `last_number` int(10) UNSIGNED NOT NULL DEFAULT '0'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- -------------------------------------------------------------
--- Table: stock_deductions
--- -------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS stock_deductions (
-  id           INT UNSIGNED  NOT NULL AUTO_INCREMENT,
-  product_id   VARCHAR(100)  NOT NULL,
-  branch_id    INT UNSIGNED  NOT NULL,
-  deducted_qty DECIMAL(12,2) NOT NULL,
-  note         TEXT,
-  deducted_at  DATETIME      NOT NULL,
-  PRIMARY KEY (id),
-  KEY idx_sd_branch (branch_id),
-  CONSTRAINT fk_stock_deductions_branch
-    FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE CASCADE
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `invoice_global_counter`
+--
+
+CREATE TABLE `invoice_global_counter` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `last_number` int(10) UNSIGNED NOT NULL DEFAULT '0'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `invoice_items`
+--
+
+CREATE TABLE `invoice_items` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `invoice_id` int(10) UNSIGNED NOT NULL,
+  `description` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `hsn` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `qty` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `per` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT 'NOS',
+  `rate_incl` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `rate_excl` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `taxable_amt` decimal(12,2) NOT NULL DEFAULT '0.00'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `ot_details`
+--
+
+CREATE TABLE `ot_details` (
+  `id` int(11) NOT NULL,
+  `emp_name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `emp_id` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `salary_type` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `start_time` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `end_time` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `total_ot_hours` decimal(5,2) NOT NULL,
+  `ot_salary` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `ot_date` date NOT NULL,
+  `branch_id` int(11) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `products`
+--
+
+CREATE TABLE `products` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `product_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `sku` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `category` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `unit` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Pcs',
+  `selling_price` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `stock_qty` int(11) NOT NULL DEFAULT '0',
+  `min_stock` int(11) NOT NULL DEFAULT '0',
+  `description` text COLLATE utf8mb4_unicode_ci,
+  `branch_id` int(10) UNSIGNED DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `purchase_bills`
+--
+
+CREATE TABLE `purchase_bills` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `company_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `invoice_no` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `bill_date` date NOT NULL,
+  `total_amount` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `notes` text COLLATE utf8mb4_unicode_ci,
+  `branch_id` int(10) UNSIGNED NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `purchase_bill_items`
+--
+
+CREATE TABLE `purchase_bill_items` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `purchase_bill_id` int(10) UNSIGNED NOT NULL,
+  `product_id` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `product_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `quantity` decimal(12,2) NOT NULL,
+  `rate` decimal(12,2) NOT NULL,
+  `amount` decimal(12,2) NOT NULL,
+  `branch_id` int(10) UNSIGNED NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `purchase_stock`
+--
+
+CREATE TABLE `purchase_stock` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `product_id` varchar(100) NOT NULL,
+  `product_name` varchar(255) NOT NULL,
+  `total_purchased` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `current_stock` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `rate` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `branch_id` int(10) UNSIGNED NOT NULL,
+  `last_updated` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- -------------------------------------------------------------
--- Table: quotations
--- -------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS quotations (
-  id                INT UNSIGNED  NOT NULL AUTO_INCREMENT,
-  quote_no          VARCHAR(50)   NOT NULL,
-  quote_date        DATE          NOT NULL,
-  valid_until       DATE          DEFAULT NULL,
-  po_no             VARCHAR(50)   DEFAULT NULL,
-  dispatched_through VARCHAR(255) DEFAULT NULL,
-  vehicle_no        VARCHAR(50)   DEFAULT NULL,
-  other_ref         TEXT          DEFAULT NULL,
-  client_name       VARCHAR(255)  NOT NULL,
-  client_phone      VARCHAR(50)   DEFAULT NULL,
-  client_email      VARCHAR(100)  DEFAULT NULL,
-  client_gst        VARCHAR(50)   DEFAULT NULL,
-  client_address    TEXT          DEFAULT NULL,
-  ship_name         VARCHAR(255)  DEFAULT NULL,
-  ship_address      TEXT          DEFAULT NULL,
-  ship_gst          VARCHAR(50)   DEFAULT NULL,
-  ship_state        VARCHAR(100)  DEFAULT NULL,
-  ship_state_code   VARCHAR(10)   DEFAULT NULL,
-  discount_percent  DECIMAL(5,2)  DEFAULT 0.00,
-  tax_percent       DECIMAL(5,2)  DEFAULT 18.00,
-  notes             TEXT          DEFAULT NULL,
-  declaration       TEXT          DEFAULT NULL,
-  branch_id         INT UNSIGNED  NOT NULL,
-  created_at        TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_quote_no (quote_no),
-  KEY idx_q_branch (branch_id),
-  CONSTRAINT fk_quotations_branch
-    FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE CASCADE
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `quotations`
+--
+
+CREATE TABLE `quotations` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `quote_no` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `quote_date` date NOT NULL,
+  `valid_until` date DEFAULT NULL,
+  `po_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `dispatched_through` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `vehicle_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `other_ref` text COLLATE utf8mb4_unicode_ci,
+  `client_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `client_phone` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `client_email` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `client_gst` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `client_address` text COLLATE utf8mb4_unicode_ci,
+  `client_state` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `client_state_code` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `ship_name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `ship_address` text COLLATE utf8mb4_unicode_ci,
+  `ship_gst` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `ship_state` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `ship_state_code` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `discount_percent` decimal(5,2) NOT NULL DEFAULT '0.00',
+  `tax_percent` decimal(5,2) NOT NULL DEFAULT '18.00',
+  `notes` text COLLATE utf8mb4_unicode_ci,
+  `declaration` text COLLATE utf8mb4_unicode_ci,
+  `branch_id` int(10) UNSIGNED NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- -------------------------------------------------------------
--- Table: quotation_items
--- -------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS quotation_items (
-  id            INT UNSIGNED  NOT NULL AUTO_INCREMENT,
-  quotation_id  INT UNSIGNED  NOT NULL,
-  description   TEXT          NOT NULL,
-  hsn           VARCHAR(20)   DEFAULT NULL,
-  due_on        DATE          DEFAULT NULL,
-  unit          VARCHAR(20)   DEFAULT 'Nos',
-  quantity      DECIMAL(12,2) NOT NULL,
-  rate          DECIMAL(12,2) NOT NULL,
-  amount        DECIMAL(12,2) NOT NULL,
-  PRIMARY KEY (id),
-  KEY idx_qi_quotation (quotation_id),
-  CONSTRAINT fk_quotation_items_quotation
-    FOREIGN KEY (quotation_id) REFERENCES quotations(id) ON DELETE CASCADE
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `quotation_items`
+--
+
+CREATE TABLE `quotation_items` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `quotation_id` int(10) UNSIGNED NOT NULL,
+  `description` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `hsn` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `due_on` date DEFAULT NULL,
+  `unit` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT 'Nos',
+  `quantity` decimal(12,2) NOT NULL,
+  `rate` decimal(12,2) NOT NULL,
+  `amount` decimal(12,2) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- --------------------------------------------------------
 
--- Drop old single-table invoices
-DROP TABLE IF EXISTS invoice_items;
-DROP TABLE IF EXISTS invoices;
+--
+-- Table structure for table `salaries`
+--
 
--- ── invoices (header) ────────────────────────────────────────
-CREATE TABLE invoices (
-  id                    INT UNSIGNED  NOT NULL AUTO_INCREMENT,
-
-  -- Copy / meta
-  copy_type             VARCHAR(50)   DEFAULT NULL,
-  payment_mode          VARCHAR(30)   DEFAULT NULL,
-  gst_rate              DECIMAL(5,2)  NOT NULL DEFAULT 18.00,
-
-  -- Invoice identifiers
-  invoice_no            VARCHAR(50)   NOT NULL,
-  invoice_date          DATE          NOT NULL,
-  reference_no          VARCHAR(100)  DEFAULT NULL,
-  buyers_order_no       VARCHAR(100)  DEFAULT NULL,
-  dated                 DATE          DEFAULT NULL,
-  dispatch_doc_no       VARCHAR(100)  DEFAULT NULL,
-  delivery_note_date    DATE          DEFAULT NULL,
-  dispatched_through    VARCHAR(150)  DEFAULT NULL,
-  destination           VARCHAR(150)  DEFAULT NULL,
-  bill_of_lading        VARCHAR(150)  DEFAULT NULL,
-  motor_vehicle_no      VARCHAR(50)   DEFAULT NULL,
-  eway_required         VARCHAR(5)    DEFAULT NULL,
-  eway_number           VARCHAR(50)   DEFAULT NULL,
-
-  -- Consignee
-  consignee_name        VARCHAR(150)  DEFAULT NULL,
-  consignee_address     TEXT          DEFAULT NULL,
-  consignee_state       VARCHAR(100)  DEFAULT NULL,
-  consignee_state_code  VARCHAR(10)   DEFAULT NULL,
-
-  -- Buyer
-  buyer_name            VARCHAR(150)  NOT NULL,
-  buyer_address         TEXT          DEFAULT NULL,
-  buyer_phone           VARCHAR(20)   DEFAULT NULL,
-  buyer_gst             VARCHAR(30)   DEFAULT NULL,
-  buyer_state           VARCHAR(100)  DEFAULT NULL,
-  buyer_state_code      VARCHAR(10)   DEFAULT NULL,
-
-  -- Totals
-  subtotal              DECIMAL(12,2) DEFAULT 0,
-  cgst_rate             DECIMAL(5,2)  DEFAULT 0,
-  cgst_amount           DECIMAL(12,2) DEFAULT 0,
-  sgst_rate             DECIMAL(5,2)  DEFAULT 0,
-  sgst_amount           DECIMAL(12,2) DEFAULT 0,
-  total_tax             DECIMAL(12,2) DEFAULT 0,
-  round_off             DECIMAL(8,2)  DEFAULT 0,
-  net_amount            DECIMAL(12,2) DEFAULT 0,
-
-  -- Balance
-  open_balance          DECIMAL(12,2) DEFAULT 0,
-  closing_balance       DECIMAL(12,2) DEFAULT 0,
-
-  -- Bank
-  bank_holder_name      VARCHAR(150)  DEFAULT NULL,
-  bank_name             VARCHAR(150)  DEFAULT NULL,
-  bank_account_no       VARCHAR(50)   DEFAULT NULL,
-  bank_ifsc             VARCHAR(20)   DEFAULT NULL,
-  bank_branch           VARCHAR(100)  DEFAULT NULL,
-
-  -- Branch
-  branch_id             INT UNSIGNED  NULL DEFAULT NULL,
-  created_at            TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_invoice_no (invoice_no),
-  KEY idx_invoice_branch (branch_id),
-  CONSTRAINT fk_invoice_branch
-    FOREIGN KEY (branch_id) REFERENCES branches(id)
-    ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ── invoice_items (line items) ───────────────────────────────
-CREATE TABLE invoice_items (
-  id           INT UNSIGNED  NOT NULL AUTO_INCREMENT,
-  invoice_id   INT UNSIGNED  NOT NULL,
-  description  TEXT          NOT NULL,
-  hsn          VARCHAR(20)   DEFAULT NULL,
-  qty          DECIMAL(10,2) NOT NULL DEFAULT 0,
-  per          VARCHAR(20)   DEFAULT 'NOS',
-  rate_incl    DECIMAL(12,2) NOT NULL DEFAULT 0,
-  rate_excl    DECIMAL(12,2) NOT NULL DEFAULT 0,
-  taxable_amt  DECIMAL(12,2) NOT NULL DEFAULT 0,
-  PRIMARY KEY (id),
-  KEY idx_ii_invoice (invoice_id),
-  CONSTRAINT fk_invoice_items_invoice
-    FOREIGN KEY (invoice_id) REFERENCES invoices(id)
-    ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---  Migration: invoice_counters
---  Run this ONCE on your existing bipfencing database.
---  Safe to re-run — it never drops or deletes anything.
--- =============================================================
-
-USE bipfencing;
-
-CREATE TABLE IF NOT EXISTS invoice_counters (
-  branch_id   INT UNSIGNED NOT NULL,
-  last_number INT UNSIGNED NOT NULL DEFAULT 0,
-  PRIMARY KEY (branch_id),
-  CONSTRAINT fk_invoice_counters_branch
-    FOREIGN KEY (branch_id) REFERENCES branches(id)
-    ON DELETE CASCADE
+CREATE TABLE `salaries` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `employeeName` varchar(255) NOT NULL,
+  `employeeId` varchar(100) NOT NULL,
+  `salary` decimal(12,2) NOT NULL,
+  `paid` decimal(12,2) DEFAULT '0.00',
+  `balance` decimal(12,2) GENERATED ALWAYS AS ((`salary` - `paid`)) STORED,
+  `type` enum('Days','Weeks','Monthly') NOT NULL DEFAULT 'Days',
+  `salary_date` date NOT NULL,
+  `branch_id` int(10) UNSIGNED NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-INSERT IGNORE INTO invoice_counters (branch_id, last_number) VALUES
-  (1, 0),
-  (2, 0),
-  (3, 0);
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `sessions`
+--
+
+CREATE TABLE `sessions` (
+  `id` varchar(64) NOT NULL,
+  `user_id` int(10) UNSIGNED NOT NULL,
+  `ip_address` varchar(45) DEFAULT NULL,
+  `user_agent` text,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `stock_deductions`
+--
+
+CREATE TABLE `stock_deductions` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `product_id` varchar(100) NOT NULL,
+  `product_name` varchar(255) DEFAULT NULL,
+  `branch_id` int(10) UNSIGNED NOT NULL,
+  `deducted_qty` decimal(12,2) NOT NULL,
+  `note` text,
+  `deducted_at` datetime NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `users`
+--
+
+CREATE TABLE `users` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `username` varchar(60) NOT NULL,
+  `password` varchar(255) NOT NULL,
+  `full_name` varchar(120) NOT NULL DEFAULT '',
+  `role` enum('admin','branch_user') NOT NULL DEFAULT 'branch_user',
+  `branch_id` int(10) UNSIGNED DEFAULT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT '1',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+--
+-- Dumping data for table `users`
+--
+
+INSERT INTO `users` (`id`, `username`, `password`, `full_name`, `role`, `branch_id`, `is_active`, `created_at`) VALUES
+(1, 'admin', 'Admin@123', 'Administrator', 'admin', NULL, 1, '2026-06-10 10:36:06'),
+(2, 'branch_a', 'BranchA@123', 'Branch A User', 'branch_user', 1, 1, '2026-06-10 10:36:06'),
+(3, 'branch_b', 'BranchB@123', 'Branch B User', 'branch_user', 2, 1, '2026-06-10 10:36:06'),
+(4, 'branch_c', 'BranchC@123', 'Branch C User', 'branch_user', 3, 1, '2026-06-10 10:36:06');
+
+--
+-- Indexes for dumped tables
+--
+
+--
+-- Indexes for table `attendance`
+--
+ALTER TABLE `attendance`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `unique_employee_date` (`employee_id`,`date`),
+  ADD KEY `branch_id` (`branch_id`);
+
+--
+-- Indexes for table `branches`
+--
+ALTER TABLE `branches`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_code` (`code`);
+
+--
+-- Indexes for table `branch_amounts`
+--
+ALTER TABLE `branch_amounts`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `branch_id` (`branch_id`);
+
+--
+-- Indexes for table `clients`
+--
+ALTER TABLE `clients`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_client_phone_branch` (`phone`,`branch_id`),
+  ADD KEY `idx_client_branch` (`branch_id`);
+
+--
+-- Indexes for table `client_payments`
+--
+ALTER TABLE `client_payments`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_cp_client` (`client_id`),
+  ADD KEY `idx_cp_branch` (`branch_id`);
+
+--
+-- Indexes for table `employees`
+--
+ALTER TABLE `employees`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `emp_id` (`emp_id`),
+  ADD UNIQUE KEY `unique_empid` (`emp_id`),
+  ADD UNIQUE KEY `unique_phone` (`phone_number`),
+  ADD KEY `branch_id` (`branch_id`);
+
+--
+-- Indexes for table `invoices`
+--
+ALTER TABLE `invoices`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_invoice_no` (`invoice_no`),
+  ADD KEY `idx_invoice_branch` (`branch_id`),
+  ADD KEY `idx_invoice_client` (`client_id`);
+
+--
+-- Indexes for table `invoice_counters`
+--
+ALTER TABLE `invoice_counters`
+  ADD PRIMARY KEY (`branch_id`);
+
+--
+-- Indexes for table `invoice_global_counter`
+--
+ALTER TABLE `invoice_global_counter`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `invoice_items`
+--
+ALTER TABLE `invoice_items`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_ii_invoice` (`invoice_id`);
+
+--
+-- Indexes for table `ot_details`
+--
+ALTER TABLE `ot_details`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `unique_employee_date` (`emp_id`,`ot_date`),
+  ADD KEY `branch_id` (`branch_id`);
+
+--
+-- Indexes for table `products`
+--
+ALTER TABLE `products`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `sku` (`sku`),
+  ADD KEY `idx_product_name` (`product_name`),
+  ADD KEY `idx_category` (`category`),
+  ADD KEY `idx_sku` (`sku`);
+
+--
+-- Indexes for table `purchase_bills`
+--
+ALTER TABLE `purchase_bills`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_pb_branch` (`branch_id`),
+  ADD KEY `idx_pb_company` (`company_name`),
+  ADD KEY `idx_pb_invoice` (`invoice_no`),
+  ADD KEY `idx_pb_date` (`bill_date`);
+
+--
+-- Indexes for table `purchase_bill_items`
+--
+ALTER TABLE `purchase_bill_items`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_pbi_bill` (`purchase_bill_id`),
+  ADD KEY `idx_pbi_product` (`product_id`),
+  ADD KEY `idx_pbi_branch` (`branch_id`);
+
+--
+-- Indexes for table `purchase_stock`
+--
+ALTER TABLE `purchase_stock`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `product_branch` (`product_id`,`branch_id`),
+  ADD KEY `idx_ps_branch` (`branch_id`);
+
+--
+-- Indexes for table `quotations`
+--
+ALTER TABLE `quotations`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_quote_branch` (`quote_no`,`branch_id`),
+  ADD KEY `idx_q_branch` (`branch_id`);
+
+--
+-- Indexes for table `quotation_items`
+--
+ALTER TABLE `quotation_items`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_qi_quotation` (`quotation_id`);
+
+--
+-- Indexes for table `salaries`
+--
+ALTER TABLE `salaries`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `branch_id` (`branch_id`);
+
+--
+-- Indexes for table `sessions`
+--
+ALTER TABLE `sessions`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_user` (`user_id`);
+
+--
+-- Indexes for table `stock_deductions`
+--
+ALTER TABLE `stock_deductions`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_sd_branch` (`branch_id`),
+  ADD KEY `idx_sd_product` (`product_id`),
+  ADD KEY `idx_sd_date` (`deducted_at`);
+
+--
+-- Indexes for table `users`
+--
+ALTER TABLE `users`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_username` (`username`),
+  ADD KEY `idx_branch` (`branch_id`);
+
+--
+-- AUTO_INCREMENT for dumped tables
+--
+
+--
+-- AUTO_INCREMENT for table `attendance`
+--
+ALTER TABLE `attendance`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
+
+--
+-- AUTO_INCREMENT for table `branches`
+--
+ALTER TABLE `branches`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+
+--
+-- AUTO_INCREMENT for table `branch_amounts`
+--
+ALTER TABLE `branch_amounts`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
+
+--
+-- AUTO_INCREMENT for table `clients`
+--
+ALTER TABLE `clients`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
+
+--
+-- AUTO_INCREMENT for table `client_payments`
+--
+ALTER TABLE `client_payments`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
+
+--
+-- AUTO_INCREMENT for table `employees`
+--
+ALTER TABLE `employees`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
+
+--
+-- AUTO_INCREMENT for table `invoices`
+--
+ALTER TABLE `invoices`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
+
+--
+-- AUTO_INCREMENT for table `invoice_items`
+--
+ALTER TABLE `invoice_items`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
+
+--
+-- AUTO_INCREMENT for table `ot_details`
+--
+ALTER TABLE `ot_details`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
+
+--
+-- AUTO_INCREMENT for table `products`
+--
+ALTER TABLE `products`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
+
+--
+-- AUTO_INCREMENT for table `purchase_bills`
+--
+ALTER TABLE `purchase_bills`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
+
+--
+-- AUTO_INCREMENT for table `purchase_bill_items`
+--
+ALTER TABLE `purchase_bill_items`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
+
+--
+-- AUTO_INCREMENT for table `purchase_stock`
+--
+ALTER TABLE `purchase_stock`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
+
+--
+-- AUTO_INCREMENT for table `quotations`
+--
+ALTER TABLE `quotations`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
+
+--
+-- AUTO_INCREMENT for table `quotation_items`
+--
+ALTER TABLE `quotation_items`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
+
+--
+-- AUTO_INCREMENT for table `salaries`
+--
+ALTER TABLE `salaries`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
+
+--
+-- AUTO_INCREMENT for table `stock_deductions`
+--
+ALTER TABLE `stock_deductions`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
+
+--
+-- AUTO_INCREMENT for table `users`
+--
+ALTER TABLE `users`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+
+--
+-- Constraints for dumped tables
+--
+
+--
+-- Constraints for table `attendance`
+--
+ALTER TABLE `attendance`
+  ADD CONSTRAINT `attendance_ibfk_1` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `branch_amounts`
+--
+ALTER TABLE `branch_amounts`
+  ADD CONSTRAINT `fk_branch_amounts_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `client_payments`
+--
+ALTER TABLE `client_payments`
+  ADD CONSTRAINT `fk_cp_client` FOREIGN KEY (`client_id`) REFERENCES `clients` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `employees`
+--
+ALTER TABLE `employees`
+  ADD CONSTRAINT `employees_ibfk_1` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `invoices`
+--
+ALTER TABLE `invoices`
+  ADD CONSTRAINT `fk_invoice_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_invoice_client` FOREIGN KEY (`client_id`) REFERENCES `clients` (`id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `invoice_counters`
+--
+ALTER TABLE `invoice_counters`
+  ADD CONSTRAINT `fk_invoice_counters_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `invoice_items`
+--
+ALTER TABLE `invoice_items`
+  ADD CONSTRAINT `fk_invoice_items_invoice` FOREIGN KEY (`invoice_id`) REFERENCES `invoices` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `purchase_bills`
+--
+ALTER TABLE `purchase_bills`
+  ADD CONSTRAINT `fk_purchase_bills_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `purchase_bill_items`
+--
+ALTER TABLE `purchase_bill_items`
+  ADD CONSTRAINT `fk_pbi_bill` FOREIGN KEY (`purchase_bill_id`) REFERENCES `purchase_bills` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_pbi_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `purchase_stock`
+--
+ALTER TABLE `purchase_stock`
+  ADD CONSTRAINT `fk_product_stock_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `quotations`
+--
+ALTER TABLE `quotations`
+  ADD CONSTRAINT `fk_quotations_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `quotation_items`
+--
+ALTER TABLE `quotation_items`
+  ADD CONSTRAINT `fk_quotation_items_quotation` FOREIGN KEY (`quotation_id`) REFERENCES `quotations` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `salaries`
+--
+ALTER TABLE `salaries`
+  ADD CONSTRAINT `salaries_ibfk_1` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `stock_deductions`
+--
+ALTER TABLE `stock_deductions`
+  ADD CONSTRAINT `fk_stock_deductions_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE CASCADE;
+COMMIT;
+
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
