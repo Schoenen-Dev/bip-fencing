@@ -5,7 +5,7 @@
 // =============================================================
 
 define('PDO_HOST',    '127.0.0.1');
-define('PDO_PORT',    3306);
+define('PDO_PORT',    3307);                   // XAMPP MySQL is running on 3307, not 3306
 define('PDO_DB',      'bipfencing');
 define('PDO_USER',    'root');
 define('PDO_PASS',    '');

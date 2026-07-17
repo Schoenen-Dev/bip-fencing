@@ -137,13 +137,32 @@ export default function PurchaseBill() {
         method: "POST",
         body: JSON.stringify(form),
       });
-      const data = await res.json();
+
+      // Read the raw body first so a non-JSON response (PHP fatal error,
+      // warning printed before the JSON, etc.) doesn't get silently
+      // swallowed as a generic "Server error".
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        console.error("Non-JSON response from add_purchase_bill.php:", text);
+        setError(
+          `Server returned an unexpected response (HTTP ${res.status}). Check console for details.`,
+        );
+        return;
+      }
+
       if (res.ok) {
         alert(data.message || "Purchase bill saved successfully");
         resetForm();
         fetchBills();
       } else {
-        setError(data.message || "Save failed");
+        // Backend sometimes uses "message", sometimes "error" — check both
+        // so the real reason is shown instead of a generic fallback.
+        setError(
+          data.message || data.error || `Save failed (HTTP ${res.status})`,
+        );
       }
     } catch (err) {
       console.error(err);

@@ -9,7 +9,7 @@ define('DB_HOST', '127.0.0.1');
 define('DB_USER', 'root');                     // default XAMPP user
 define('DB_PASS', '');                         // default XAMPP password (blank)
 define('DB_NAME', 'bipfencing');
-define('DB_PORT', 3306);
+define('DB_PORT', 3307);                       // XAMPP MySQL is running on 3307, not 3306
 
 function getDB(): mysqli {
     $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT);
@@ -29,7 +29,7 @@ $host     = "127.0.0.1";
 $user     = "root";
 $password = "";
 $database = "bipfencing";
-$port     = 3306;
+$port     = 3307;                              // XAMPP MySQL is running on 3307, not 3306
 
 $conn = new mysqli($host, $user, $password, $database, $port);
 
@@ -40,3 +40,4 @@ if ($conn->connect_error) {
     ]);
     exit();
 }
+
