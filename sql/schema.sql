@@ -832,3 +832,51 @@ COMMIT;
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+
+-- =============================================================
+-- schema_updates.sql
+-- Run this ONCE on the existing `bipfencing` database.
+-- Adds GST + payment tracking columns to purchase_bills
+-- and a new purchase_bill_payments table.
+-- =============================================================
+
+USE `bipfencing`;
+
+-- -------------------------------------------------------------
+-- 1. New columns on purchase_bills
+-- -------------------------------------------------------------
+ALTER TABLE `purchase_bills`
+  ADD COLUMN `subtotal`        DECIMAL(12,2) NOT NULL DEFAULT '0.00' AFTER `bill_date`,
+  ADD COLUMN `gst_enabled`     TINYINT(1)    NOT NULL DEFAULT '0'    AFTER `subtotal`,
+  ADD COLUMN `gst_rate`        DECIMAL(5,2)  NOT NULL DEFAULT '0.00' AFTER `gst_enabled`,
+  ADD COLUMN `gst_amount`      DECIMAL(12,2) NOT NULL DEFAULT '0.00' AFTER `gst_rate`,
+  ADD COLUMN `opening_balance` DECIMAL(12,2) NOT NULL DEFAULT '0.00' AFTER `total_amount`,
+  ADD COLUMN `paid_amount`     DECIMAL(12,2) NOT NULL DEFAULT '0.00' AFTER `opening_balance`,
+  ADD COLUMN `closing_balance` DECIMAL(12,2) NOT NULL DEFAULT '0.00' AFTER `paid_amount`;
+
+-- Backfill existing rows: subtotal = total_amount (no GST previously),
+-- closing_balance = total_amount (nothing paid yet).
+UPDATE `purchase_bills`
+   SET `subtotal` = `total_amount`,
+       `closing_balance` = `total_amount`
+ WHERE `subtotal` = 0;
+
+-- -------------------------------------------------------------
+-- 2. New table: purchase_bill_payments
+--    Every payment (advance at bill time, or later part payments)
+--    is logged here. paid_amount on the bill = SUM of these.
+-- -------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `purchase_bill_payments` (
+  `id`               INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `purchase_bill_id` INT(10) UNSIGNED NOT NULL,
+  `amount`           DECIMAL(12,2)    NOT NULL,
+  `payment_date`     DATE             NOT NULL,
+  `note`             VARCHAR(255)     DEFAULT NULL,
+  `branch_id`        INT(10) UNSIGNED NOT NULL,
+  `created_at`       TIMESTAMP        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_pbp_bill`   (`purchase_bill_id`),
+  KEY `idx_pbp_branch` (`branch_id`),
+  CONSTRAINT `fk_pbp_bill`   FOREIGN KEY (`purchase_bill_id`) REFERENCES `purchase_bills` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_pbp_branch` FOREIGN KEY (`branch_id`)        REFERENCES `branches` (`id`)       ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

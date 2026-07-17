@@ -1,9 +1,9 @@
 <?php
 // =============================================================
-// add_purchase_bill.php  —  POST (JSON)
-// Creates a purchase bill with optional GST + payment tracking.
-// Branch users save to their own branch; admin must have a
-// specific branch selected (X-Branch-ID).
+// update_purchase_bill.php  —  POST (JSON)  —  ADMIN ONLY
+// Edits an existing purchase bill. Old item quantities are
+// reversed from purchase_stock, then the new items are applied,
+// so inventory stays correct after an edit.
 // =============================================================
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
@@ -12,20 +12,9 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/auth_middleware.php';
 require_once __DIR__ . '/db.php';
 
-function getEffectiveBranchId($user): ?int {
-    if ($user['role'] === 'admin' && isset($user['view_branch_id']) && $user['view_branch_id'] !== null) {
-        return (int)$user['view_branch_id'];
-    }
-    if ($user['role'] !== 'admin' && isset($user['branch_id']) && $user['branch_id'] !== null) {
-        return (int)$user['branch_id'];
-    }
-    return null;
-}
-
-$branchId = getEffectiveBranchId($authUser);
-if ($branchId === null) {
-    http_response_code(400);
-    echo json_encode(['message' => 'Please select a specific branch to add purchase bills.']);
+if ($authUser['role'] !== 'admin') {
+    http_response_code(403);
+    echo json_encode(['message' => 'Only admin can edit purchase bills']);
     exit;
 }
 
@@ -36,6 +25,7 @@ if (!$data) {
     exit;
 }
 
+$billId          = (int)($data['bill_id'] ?? 0);
 $company_name    = trim($data['company_name'] ?? '');
 $invoice_no      = trim($data['invoice_no'] ?? '');
 $bill_date       = trim($data['bill_date'] ?? '');
@@ -46,9 +36,9 @@ $gst_rate        = $gst_enabled ? (float)($data['gst_rate'] ?? 18) : 0.0;
 $opening_balance = (float)($data['opening_balance'] ?? 0);
 $paid_amount     = (float)($data['paid_amount'] ?? 0);
 
-if (empty($company_name) || empty($invoice_no) || empty($bill_date) || !is_array($items) || count($items) === 0) {
+if ($billId <= 0 || empty($company_name) || empty($invoice_no) || empty($bill_date) || !is_array($items) || count($items) === 0) {
     http_response_code(400);
-    echo json_encode(['message' => 'Company name, invoice no, date and at least one product item are required']);
+    echo json_encode(['message' => 'Bill ID, company name, invoice no, date and at least one item are required']);
     exit;
 }
 
@@ -58,21 +48,8 @@ if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $bill_date)) {
     exit;
 }
 
-if ($gst_enabled && ($gst_rate < 0 || $gst_rate > 100)) {
-    http_response_code(400);
-    echo json_encode(['message' => 'GST rate must be between 0 and 100']);
-    exit;
-}
-
-if ($paid_amount < 0 || $opening_balance < 0) {
-    http_response_code(400);
-    echo json_encode(['message' => 'Paid amount and opening balance cannot be negative']);
-    exit;
-}
-
 $subtotal = 0.0;
 $cleanItems = [];
-
 foreach ($items as $idx => $item) {
     $pid   = trim($item['product_id'] ?? '');
     $pname = trim($item['product_name'] ?? '');
@@ -84,16 +61,11 @@ foreach ($items as $idx => $item) {
         echo json_encode(['message' => "Item #" . ($idx + 1) . ": product ID, name and valid quantity/rate are required"]);
         exit;
     }
-
     $amount = $qty * $rate;
     $subtotal += $amount;
-
     $cleanItems[] = [
-        'product_id'   => $pid,
-        'product_name' => $pname,
-        'quantity'     => $qty,
-        'rate'         => $rate,
-        'amount'       => $amount,
+        'product_id' => $pid, 'product_name' => $pname,
+        'quantity' => $qty, 'rate' => $rate, 'amount' => $amount,
     ];
 }
 
@@ -105,40 +77,78 @@ $conn = getDB();
 $conn->begin_transaction();
 
 try {
-    $stmt = $conn->prepare(
-        "INSERT INTO purchase_bills
-            (company_name, invoice_no, bill_date, subtotal, gst_enabled, gst_rate, gst_amount,
-             total_amount, opening_balance, paid_amount, closing_balance, notes, branch_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    );
-    $stmt->bind_param(
-        'sssdiddddddsi',
-        $company_name, $invoice_no, $bill_date, $subtotal, $gst_enabled, $gst_rate, $gst_amount,
-        $total_amount, $opening_balance, $paid_amount, $closing_balance, $notes, $branchId
-    );
+    // Lock the bill row and get its branch
+    $stmt = $conn->prepare("SELECT id, branch_id FROM purchase_bills WHERE id = ? FOR UPDATE");
+    $stmt->bind_param('i', $billId);
     $stmt->execute();
-    $billId = (int)$conn->insert_id;
+    $bill = $stmt->get_result()->fetch_assoc();
     $stmt->close();
 
+    if (!$bill) {
+        throw new Exception('Purchase bill not found');
+    }
+    $branchId = (int)$bill['branch_id'];
+
+    // 1. Reverse old item quantities from stock
+    $oldStmt = $conn->prepare("SELECT product_id, quantity FROM purchase_bill_items WHERE purchase_bill_id = ?");
+    $oldStmt->bind_param('i', $billId);
+    $oldStmt->execute();
+    $oldItems = $oldStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $oldStmt->close();
+
+    $revStmt = $conn->prepare(
+        "UPDATE purchase_stock
+            SET total_purchased = GREATEST(total_purchased - ?, 0),
+                current_stock   = current_stock - ?
+          WHERE product_id = ? AND branch_id = ?"
+    );
+    foreach ($oldItems as $old) {
+        $q = (float)$old['quantity'];
+        $revStmt->bind_param('ddsi', $q, $q, $old['product_id'], $branchId);
+        $revStmt->execute();
+    }
+    $revStmt->close();
+
+    // 2. Delete old items
+    $delStmt = $conn->prepare("DELETE FROM purchase_bill_items WHERE purchase_bill_id = ?");
+    $delStmt->bind_param('i', $billId);
+    $delStmt->execute();
+    $delStmt->close();
+
+    // 3. Update bill header
+    $upStmt = $conn->prepare(
+        "UPDATE purchase_bills
+            SET company_name = ?, invoice_no = ?, bill_date = ?, subtotal = ?, gst_enabled = ?,
+                gst_rate = ?, gst_amount = ?, total_amount = ?, opening_balance = ?,
+                paid_amount = ?, closing_balance = ?, notes = ?
+          WHERE id = ?"
+    );
+    $upStmt->bind_param(
+        'sssdiddddddsi',
+        $company_name, $invoice_no, $bill_date, $subtotal, $gst_enabled,
+        $gst_rate, $gst_amount, $total_amount, $opening_balance,
+        $paid_amount, $closing_balance, $notes, $billId
+    );
+    $upStmt->execute();
+    $upStmt->close();
+
+    // 4. Insert new items + apply stock
     $itemStmt = $conn->prepare(
         "INSERT INTO purchase_bill_items
             (purchase_bill_id, product_id, product_name, quantity, rate, amount, branch_id)
          VALUES (?, ?, ?, ?, ?, ?, ?)"
     );
-
     $stockSelectStmt = $conn->prepare(
         "SELECT current_stock FROM purchase_stock WHERE product_id = ? AND branch_id = ?"
     );
-
     $stockUpdateStmt = $conn->prepare(
         "UPDATE purchase_stock
             SET total_purchased = total_purchased + ?,
-                current_stock    = current_stock + ?,
-                rate             = ?,
-                product_name     = ?
+                current_stock   = current_stock + ?,
+                rate            = ?,
+                product_name    = ?
           WHERE product_id = ? AND branch_id = ?"
     );
-
     $stockInsertStmt = $conn->prepare(
         "INSERT INTO purchase_stock
             (product_id, product_name, total_purchased, current_stock, rate, branch_id)
@@ -146,10 +156,8 @@ try {
     );
 
     foreach ($cleanItems as $item) {
-        $pid    = $item['product_id'];
-        $pname  = $item['product_name'];
-        $qty    = $item['quantity'];
-        $rate   = $item['rate'];
+        $pid = $item['product_id']; $pname = $item['product_name'];
+        $qty = $item['quantity'];   $rate  = $item['rate'];
         $amount = $item['amount'];
 
         $itemStmt->bind_param('issdddi', $billId, $pid, $pname, $qty, $rate, $amount, $branchId);
@@ -173,20 +181,8 @@ try {
     $stockUpdateStmt->close();
     $stockInsertStmt->close();
 
-    // Log the initial payment (advance) if any amount was paid at bill time
-    if ($paid_amount > 0) {
-        $note = 'Paid at bill entry';
-        $payStmt = $conn->prepare(
-            "INSERT INTO purchase_bill_payments (purchase_bill_id, amount, payment_date, note, branch_id)
-             VALUES (?, ?, ?, ?, ?)"
-        );
-        $payStmt->bind_param('idssi', $billId, $paid_amount, $bill_date, $note, $branchId);
-        $payStmt->execute();
-        $payStmt->close();
-    }
-
     $conn->commit();
-    echo json_encode(['message' => 'Purchase bill saved successfully', 'bill_id' => $billId]);
+    echo json_encode(['message' => 'Purchase bill updated successfully', 'bill_id' => $billId]);
 } catch (Exception $e) {
     $conn->rollback();
     http_response_code(500);
