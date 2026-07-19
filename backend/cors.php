@@ -5,8 +5,18 @@ if (!defined('HTML_RESPONSE')) {
     header('Content-Type: application/json; charset=utf-8');
 }
 
-// Allow your deployed React app
-header("Access-Control-Allow-Origin: https://bip-fencing.vercel.app");
+// Allowed origins (add any more you use)
+$allowed_origins = [
+    "https://bip-fencing.vercel.app",
+    "http://localhost:5173",
+    "http://localhost:3000",
+];
+
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+
+if (in_array($origin, $allowed_origins)) {
+    header("Access-Control-Allow-Origin: $origin");
+}
 
 // If you use cookies or sessions
 header("Access-Control-Allow-Credentials: true");

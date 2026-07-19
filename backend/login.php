@@ -1,10 +1,4 @@
 <?php
-// =============================================================
-//  login.php  —  POST { username, password }
-//  Returns: { success, token, user: { id, username, role,
-//             branch_id, branch_name, branch_code, full_name } }
-// =============================================================
-
 require_once __DIR__ . '/cors.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -36,15 +30,18 @@ $stmt = $pdo->prepare(
 $stmt->execute([$username]);
 $user = $stmt->fetch();
 
+error_log("Login attempt: $username / user_found: " . ($user ? 'yes' : 'no'));
+
 if (!$user || !$user['is_active']) {
     http_response_code(401);
     echo json_encode(['error' => 'Invalid credentials']);
     exit;
 }
 
-// Support both plain-text (dev) and bcrypt (production) passwords
 $valid = ($password === $user['password'])
       || password_verify($password, $user['password']);
+
+error_log("Password check result: " . ($valid ? 'valid' : 'invalid'));
 
 if (!$valid) {
     http_response_code(401);
@@ -52,7 +49,6 @@ if (!$valid) {
     exit;
 }
 
-// Generate session token
 $token = bin2hex(random_bytes(32));
 
 $stmt = $pdo->prepare(
