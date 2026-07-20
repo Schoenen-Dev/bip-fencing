@@ -99,7 +99,7 @@ try {
     $revStmt = $conn->prepare(
         "UPDATE purchase_stock
             SET total_purchased = GREATEST(total_purchased - ?, 0),
-                current_stock   = current_stock - ?
+                current_stock   = GREATEST(current_stock - ?, 0)
           WHERE product_id = ? AND branch_id = ?"
     );
     foreach ($oldItems as $old) {

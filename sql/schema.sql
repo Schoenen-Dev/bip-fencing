@@ -880,3 +880,24 @@ CREATE TABLE IF NOT EXISTS `purchase_bill_payments` (
   CONSTRAINT `fk_pbp_bill`   FOREIGN KEY (`purchase_bill_id`) REFERENCES `purchase_bills` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_pbp_branch` FOREIGN KEY (`branch_id`)        REFERENCES `branches` (`id`)       ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================================
+-- schema_updates_inventory.sql
+-- Run this ONCE on the existing `bipfencing` database.
+-- Adds low-stock alert level to purchase_stock and fixes
+-- any negative stock values.
+-- =============================================================
+
+USE `bipfencing`;
+
+-- -------------------------------------------------------------
+-- 1. Low stock alert level on purchase_stock (0 = no alert set)
+-- -------------------------------------------------------------
+ALTER TABLE `purchase_stock`
+  ADD COLUMN `min_stock` DECIMAL(12,2) NOT NULL DEFAULT '0.00' AFTER `rate`;
+
+-- -------------------------------------------------------------
+-- 2. Fix any existing negative values (stock can never be below 0)
+-- -------------------------------------------------------------
+UPDATE `purchase_stock` SET `current_stock` = 0 WHERE `current_stock` < 0;
+UPDATE `purchase_stock` SET `total_purchased` = 0 WHERE `total_purchased` < 0;

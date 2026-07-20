@@ -1,20 +1,17 @@
 <?php
+// =============================================================
+// get_inventory_products.php  —  GET  ?search=
+// Returns purchase_stock rows including min_stock (low alert)
+// and branch_name.
+// Branch users: own branch only.
+// Admin: all branches (or the branch selected via X-Branch-ID).
+// =============================================================
 error_reporting(0);
 ini_set('display_errors', 0);
 header('Content-Type: application/json');
 
-if (isset($_GET['token'])) {
-    $_SERVER['HTTP_AUTHORIZATION'] = 'Bearer ' . $_GET['token'];
-}
-
 require_once __DIR__ . '/auth_middleware.php';
-require_once __DIR__ . '/db_pdo.php';
-
-if (!isset($authUser) || empty($authUser)) {
-    http_response_code(401);
-    echo json_encode(['error' => 'Unauthorized – invalid token']);
-    exit;
-}
+require_once __DIR__ . '/db.php';
 
 function getEffectiveBranchId($user): ?int {
     if ($user['role'] === 'admin' && isset($user['view_branch_id']) && $user['view_branch_id'] !== null) {
@@ -26,46 +23,53 @@ function getEffectiveBranchId($user): ?int {
     return null;
 }
 
-$branchId = getEffectiveBranchId($authUser);
+$effectiveBranch = getEffectiveBranchId($authUser);
+$conn = getDB();
+
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 
-try {
-    if ($branchId === null) {
-        // Admin viewing all branches – aggregate
-        $sql = "SELECT product_id, product_name, 
-                       SUM(total_purchased) AS total_purchased,
-                       SUM(current_stock) AS current_stock,
-                       AVG(rate) AS rate
-                FROM purchase_stock
-                WHERE 1=1";
-        $params = [];
-        if ($search !== '') {
-            $sql .= " AND (product_name LIKE ? OR product_id LIKE ?)";
-            $params[] = "%$search%";
-            $params[] = "%$search%";
-        }
-        $sql .= " GROUP BY product_id, product_name ORDER BY product_name";
-    } else {
-        $sql = "SELECT product_id, product_name, total_purchased, current_stock, rate
-                FROM purchase_stock
-                WHERE branch_id = ?";
-        $params = [$branchId];
-        if ($search !== '') {
-            $sql .= " AND (product_name LIKE ? OR product_id LIKE ?)";
-            $params[] = "%$search%";
-            $params[] = "%$search%";
-        }
-        $sql .= " ORDER BY product_name";
-    }
+$where  = [];
+$params = [];
+$types  = '';
 
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    $products = $stmt->fetchAll();
-    echo json_encode($products);
-
-} catch (PDOException $e) {
-    http_response_code(500);
-    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+if ($effectiveBranch !== null) {
+    $where[]  = "ps.branch_id = ?";
+    $params[] = $effectiveBranch;
+    $types   .= 'i';
 }
-exit;
+if ($search !== '') {
+    $where[]  = "(ps.product_name LIKE ? OR ps.product_id LIKE ?)";
+    $params[] = "%$search%";
+    $params[] = "%$search%";
+    $types   .= 'ss';
+}
+
+$whereSql = count($where) > 0 ? 'WHERE ' . implode(' AND ', $where) : '';
+
+$sql = "SELECT ps.*, b.name AS branch_name, b.code AS branch_code
+        FROM purchase_stock ps
+        LEFT JOIN branches b ON b.id = ps.branch_id
+        $whereSql
+        ORDER BY ps.product_name ASC";
+
+if (count($params) > 0) {
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $result = $stmt->get_result();
+} else {
+    $result = $conn->query($sql);
+}
+
+$products = [];
+while ($row = $result->fetch_assoc()) {
+    // stock never displayed below zero
+    if ((float)$row['current_stock'] < 0) $row['current_stock'] = '0.00';
+    $min = (float)$row['min_stock'];
+    $row['is_low_stock'] = ($min > 0 && (float)$row['current_stock'] <= $min) ? 1 : 0;
+    $products[] = $row;
+}
+
+echo json_encode($products);
+$conn->close();
 ?>
