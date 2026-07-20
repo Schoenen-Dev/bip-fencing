@@ -852,7 +852,7 @@ export default function Clients() {
       const data = await res.json();
       if (data.success) {
         setClients(data.clients);
-        if (data.clients.length > 0 && !selected) setSelected(data.clients[0]);
+        // WhatsApp-style: don't auto-select, wait for user to click a name
       }
     } catch (err) {
       console.error("Failed to fetch clients:", err);
@@ -1319,6 +1319,7 @@ export default function Clients() {
       {/* Main Content */}
       <div className="row g-3">
         {/* Left – Client Directory */}
+        {!selected && (
         <div className="col-lg-8">
           <div className="card shadow-sm">
             <div className="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -1358,8 +1359,6 @@ export default function Clients() {
               >
                 <div style={{ width: "40px", flexShrink: 0 }}></div>
                 <div className="flex-grow-1 ms-3">CLIENT</div>
-                <div style={{ width: "140px", textAlign: "right" }}>AMOUNT</div>
-                <div style={{ width: "80px", textAlign: "center" }}>STATUS</div>
                 {isAdmin && (
                   <div style={{ width: "80px", textAlign: "center" }}>
                     ACTIONS
@@ -1379,10 +1378,6 @@ export default function Clients() {
                   </p>
                 )}
                 {filtered.map((client) => {
-                  const badge = getStatusBadge(
-                    client.pending,
-                    client.total_billed,
-                  );
                   const color = colorFor(client.id);
                   return (
                     <div
@@ -1404,43 +1399,10 @@ export default function Clients() {
                         </span>
                       </div>
 
-                      {/* Info */}
+                      {/* Info - name only, tap to view full details */}
                       <div className="flex-grow-1">
                         <p className="mb-0 fw-semibold">{client.name}</p>
-                        <p className="small text-muted mb-0">
-                          {client.phone}
-                          {client.gst ? ` · GST: ${client.gst}` : ""}
-                        </p>
-                        <p className="small text-muted mb-0">
-                          {client.address}
-                        </p>
                       </div>
-
-                      {/* Amounts */}
-                      <div className="text-end me-3">
-                        <p className="mb-0 small fw-semibold text-success">
-                          ₹{fmt(client.total_paid)} paid
-                        </p>
-                        <p
-                          className={`mb-0 small ${Number(client.pending) > 0 ? "text-danger" : "text-success"}`}
-                        >
-                          {Number(client.pending) > 0
-                            ? `₹${fmt(client.pending)} pending`
-                            : "Fully paid"}
-                        </p>
-                        <p className="mb-0 small text-muted">
-                          {client.total_invoices} invoice
-                          {client.total_invoices !== 1 ? "s" : ""}
-                        </p>
-                      </div>
-
-                      {/* Status badge - shows for ALL users */}
-                      <span
-                        className={`badge ${badge.class} bg-opacity-10 text-${badge.class.replace("bg-", "")}`}
-                        style={{ width: "80px", textAlign: "center" }}
-                      >
-                        {badge.label}
-                      </span>
 
                       {/* Admin-only Edit / Delete - shows for ALL statuses (Unpaid, Partial, Fully Paid) when admin */}
                       {isAdmin && (
@@ -1480,12 +1442,22 @@ export default function Clients() {
             </div>
           </div>
         </div>
+        )}
 
-        {/* Right – Client Details */}
-        <div className="col-lg-4">
+        {/* Right – Client Details (full width, WhatsApp-style) */}
+        {selected && (
+        <div className="col-lg-12">
           {selected && (
             <div className="card shadow-sm mb-3">
               <div className="card-header bg-white d-flex align-items-center gap-3">
+                <button
+                  type="button"
+                  className="btn btn-light btn-sm rounded-circle"
+                  style={{ width: "34px", height: "34px" }}
+                  onClick={() => setSelected(null)}
+                >
+                  <i className="bi bi-arrow-left"></i>
+                </button>
                 <div
                   className={`rounded-circle bg-${colorFor(selected.id)} bg-opacity-10 d-flex align-items-center justify-content-center`}
                   style={{ width: "48px", height: "48px" }}
@@ -1751,6 +1723,7 @@ export default function Clients() {
             </div>
           </div>
         </div>
+        )}
       </div>
     </div>
   );

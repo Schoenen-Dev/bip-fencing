@@ -261,9 +261,10 @@ CREATE TABLE `ot_details` (
 CREATE TABLE `products` (
   `id` int(10) UNSIGNED NOT NULL,
   `product_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `sku` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `category` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `hsn` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `unit` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Pcs',
+  `product_date` date DEFAULT NULL,
+  `factory_price` decimal(12,2) NOT NULL DEFAULT '0.00',
   `selling_price` decimal(12,2) NOT NULL DEFAULT '0.00',
   `stock_qty` int(11) NOT NULL DEFAULT '0',
   `min_stock` int(11) NOT NULL DEFAULT '0',
@@ -414,6 +415,22 @@ CREATE TABLE `sessions` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `stock_damage_log`
+--
+
+CREATE TABLE `stock_damage_log` (
+  `id` int(10) UNSIGNED NOT NULL,
+  `product_id` int(10) UNSIGNED NOT NULL,
+  `branch_id` int(10) UNSIGNED DEFAULT NULL,
+  `damage_date` date NOT NULL,
+  `qty` int(11) NOT NULL DEFAULT '0',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `stock_deductions`
 --
 
@@ -548,10 +565,9 @@ ALTER TABLE `ot_details`
 --
 ALTER TABLE `products`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `sku` (`sku`),
+  ADD UNIQUE KEY `hsn` (`hsn`),
   ADD KEY `idx_product_name` (`product_name`),
-  ADD KEY `idx_category` (`category`),
-  ADD KEY `idx_sku` (`sku`);
+  ADD KEY `idx_hsn` (`hsn`);
 
 --
 -- Indexes for table `purchase_bills`
@@ -608,6 +624,15 @@ ALTER TABLE `salaries`
 ALTER TABLE `sessions`
   ADD PRIMARY KEY (`id`),
   ADD KEY `idx_user` (`user_id`);
+
+--
+-- Indexes for table `stock_damage_log`
+--
+ALTER TABLE `stock_damage_log`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uniq_product_date` (`product_id`,`damage_date`),
+  ADD KEY `idx_sdl_branch` (`branch_id`),
+  ADD KEY `idx_sdl_date` (`damage_date`);
 
 --
 -- Indexes for table `stock_deductions`
@@ -724,6 +749,12 @@ ALTER TABLE `quotation_items`
 -- AUTO_INCREMENT for table `salaries`
 --
 ALTER TABLE `salaries`
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
+
+--
+-- AUTO_INCREMENT for table `stock_damage_log`
+--
+ALTER TABLE `stock_damage_log`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1;
 
 --

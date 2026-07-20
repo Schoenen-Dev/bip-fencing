@@ -336,8 +336,7 @@ export default function TaxInvoice() {
         data.map((p) => ({
           id: p.id,
           productName: p.product_name,
-          sku: p.sku,
-          category: p.category,
+          hsn: p.hsn,
           unit: p.unit,
           sellingPrice: p.selling_price,
           stockQty: p.stock_qty,
@@ -390,7 +389,7 @@ export default function TaxInvoice() {
         desc: found.productName,
         rateIncl: found.sellingPrice || "",
         per: unitMap[found.unit] || "NOS",
-        hsn: found.sku || "",
+        hsn: found.hsn || "",
       };
       return updated;
     });
@@ -407,6 +406,9 @@ export default function TaxInvoice() {
     if (!form.invoiceNo.trim()) e.invoiceNo = "Required";
     if (!form.invoiceDate) e.invoiceDate = "Required";
     if (!form.buyerName.trim()) e.buyerName = "Required";
+    if (!form.buyerPhone.trim()) e.buyerPhone = "Phone is required to link this invoice to a client";
+    else if (form.buyerPhone.trim().length < 10)
+      e.buyerPhone = "Phone must be 10 digits";
     products.forEach((p, i) => {
       if (!p.desc.trim()) e[`desc_${i}`] = "Required";
       if (!p.qty || isNaN(p.qty) || Number(p.qty) <= 0)
@@ -476,9 +478,10 @@ export default function TaxInvoice() {
          method: "PUT",
          body: JSON.stringify({
            productName: match.product_name,
-           sku: match.sku,
-           category: match.category,
+           hsn: match.hsn,
            unit: match.unit,
+           productDate: match.product_date,
+           factoryPrice: match.factory_price,
            sellingPrice: match.selling_price,
            stockQty: newStock,
            minStock: match.min_stock,

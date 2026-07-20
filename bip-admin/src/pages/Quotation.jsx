@@ -287,7 +287,7 @@ export default function Quotation() {
     items[i] = {
       ...items[i],
       description: p.product_name,
-      hsn: p.sku || "",
+      hsn: p.hsn || "",
       unit: UNIT_MAP[p.unit] || "Nos",
       rate: parseFloat(p.selling_price) || 0,
     };
