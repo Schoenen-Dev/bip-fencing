@@ -1,4 +1,5 @@
 // ✅ v3 — Logo image, 2-col meta, hide blank fields, sessionStorage persistence
+// ✅ Added role-based access control - Only Admin can access
 
 import React, { useState, useEffect } from "react";
 import { apiFetch } from "../utils/api";
@@ -226,7 +227,7 @@ const hCell = (extra = {}) => ({
 });
 const sectionHead = {
   fontWeight: "bold",
-  fontSize: 10,
+  fontSize: 15,
   textTransform: "uppercase",
   letterSpacing: 0.3,
   marginBottom: 2,
@@ -240,6 +241,28 @@ export default function TaxInvoice() {
   const [savedProducts, setSavedProducts] = useState([]);
   const [stockReduced, setStockReduced] = useState(false);
   const [stockReducing, setStockReducing] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(null); // null = loading, true = admin, false = not admin
+  const [loading, setLoading] = useState(true);
+
+  // ── Check user role on mount ───────────────────────────────────────────────
+  useEffect(() => {
+    const checkUserRole = async () => {
+      try {
+        const res = await apiFetch("/check_session.php");
+        const data = await res.json();
+        if (data.success && data.user && data.user.role === "admin") {
+          setIsAdmin(true);
+        } else {
+          setIsAdmin(false);
+        }
+      } catch (_) {
+        setIsAdmin(false);
+      } finally {
+        setLoading(false);
+      }
+    };
+    checkUserRole();
+  }, []);
 
   // ── Load persisted form from sessionStorage on mount ──────────────────────
   const [form, setForm] = useState(() => {
@@ -267,8 +290,6 @@ export default function TaxInvoice() {
   const [errors, setErrors] = useState({});
 
   // ── Branch-aware invoice numbering (server-assigned, never reused) ─────────
-  // { loading, branchId, error } — error is set when no branch is selected
-  // or the server couldn't be reached.
   const [branchInfo, setBranchInfo] = useState(() => ({
     loading: !form.invoiceNoLocked,
     branchId: null,
@@ -336,7 +357,8 @@ export default function TaxInvoice() {
         data.map((p) => ({
           id: p.id,
           productName: p.product_name,
-          hsn: p.hsn,
+          sku: p.sku,
+          category: p.category,
           unit: p.unit,
           sellingPrice: p.selling_price,
           stockQty: p.stock_qty,
@@ -367,33 +389,43 @@ export default function TaxInvoice() {
   };
 
   const handleProductSelect = (idx, productName) => {
-    if (!productName) {
-      handleProduct(idx, "desc", "");
-      return;
-    }
-    const found = savedProducts.find((p) => p.productName === productName);
-    if (!found) return;
-    const unitMap = {
-      Pcs: "PCS",
-      Kg: "KGS",
-      Meter: "MTR",
-      Roll: "RFT",
-      Box: "SET",
-      Set: "SET",
-      Liter: "LTR",
-    };
-    setProducts((prev) => {
-      const updated = [...prev];
-      updated[idx] = {
-        ...updated[idx],
-        desc: found.productName,
-        rateIncl: found.sellingPrice || "",
-        per: unitMap[found.unit] || "NOS",
-        hsn: found.hsn || "",
-      };
-      return updated;
-    });
+  if (!productName) {
+    handleProduct(idx, "desc", "");
+    return;
+  }
+  const found = savedProducts.find((p) => p.productName === productName);
+  if (!found) return;
+  const unitMap = {
+    "Pcs": "PCS",
+    "Pieces": "PCS",
+    "Kg": "KGS",
+    "Kgs": "KGS",
+    "Kilogram": "KGS",
+    "Kilograms": "KGS",
+    "Meter": "MTR",
+    "Meters": "MTR",
+    "Roll": "RFT",
+    "Box": "SET",
+    "Set": "SET",
+    "Sets": "SET",
+    "Liter": "LTR",
+    "Litre": "LTR",
+    "Nos": "NOS",
+    "Number": "NOS",
+    "No": "NOS"
   };
+  setProducts((prev) => {
+    const updated = [...prev];
+    updated[idx] = {
+      ...updated[idx],
+      desc: found.productName,
+      rateIncl: found.sellingPrice || "",
+      per: unitMap[found.unit] || found.unit || "NOS",
+      hsn: found.sku || "",
+    };
+    return updated;
+  });
+};
 
   const addProduct = () => setProducts((p) => [...p, emptyProduct()]);
   const removeProduct = (idx) => {
@@ -406,9 +438,6 @@ export default function TaxInvoice() {
     if (!form.invoiceNo.trim()) e.invoiceNo = "Required";
     if (!form.invoiceDate) e.invoiceDate = "Required";
     if (!form.buyerName.trim()) e.buyerName = "Required";
-    if (!form.buyerPhone.trim()) e.buyerPhone = "Phone is required to link this invoice to a client";
-    else if (form.buyerPhone.trim().length < 10)
-      e.buyerPhone = "Phone must be 10 digits";
     products.forEach((p, i) => {
       if (!p.desc.trim()) e[`desc_${i}`] = "Required";
       if (!p.qty || isNaN(p.qty) || Number(p.qty) <= 0)
@@ -478,10 +507,9 @@ export default function TaxInvoice() {
          method: "PUT",
          body: JSON.stringify({
            productName: match.product_name,
-           hsn: match.hsn,
+           sku: match.sku,
+           category: match.category,
            unit: match.unit,
-           productDate: match.product_date,
-           factoryPrice: match.factory_price,
            sellingPrice: match.selling_price,
            stockQty: newStock,
            minStock: match.min_stock,
@@ -521,9 +549,6 @@ export default function TaxInvoice() {
       return;
     }
 
-    // ── Reserve the invoice number exactly once per draft ───────────────────
-    // (server increments the per-branch counter atomically; once reserved,
-    // re-previewing the same draft, e.g. after Edit, reuses the same number.)
     let invoiceNoToUse = form.invoiceNo;
     if (!form.invoiceNoLocked) {
       try {
@@ -654,8 +679,46 @@ export default function TaxInvoice() {
     borderColor: errors[name] ? "#dc3545" : undefined,
   });
 
+  // ── Show loading state ──────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "60vh" }}>
+        <div className="text-center">
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="mt-2">Checking permissions...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Show access denied for non-admin users ────────────────────────────────
+  if (!isAdmin) {
+    return (
+      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "60vh" }}>
+        <div className="text-center">
+          <div style={{ fontSize: 48, marginBottom: 16 }}>🚫</div>
+          <h2 className="text-danger">Access Denied</h2>
+          <p className="text-muted" style={{ fontSize: 16 }}>
+            You do not have permission to access the Tax Invoice page.
+          </p>
+          <p className="text-muted" style={{ fontSize: 14 }}>
+            This page is only accessible to Admin users.
+          </p>
+          <button
+            className="btn btn-primary mt-3"
+            onClick={() => window.location.href = "/dashboard"}
+          >
+            Go to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
-  // STEP 1 — FORM
+  // STEP 1 — FORM (only shown to Admin users)
   // ═══════════════════════════════════════════════════════════════════════════
   if (step === 1) {
     return (
@@ -784,9 +847,9 @@ export default function TaxInvoice() {
                   ["dated", "Dated", "", "date"],
                   ["dispatchDocNo", "Dispatch Doc No", ""],
                   ["deliveryNoteDate", "Delivery Note Date", "", "date"],
-                  ["dispatchedThrough", "Dispatched Through", "e.g. Velamadam"],
+                  ["dispatchedThrough", "Dispatched Through", ""],
                   ["destination", "Destination", ""],
-                  ["billOfLading", "Bill of Lading / LR-RR No.", "dt."],
+                  ["billOfLading", "Bill of Lading / LR-RR No.", ""],
                   ["motorVehicleNo", "Motor Vehicle No.", "TN XX XX XXXX"],
                 ].map(([name, label, placeholder, type]) => (
                   <div className="col-md-4" key={name}>
@@ -1068,13 +1131,13 @@ export default function TaxInvoice() {
                       <th>Description</th>
                       <th style={{ width: 85 }}>HSN/SAC</th>
                       <th style={{ width: 75 }}>Qty</th>
-                      <th style={{ width: 55 }}>Per</th>
+                      <th style={{ width: 90 }}>Per</th>
                       <th style={{ width: 115 }}>Rate (Incl. Tax)</th>
                       <th style={{ width: 100 }}>Rate (Excl. Tax)</th>
                       <th style={{ width: 105 }}>Taxable Value</th>
                       <th style={{ width: 38 }}></th>
                     </tr>
-                  </thead>
+                  </thead>  
                   <tbody>
                     {products.map((p, i) => {
                       const q = parseFloat(p.qty) || 0;
@@ -1085,72 +1148,45 @@ export default function TaxInvoice() {
                         <tr key={i}>
                           <td className="text-center">{i + 1}</td>
                           <td>
-                            {savedProducts.length > 0 ? (
-                              <div style={{ display: "flex", gap: 4 }}>
-                                <select
-                                  className="form-select form-select-sm"
-                                  style={{
-                                    width: 200,
-                                    flexShrink: 0,
-                                    borderColor: errors[`desc_${i}`]
-                                      ? "#dc3545"
-                                      : undefined,
-                                  }}
-                                  value={
-                                    savedProducts.find(
-                                      (sp) => sp.productName === p.desc,
-                                    )
-                                      ? p.desc
-                                      : ""
-                                  }
-                                  onChange={(e) =>
-                                    handleProductSelect(i, e.target.value)
-                                  }
-                                >
-                                  <option value="">— Select Product —</option>
-                                  {savedProducts.map((sp) => (
-                                    <option key={sp.id} value={sp.productName}>
-                                      {sp.productName}
-                                    </option>
-                                  ))}
-                                </select>
-                                <input
-                                  className="form-control form-control-sm"
-                                  value={p.desc}
-                                  placeholder="or type manually"
-                                  onChange={(e) =>
-                                    handleProduct(i, "desc", e.target.value)
-                                  }
-                                  style={{
-                                    borderColor: errors[`desc_${i}`]
-                                      ? "#dc3545"
-                                      : undefined,
-                                  }}
-                                />
-                              </div>
-                            ) : (
-                              <input
-                                className="form-control form-control-sm"
-                                value={p.desc}
-                                onChange={(e) =>
-                                  handleProduct(i, "desc", e.target.value)
-                                }
-                                style={{
-                                  borderColor: errors[`desc_${i}`]
-                                    ? "#dc3545"
-                                    : undefined,
-                                }}
-                              />
-                            )}
-                            {errors[`desc_${i}`] && (
-                              <div
-                                className="text-danger"
-                                style={{ fontSize: 11 }}
-                              >
-                                {errors[`desc_${i}`]}
-                              </div>
-                            )}
-                          </td>
+  <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+    {savedProducts.length > 0 ? (
+      <select
+        className="form-select form-select-sm"
+        style={{
+          width: 320,
+          flexShrink: 0,
+          borderColor: errors[`desc_${i}`] ? "#dc3545" : undefined,
+          minHeight: "31px",
+          cursor: "pointer",
+        }}
+        value={p.desc || ""}
+        onChange={(e) => handleProductSelect(i, e.target.value)}
+      >
+        <option value="">— Select Product —</option>
+        {savedProducts.map((sp) => (
+          <option key={sp.id} value={sp.productName}>
+            {sp.productName} 
+          </option>
+        ))}
+      </select>
+    ) : (
+      <input
+        className="form-control form-control-sm"
+        value={p.desc}
+        placeholder="Loading products..."
+        onChange={(e) => handleProduct(i, "desc", e.target.value)}
+        style={{
+          borderColor: errors[`desc_${i}`] ? "#dc3545" : undefined,
+        }}
+      />
+    )}
+  </div>
+  {errors[`desc_${i}`] && (
+    <div className="text-danger" style={{ fontSize: 11 }}>
+      {errors[`desc_${i}`]}
+    </div>
+  )}
+</td>
                           <td>
                             <input
                               className="form-control form-control-sm"
@@ -1177,28 +1213,18 @@ export default function TaxInvoice() {
                               }}
                             />
                           </td>
-                          <td>
-                            <select
-                              className="form-select form-select-sm"
-                              value={p.per}
-                              onChange={(e) =>
-                                handleProduct(i, "per", e.target.value)
-                              }
-                            >
-                              {[
-                                "NOS",
-                                "KGS",
-                                "MTR",
-                                "SQM",
-                                "RFT",
-                                "SET",
-                                "PCS",
-                                "LTR",
-                              ].map((u) => (
-                                <option key={u}>{u}</option>
-                              ))}
-                            </select>
-                          </td>
+<td>
+  <select
+    className="form-select form-select-sm"
+    value={p.per || "NOS"}
+    onChange={(e) => handleProduct(i, "per", e.target.value)}
+    style={{ width: "100%" }}
+  >
+    {["NOS","KGS","MTR","SQM","RFT","SET","PCS","LTR"].map((u) => (
+      <option key={u} value={u}>{u}</option>
+    ))}
+  </select>
+</td>
                           <td>
                             <input
                               type="number"
@@ -1381,11 +1407,11 @@ export default function TaxInvoice() {
   // STEP 2 — INVOICE PREVIEW
   // ═══════════════════════════════════════════════════════════════════════════
 
-  const itemCount = rows.length;
-  const dynFont =
-    itemCount <= 10 ? 11 : itemCount <= 20 ? 10 : itemCount <= 30 ? 9 : 8;
-  const dynPad =
-    itemCount <= 10 ? "2px 4px" : itemCount <= 20 ? "1px 3px" : "1px 2px";
+const itemCount = rows.length;
+const dynFont =
+  itemCount <= 10 ? 11 : itemCount <= 20 ? 12 : itemCount <= 30 ? 11 : 10;
+const dynPad =
+  itemCount <= 10 ? "3px 6px" : itemCount <= 20 ? "3px 6px" : "2px 5px";
 
   const dc = (extra = {}) => ({
     border: "none",
@@ -1406,14 +1432,14 @@ export default function TaxInvoice() {
     ...extra,
   });
 
-  const MIN_ROWS = itemCount >= 10 ? 0 : Math.max(0, 5 - itemCount);
+  const MIN_ROWS = itemCount >= 15 ? 0 : Math.max(0, 15 - itemCount);
 
   // ── Meta fields: only show if filled ─────────────────────────────────────
   // LEFT column: Invoice No, Reference No, Buyer's Order No
   // RIGHT column: Dispatch Doc No, Dispatched Through, Destination
   // Each only shows if value is non-empty
   const leftMetaFields = [
-    { label: "Invoice No.", value: form.invoiceNo },
+   { label: "Invoice No.", value: form.invoiceNo },
     form.referenceNo
       ? { label: "Reference No. & Date", value: form.referenceNo }
       : null,
@@ -1433,33 +1459,26 @@ export default function TaxInvoice() {
           value: formatDate(form.deliveryNoteDate),
         }
       : null,
+].filter(Boolean);
+
+  // Buyer panel right-side details (only non-empty)
+
+  // Buyer panel right-side details (only non-empty)
+const buyerRightDetails = [
+    { label: "Payment", value: form.paymentMode },
     form.dispatchedThrough
-      ? { label: "Dispatched through", value: form.dispatchedThrough }
+      ? { label: "Transport", value: form.dispatchedThrough }
       : null,
-    form.destination ? { label: "Destination", value: form.destination } : null,
+    form.ewayNumber
+      ? { label: "E-Way Bill No.", value: form.ewayNumber }
+      : null,
+    form.destination ? { label: "Delivery To", value: form.destination } : null,
     form.billOfLading
       ? { label: "Bill of Lading/LR-RR No.", value: form.billOfLading }
       : null,
     form.motorVehicleNo
       ? { label: "Motor Vehicle No.", value: form.motorVehicleNo }
       : null,
-  ].filter(Boolean);
-
-  // Buyer panel right-side details (only non-empty)
-  const buyerRightDetails = [
-    { label: "Invoice No.", value: form.invoiceNo },
-    { label: "Invoice Date", value: formatDate(form.invoiceDate) },
-    { label: "Payment", value: form.paymentMode },
-    form.dispatchedThrough
-      ? { label: "Transport", value: form.dispatchedThrough }
-      : null,
-    form.motorVehicleNo
-      ? { label: "Motor Vehicle No.", value: form.motorVehicleNo }
-      : null,
-    form.ewayNumber
-      ? { label: "E-Way Bill No.", value: form.ewayNumber }
-      : null,
-    form.destination ? { label: "Delivery To", value: form.destination } : null,
   ].filter(Boolean);
 
   return (
@@ -1505,18 +1524,23 @@ export default function TaxInvoice() {
       )}
 
       {/* ── INVOICE ── */}
-      <div
-        id="bip-invoice-print"
-        style={{
-          maxWidth: 900,
-          margin: "0 auto 30px",
-          fontFamily: "'Times New Roman', Times, serif",
-          color: "#000",
-          background: "#fff",
-          border: "2px solid #000",
-          fontSize: dynFont,
-        }}
-      >
+<div
+  id="bip-invoice-print"
+  style={{
+    width: "210mm",
+    minHeight: "297mm",
+    margin: "0 auto 30px",
+    padding: "8mm",
+    fontFamily: "'Times New Roman', Times, serif",
+    color: "#000",
+    background: "#fff",
+    border: "2px solid #000",
+    fontSize: dynFont + 2,
+    boxSizing: "border-box",
+    display: "flex",
+    flexDirection: "column",
+  }}
+>
         {/* Copy label */}
         <div
           style={{
@@ -1566,16 +1590,16 @@ export default function TaxInvoice() {
                   verticalAlign: "middle",
                 }}
               >
-                <div
-                  style={{
-                    fontSize: 17,
-                    fontWeight: "bold",
-                    letterSpacing: 1.5,
-                    textTransform: "uppercase",
-                  }}
-                >
-                  {COMPANY.name}
-                </div>
+<div
+  style={{
+    fontSize: 24,  // ← Changed from 17 to 20
+    fontWeight: "bold",
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
+  }}
+>
+  {COMPANY.name}
+</div>
                 <div style={{ fontSize: 10, marginTop: 1 }}>
                   {COMPANY.address}
                 </div>
@@ -1591,12 +1615,7 @@ export default function TaxInvoice() {
                     gap: 24,
                   }}
                 >
-                  <span>Ph: {COMPANY.phone}</span>
-                  {form.ewayNumber && (
-                    <span>
-                      <strong>E-Way Bill No:</strong> {form.ewayNumber}
-                    </span>
-                  )}
+              <span>Ph: {COMPANY.phone}</span>
                 </div>
               </td>
             </tr>
@@ -1604,232 +1623,142 @@ export default function TaxInvoice() {
         </table>
 
         {/* ── CONSIGNEE + META (2-column split) ── */}
-        <table
-          style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}
-        >
-          <tbody>
-            <tr>
-              {/* Consignee */}
-              <td
-                style={{
-                  width: "50%",
-                  borderRight: B,
-                  padding: "3px 7px",
-                  verticalAlign: "top",
-                  fontSize: 10,
-                }}
-              >
-                <div style={sectionHead}>Consignee (Ship to)</div>
-                <div style={{ fontWeight: "bold", fontSize: 11 }}>
-                  {form.consigneeName || form.buyerName}
-                </div>
-                <div>{form.consigneeAddress || form.buyerAddress}</div>
-                <div>
-                  State Name: {form.consigneeState || form.buyerState}, Code:{" "}
-                  {form.consigneeStateCode || form.buyerStateCode}
-                </div>
-              </td>
-              {/* Meta: 2-column layout inside right cell */}
-              <td style={{ padding: 0, verticalAlign: "top" }}>
-                <table
-                  style={{
-                    width: "100%",
-                    borderCollapse: "collapse",
-                    fontSize: 10,
-                    height: "100%",
-                  }}
-                >
-                  <tbody>
-                    <tr>
-                      {/* Left meta column */}
-                      <td
-                        style={{
-                          width: "50%",
-                          padding: "3px 7px",
-                          borderRight: B,
-                          verticalAlign: "top",
-                        }}
-                      >
-                        {leftMetaFields.map(({ label, value }) => (
-                          <div
-                            key={label}
-                            style={{ display: "flex", marginBottom: 1 }}
-                          >
-                            <span
-                              style={{
-                                fontWeight: "bold",
-                                minWidth: 100,
-                                whiteSpace: "nowrap",
-                                fontSize: 9,
-                              }}
-                            >
-                              {label}
-                            </span>
-                            <span>: {value}</span>
-                          </div>
-                        ))}
-                      </td>
-                      {/* Right meta column */}
-                      <td
-                        style={{
-                          width: "50%",
-                          padding: "3px 7px",
-                          verticalAlign: "top",
-                        }}
-                      >
-                        {rightMetaFields.map(({ label, value }) => (
-                          <div
-                            key={label}
-                            style={{ display: "flex", marginBottom: 1 }}
-                          >
-                            <span
-                              style={{
-                                fontWeight: "bold",
-                                minWidth: 110,
-                                whiteSpace: "nowrap",
-                                fontSize: 9,
-                              }}
-                            >
-                              {label}
-                            </span>
-                            <span>: {value}</span>
-                          </div>
-                        ))}
-                        {rightMetaFields.length === 0 && (
-                          <div
-                            style={{
-                              color: "#999",
-                              fontSize: 9,
-                              fontStyle: "italic",
-                            }}
-                          >
-                            —
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </td>
-            </tr>
-          </tbody>
-        </table>
 
-        {/* ── BUYER + PAYMENT ── */}
-        <table
-          style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}
-        >
-          <tbody>
-            <tr>
-              <td
-                style={{
-                  width: "50%",
-                  borderRight: B,
-                  padding: "3px 7px",
-                  verticalAlign: "top",
-                  fontSize: 10,
-                }}
-              >
-                <div style={sectionHead}>Buyer (Bill to)</div>
-                <div style={{ fontWeight: "bold", fontSize: 11 }}>
-                  {form.buyerName}
-                </div>
-                <div>{form.buyerAddress}</div>
-                {form.buyerPhone && <div>Ph: {form.buyerPhone}</div>}
-                {form.buyerGst && <div>GSTIN/UIN: {form.buyerGst}</div>}
-                <div>
-                  State Name: {form.buyerState}, Code: {form.buyerStateCode}
-                </div>
-              </td>
-              {/* Right side: 2-column split */}
-              <td style={{ padding: 0, verticalAlign: "top" }}>
-                <table
-                  style={{
-                    width: "100%",
-                    borderCollapse: "collapse",
-                    fontSize: 10,
-                    height: "100%",
-                  }}
-                >
-                  <tbody>
-                    <tr>
-                      <td
-                        style={{
-                          width: "50%",
-                          padding: "3px 7px",
-                          borderRight: B,
-                          verticalAlign: "top",
-                        }}
-                      >
-                        {buyerRightDetails
-                          .slice(0, Math.ceil(buyerRightDetails.length / 2))
-                          .map(({ label, value }) => (
-                            <div
-                              key={label}
-                              style={{ display: "flex", marginBottom: 1 }}
-                            >
-                              <span
-                                style={{
-                                  fontWeight: "bold",
-                                  minWidth: 95,
-                                  whiteSpace: "nowrap",
-                                  fontSize: 9,
-                                }}
-                              >
-                                {label}
-                              </span>
-                              <span>: {value}</span>
-                            </div>
-                          ))}
-                      </td>
-                      <td
-                        style={{
-                          width: "50%",
-                          padding: "3px 7px",
-                          verticalAlign: "top",
-                        }}
-                      >
-                        {buyerRightDetails
-                          .slice(Math.ceil(buyerRightDetails.length / 2))
-                          .map(({ label, value }) => (
-                            <div
-                              key={label}
-                              style={{ display: "flex", marginBottom: 1 }}
-                            >
-                              <span
-                                style={{
-                                  fontWeight: "bold",
-                                  minWidth: 95,
-                                  whiteSpace: "nowrap",
-                                  fontSize: 9,
-                                }}
-                              >
-                                {label}
-                              </span>
-                              <span>: {value}</span>
-                            </div>
-                          ))}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+{/* ── CONSIGNEE + META (2-column split) ── */}
+<table
+  style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}
+  className="meta-table"
+>
+  <tbody>
+    <tr>
+      {/* Consignee - Left Column */}
+      <td
+        style={{
+          width: "50%",
+          borderRight: B,
+          padding: "6px 7px",
+          verticalAlign: "top",
+        }}
+      >
+        <div style={sectionHead}>Consignee (Ship to)</div>
+        <div style={{ fontWeight: "bold", fontSize: 16 }}>
+          {form.consigneeName || form.buyerName}
+        </div>
+        <div style={{ fontSize: 14 }}>{form.consigneeAddress || form.buyerAddress}</div>
+        <div style={{ fontSize: 14 }}>
+          State Name: {form.consigneeState || form.buyerState}, Code:{" "}
+          {form.consigneeStateCode || form.buyerStateCode}
+        </div>
+      </td>
+      
+      {/* Meta - Right Column */}
+      <td
+        style={{
+          width: "50%",
+          padding: "6px 7px",
+          verticalAlign: "top",
+        }}
+      >
+        <div>
+          {[...leftMetaFields, ...rightMetaFields].map(({ label, value }, idx) => (
+            <div key={label + idx} style={{ display: "flex", marginBottom: 2 }}>
+              <span style={{ fontWeight: "normal", minWidth: 130, whiteSpace: "nowrap", fontSize: 13 }}>
+                {label}
+              </span>
+              <span style={{ fontWeight: "bold", fontSize: 13 }}> : {value}</span>
+            </div>
+          ))}
+        </div>
+      </td>
+    </tr>
+  </tbody>
+</table>
+{/* ── BUYER + PAYMENT (2-column split) ── */}
+<table style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}>
+  <tbody>
+    <tr>
+      {/* Buyer - Left Column */}
+      <td
+        style={{
+          width: "50%",
+          borderRight: B,
+          padding: "6px 7px",
+          verticalAlign: "top",
+        }}
+      >
+        <div style={sectionHead}>Buyer (Bill to)</div>
+        <div style={{ fontWeight: "bold", fontSize: 16 }}>
+          {form.buyerName}
+        </div>
+        <div style={{ fontSize: 14 }}>{form.buyerAddress}</div>
+        {form.buyerPhone && <div style={{ fontSize: 14 }}>Ph: {form.buyerPhone}</div>}
+        {form.buyerGst && <div style={{ fontSize: 14 }}>GSTIN/UIN: {form.buyerGst}</div>}
+        <div style={{ fontSize: 14 }}>
+          State Name: {form.buyerState}, Code: {form.buyerStateCode}
+        </div>
+      </td>
+      
+      {/* Payment - Right Column */}
+      <td
+        style={{
+          padding: "6px 7px",
+          verticalAlign: "top",
+          width: "50%",
+        }}
+      >
+{buyerRightDetails.map(({ label, value }) => (
+          <div
+            key={label}
+            style={{ display: "flex", marginBottom: 2 }}
+          >
+            <span
+              style={{
+                fontWeight: "normal",
+                minWidth: 95,
+                whiteSpace: "nowrap",
+                fontSize: 14,
+              }}
+            >
+              {label}
+            </span>
+            <span style={{ fontWeight: "bold", fontSize: 14 }}>
+              {" "}
+              : {value}
+            </span>
+          </div>
+        ))}
+        {buyerRightDetails.length === 0 && (
+          <div
+            style={{
+              color: "#999",
+              fontSize: 12,
+              fontStyle: "italic",
+            }}
+          >
+            No additional details
+          </div>
+        )}
+      </td>
+    </tr>
+  </tbody>
+</table>
+     {/* ── BUYER + PAYMENT ── */}
 
-        {/* ── PRODUCT TABLE ── */}
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            tableLayout: "fixed",
-            borderBottom: B,
-          }}
-        >
+
+{/* ── PRODUCT TABLE ── */}
+        <div style={{ flex: 1 }}>
+       <table
+  style={{
+    width: "100%",
+    borderCollapse: "collapse",
+    tableLayout: "fixed",
+    borderTop: B,
+    borderBottom: B,
+  }}
+>
           <colgroup>
             <col style={{ width: "4%" }} />
-            <col style={{ width: "28%" }} />
+            <col style={{ width: "48%" }} />
             <col style={{ width: "8%" }} />
             <col style={{ width: "9%" }} />
             <col style={{ width: "11%" }} />
@@ -1866,16 +1795,19 @@ export default function TaxInvoice() {
             {rows.map((r, i) => (
               <tr key={i} className="inv-product-row">
                 <td style={dc({ textAlign: "center" })}>{i + 1}</td>
-                <td style={dc({ fontWeight: "bold" })}>{r.desc}</td>
-                <td style={dc({ textAlign: "center" })}>{r.hsn || "–"}</td>
-                <td style={dc({ textAlign: "center" })}>{fmt2(r.qty)}</td>
+              <td style={dc({ 
+  fontWeight: "bold",
+  fontSize: 18
+})}>{r.desc}</td>
+                <td style={dc({ textAlign: "center", fontWeight: "bold" })}>{r.hsn || "–"}</td>
+               <td style={dc({ textAlign: "center", fontWeight: "bold" })}>{fmt2(r.qty)}</td>
                 <td style={dc({ textAlign: "right" })}>{fmt2(r.rateIncl)}</td>
                 <td style={dc({ textAlign: "right" })}>{fmt2(r.rateExcl)}</td>
                 <td style={dc({ textAlign: "center" })}>{r.per}</td>
                 <td style={dc({ textAlign: "right" })}>{fmt2(r.taxableAmt)}</td>
               </tr>
             ))}
-            {Array.from({ length: MIN_ROWS }).map((_, i) => (
+{Array.from({ length: MIN_ROWS }).map((_, i) => (
               <tr key={`blank_${i}`} style={{ height: 18 }}>
                 {Array(8)
                   .fill(null)
@@ -1886,6 +1818,44 @@ export default function TaxInvoice() {
                   ))}
               </tr>
             ))}
+            
+            {(form.openBalance || form.closingBalance) && (
+              <tr>
+                <td colSpan={8} style={dc({ borderTop: "1px dashed #999", padding: "3px 7px" })}>
+                  {form.openBalance && (
+                    <div style={{ fontWeight: "bold", fontSize: dynFont + 2 }}>
+                      Open Balance: ₹ {fmt2(form.openBalance)}
+                    </div>
+                  )}
+                  {form.closingBalance && (
+                    <div style={{ fontWeight: "bold", fontSize: dynFont + 2 }}>
+                      Closing Balance: ₹ {fmt2(form.closingBalance)}
+                    </div>
+                  )}
+                </td>
+              </tr>
+            )}
+            <tr>
+  <td
+    colSpan={7}
+    style={dc({
+      textAlign: "right",
+      fontWeight: "bold",
+      borderTop: B,
+    })}
+  >
+    Total Taxable Amount
+  </td>
+  <td
+    style={dc({
+      textAlign: "right",
+      fontWeight: "bold",
+      borderTop: B,
+    })}
+  >
+    {fmt2(subtotal)}
+  </td>
+</tr>
             <tr>
               <td
                 colSpan={7}
@@ -1896,7 +1866,7 @@ export default function TaxInvoice() {
                   borderTop: B,
                 })}
               >
-                CGST TAX @ {cgstRate}%
+                CGST TAX
               </td>
               <td
                 style={dc({
@@ -1917,7 +1887,7 @@ export default function TaxInvoice() {
                   fontWeight: "bold",
                 })}
               >
-                SGST TAX @ {sgstRate}%
+                SGST TAX 
               </td>
               <td style={dc({ textAlign: "right", fontWeight: "bold" })}>
                 {fmt2(sgstAmt)}
@@ -1941,45 +1911,47 @@ export default function TaxInvoice() {
               </td>
             </tr>
             <tr style={{ background: "#f0f0f0" }}>
-              <td style={dc({ borderTop: B, borderBottom: B })}></td>
-              <td
-                style={dc({
-                  fontWeight: "bold",
-                  borderTop: B,
-                  borderBottom: B,
-                  fontSize: dynFont + 1,
-                })}
-              >
-                Total
-              </td>
-              <td style={dc({ borderTop: B, borderBottom: B })}></td>
-              <td
-                style={dc({
-                  textAlign: "center",
-                  fontWeight: "bold",
-                  borderTop: B,
-                  borderBottom: B,
-                })}
-              >
-                {fmt2(totalQty)}
-              </td>
-              <td style={dc({ borderTop: B, borderBottom: B })}></td>
-              <td style={dc({ borderTop: B, borderBottom: B })}></td>
-              <td style={dc({ borderTop: B, borderBottom: B })}></td>
-              <td
-                style={dc({
-                  textAlign: "right",
-                  fontWeight: "bold",
-                  borderTop: B,
-                  borderBottom: B,
-                  fontSize: dynFont + 1,
-                })}
-              >
-                ₹ {fmt2(subtotal)}
-              </td>
-            </tr>
+  <td style={dc({ borderTop: B, borderBottom: B })}></td>
+  <td
+    style={dc({
+      fontWeight: "bold",
+      borderTop: B,
+      borderBottom: B,
+      fontSize: dynFont + 1,
+    })}
+  >
+    Total
+  </td>
+  <td style={dc({ borderTop: B, borderBottom: B })}></td>
+  <td
+    style={dc({
+      textAlign: "center",
+      fontWeight: "bold",
+      borderTop: B,
+      borderBottom: B,
+      fontSize: dynFont + 1,
+    })}
+  >
+    {totalQty.toFixed(2)}
+  </td>
+  <td style={dc({ borderTop: B, borderBottom: B })}></td>
+  <td style={dc({ borderTop: B, borderBottom: B })}></td>
+  <td style={dc({ borderTop: B, borderBottom: B })}></td>
+  <td
+    style={dc({
+      textAlign: "right",
+      fontWeight: "bold",
+      borderTop: B,
+      borderBottom: B,
+      fontSize: dynFont + 3,
+    })}
+  >
+    ₹ {fmt2(netAmount)}
+  </td>
+</tr>
           </tbody>
         </table>
+        </div>
 
         {/* ── AMOUNT IN WORDS ── */}
         <table
@@ -1999,20 +1971,20 @@ export default function TaxInvoice() {
                 <span style={{ fontWeight: "bold" }}>
                   Amount Chargeable (in words):{" "}
                 </span>
-                <em>{amountInWords(netAmount)}</em>
+               <em style={{ fontWeight: "bold" }}>{amountInWords(netAmount)}</em>
               </td>
-              <td
-                style={{
-                  padding: "3px 7px",
-                  verticalAlign: "middle",
-                  textAlign: "right",
-                }}
-              >
-                <div style={{ fontSize: 17, fontWeight: "bold" }}>
-                  ₹ {fmt2(netAmount)}
-                </div>
-                <div style={{ fontSize: 9 }}>E. &amp; O.E</div>
-              </td>
+<td
+  style={{
+    padding: "3px 7px",
+    verticalAlign: "middle",
+    textAlign: "right",
+  }}
+>
+  <div style={{ fontSize: 2, fontWeight: "bold" }}>  {/* ← Changed from 17 to 20 */}
+    ₹ {fmt2(netAmount)}
+  </div>
+  <div style={{ fontSize: 10 }}>E. &amp; O.E</div>  {/* ← Changed from 9 to 10 */}
+</td>
             </tr>
           </tbody>
         </table>
@@ -2052,8 +2024,8 @@ export default function TaxInvoice() {
                   style={dhc({
                     textAlign: align,
                     whiteSpace: "pre-line",
-                    padding: "1px 4px",
-                    fontSize: 9,
+                     padding: "2px 6px",
+                     fontSize: 10,  
                   })}
                 >
                   {label}
@@ -2064,8 +2036,8 @@ export default function TaxInvoice() {
           <tbody>
             {Object.entries(hsnGroups).map(([hsn, d]) => (
               <tr key={hsn}>
-                <td style={dc({ textAlign: "center", fontSize: 10 })}>{hsn}</td>
-                <td style={dc({ textAlign: "right", fontSize: 10 })}>
+                <td style={dc({ textAlign: "center", fontSize: 11 })}>{hsn}</td>
+                <td style={dc({ textAlign: "right", fontSize: 11 })}>
                   {fmt2(d.taxableValue)}
                 </td>
                 <td style={dc({ textAlign: "center", fontSize: 10 })}>
@@ -2138,10 +2110,11 @@ export default function TaxInvoice() {
         {/* ── TAX IN WORDS ── */}
         <div style={{ padding: "2px 7px", borderBottom: B, fontSize: 10 }}>
           <strong>Tax Amount (in words):</strong>&nbsp;
-          <em>{amountInWords(totalTax)}</em>
+         <em style={{ fontWeight: "bold" }}>{amountInWords(totalTax)}</em>
         </div>
 
         {/* ── FOOTER ── */}
+        <div style={{ marginTop: "auto" }}>
         <table
           style={{ width: "100%", borderCollapse: "collapse" }}
           className="inv-footer"
@@ -2157,44 +2130,22 @@ export default function TaxInvoice() {
                   fontSize: 10,
                 }}
               >
-                <div style={{ fontWeight: "bold", marginBottom: 2 }}>
-                  Company's Bank Details
-                </div>
-                {[
-                  ["A/c Holder's Name", form.bankHolderName],
-                  ["Bank Name", form.bankName],
-                  ["A/c No.", form.bankAccountNo],
-                  [
-                    "Branch & IFS Code",
-                    `${form.bankBranch} & ${form.bankIfsc}`,
-                  ],
-                ].map(([k, v]) => (
-                  <div key={k} style={{ marginBottom: 1 }}>
-                    <strong>{k}</strong>: {v}
-                  </div>
-                ))}
-                {(form.openBalance || form.closingBalance) && (
-                  <div
-                    style={{
-                      marginTop: 4,
-                      borderTop: "1px dashed #999",
-                      paddingTop: 2,
-                    }}
-                  >
-                    {form.openBalance && (
-                      <div>
-                        <strong>Open Balance:</strong> ₹{" "}
-                        {fmt2(form.openBalance)}
-                      </div>
-                    )}
-                    {form.closingBalance && (
-                      <div>
-                        <strong>Closing Balance:</strong> ₹{" "}
-                        {fmt2(form.closingBalance)}
-                      </div>
-                    )}
-                  </div>
-                )}
+<div style={{ fontWeight: "bold", marginBottom: 2, fontSize: 15 }}>
+  Company's Bank Details
+</div>
+{[
+  ["A/c Holder's Name", form.bankHolderName],
+  ["Bank Name", form.bankName],
+  ["A/c No.", form.bankAccountNo],
+  [
+    "Branch & IFS Code",
+    `${form.bankBranch} & ${form.bankIfsc}`,
+  ],
+].map(([k, v]) => (
+  <div key={k} style={{ marginBottom: 2, fontSize: 12 }}>
+    <strong>{k}</strong>: {v}
+  </div>
+))}
               </td>
               <td style={{ padding: "4px 7px", verticalAlign: "top" }}>
                 <div style={{ fontSize: 9, marginBottom: 4 }}>
@@ -2242,6 +2193,7 @@ export default function TaxInvoice() {
             </tr>
           </tbody>
         </table>
+      </div>
       </div>
       {/* end invoice */}
 

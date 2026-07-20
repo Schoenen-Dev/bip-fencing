@@ -10,7 +10,8 @@ $allowedOrigins = [
     'https://www.bipbilling.co.in',
     'https://bipbilling.co.in',
     'https://bip-fencing.vercel.app',
-    'http://localhost:5173'
+    'http://localhost:5173',
+    'http://localhost:3000',
 ];
 
 if (isset($_SERVER['HTTP_ORIGIN']) && in_array($_SERVER['HTTP_ORIGIN'], $allowedOrigins)) {

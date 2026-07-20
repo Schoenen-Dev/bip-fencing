@@ -9,8 +9,8 @@
 //  DELETE /quotation_api.php?id=N     → delete quotation
 // ============================================================
 
-error_reporting(0);
-ini_set('display_errors', 0);
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/auth_middleware.php';   // sets $authUser, uses $pdo
@@ -106,7 +106,8 @@ function handleGetAll(): void {
         $sub         = (float) $row['subtotal'];
         $discAmt     = $sub * (float)$row['discount_percent'] / 100;
         $taxable     = $sub - $discAmt;
-        $taxAmt      = $taxable * (float)$row['tax_percent'] / 100;
+        $taxRate     = ((int) $row['is_gst'] === 1) ? (float)$row['tax_percent'] : 0;
+        $taxAmt      = $taxable * $taxRate / 100;
         $roundOff    = round($taxable + $taxAmt) - ($taxable + $taxAmt);
         $grandTotal  = $taxable + $taxAmt + $roundOff;
 
@@ -155,12 +156,12 @@ function handleCreate(): void {
             (quote_no, quote_date, valid_until, po_no, dispatched_through, vehicle_no, other_ref,
              client_name, client_phone, client_email, client_gst, client_address, client_state, client_state_code,
              ship_name, ship_address, ship_gst, ship_state, ship_state_code,
-             discount_percent, tax_percent, notes, declaration, branch_id)
+            discount_percent, is_gst, tax_percent, notes, declaration, branch_id)
         VALUES
             (:quote_no, :quote_date, :valid_until, :po_no, :dispatched_through, :vehicle_no, :other_ref,
              :client_name, :client_phone, :client_email, :client_gst, :client_address, :client_state, :client_state_code,
              :ship_name, :ship_address, :ship_gst, :ship_state, :ship_state_code,
-             :discount_percent, :tax_percent, :notes, :declaration, :branch_id)
+             :discount_percent, :is_gst, :tax_percent, :notes, :declaration, :branch_id)
     ");
     $stmt->execute(array_merge($f, [':branch_id' => $branchId]));
     $quotationId = (int) $pdo->lastInsertId();
@@ -200,7 +201,7 @@ function handleUpdate(): void {
             client_state=:client_state, client_state_code=:client_state_code,
             ship_name=:ship_name, ship_address=:ship_address, ship_gst=:ship_gst,
             ship_state=:ship_state, ship_state_code=:ship_state_code,
-            discount_percent=:discount_percent, tax_percent=:tax_percent,
+            discount_percent=:discount_percent, is_gst=:is_gst, tax_percent=:tax_percent,
             notes=:notes, declaration=:declaration
         WHERE id=:id
     ");
@@ -259,7 +260,8 @@ function sanitiseFields(array $data): array {
         ':ship_gst'           => $s('shipGst')           ?: null,
         ':ship_state'         => $s('shipState')         ?: null,
         ':ship_state_code'    => $s('shipStateCode')     ?: null,
-        ':discount_percent'   => (float) ($data['discount']   ?? 0),
+  ':discount_percent'   => (float) ($data['discount']   ?? 0),
+        ':is_gst'             => !empty($data['isGst']) ? 1 : 0,
         ':tax_percent'        => (float) ($data['taxPercent'] ?? 18),
         ':notes'              => $s('notes')              ?: null,
         ':declaration'        => $s('declaration')        ?: null,
@@ -276,9 +278,9 @@ function insertItems(PDO $pdo, int $quotationId, array $items): void {
         VALUES (:quotation_id, :description, :hsn, :due_on, :unit, :quantity, :rate, :amount)
     ");
     foreach ($items as $item) {
-        $desc = trim($item['description'] ?? '');
+$desc = trim($item['description'] ?? '');
         $qty  = (float) ($item['qty']  ?? 0);
-        $rate = (float) ($item['rate'] ?? 0);
+        $rate = (float) ($item['rateIncl'] ?? $item['rate'] ?? 0);
         if (!$desc || $qty <= 0) continue;
 
         $stmt->execute([
