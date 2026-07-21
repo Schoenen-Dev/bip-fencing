@@ -207,7 +207,7 @@ export default function Sidebar() {
             }
           >
             <i className="bi bi-cash-stack"></i>
-            <span>Salary and Attendance</span>
+            <span>Salary &amp; Attendance</span>
           </NavLink>
         </DropdownItem>
 
