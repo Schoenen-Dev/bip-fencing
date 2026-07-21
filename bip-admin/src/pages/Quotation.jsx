@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { apiFetch } from "../utils/api";
 
 // ─── COMPANY & BANK DETAILS ──────────────────────────────────────────────────
@@ -243,6 +244,9 @@ discount: 0,
 
 // ─── MAIN COMPONENT ─────────────────────────────────────────────────────────
 export default function Quotation() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
   const [view, setView] = useState("table");
   const [records, setRecords] = useState([]);
   const [form, setForm] = useState(emptyForm());
@@ -259,9 +263,30 @@ export default function Quotation() {
     fetchProducts();
   }, []);
 
+  // ── Arrived from Clients page "View"/"Continue" button ────────────────
+  useEffect(() => {
+    const { viewQuoteId, continueQuoteId } = location.state || {};
+    if (!viewQuoteId && !continueQuoteId) return;
+
+    (async () => {
+      try {
+        if (continueQuoteId) {
+          await handleEdit({ id: continueQuoteId });
+        } else if (viewQuoteId) {
+          await handleViewBill({ id: viewQuoteId });
+        }
+      } finally {
+        navigate(location.pathname, { replace: true, state: {} });
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const fetchProducts = async () => {
     try {
-      const res = await apiFetch("/products.php");
+      // Quotations are estimates only — stock is never reduced — so show the
+      // catalog across all branches, not just the branch currently in view.
+      const res = await apiFetch("/products.php?all_branches=1");
       const data = await res.json();
       if (Array.isArray(data)) setProducts(data);
     } catch (_) {}
@@ -326,22 +351,23 @@ export default function Quotation() {
     setForm({ ...form, items });
   };
 
-  const handleProductSelect = (i, productName) => {
-    if (!productName) {
+  // Selection is keyed by product id (not name) so picking an item from the
+  // all-branches catalog can't resolve to the wrong branch's price/HSN when
+  // two branches happen to sell a product with the same name.
+  const handleProductSelect = (i, product) => {
+    if (!product) {
       const items = [...form.items];
       items[i] = { ...items[i], description: "" };
       setForm({ ...form, items });
       return;
     }
-    const p = products.find((x) => x.product_name === productName);
-    if (!p) return;
     const items = [...form.items];
     items[i] = {
       ...items[i],
-      description: p.product_name,
-      hsn: p.sku || "",
-      unit: UNIT_MAP[p.unit] || "NOS",
-      rateIncl: parseFloat(p.selling_price) || 0,
+      description: product.product_name,
+      hsn: product.sku || "",
+      unit: UNIT_MAP[product.unit] || "NOS",
+      rateIncl: parseFloat(product.selling_price) || 0,
     };
     setForm({ ...form, items });
   };
@@ -1078,13 +1104,15 @@ const sub = rows.reduce((s, r) => s + r.qty * (r.rateIncl / (1 + tax / 100)), 0)
 }
 
 // ─── ITEM ROW ──────────────────────────────────────────────────────────────
+const BRANCH_NAMES = { 1: "Branch A", 2: "Branch B", 3: "Branch C" };
+
 function ItemRow({ item, idx, products, onChange, onProductSelect, onRemove, canRemove, units }) {
   const isMatched = products.some((p) => p.product_name === item.description);
 
   const handleDropdown = (e) => {
-    const name = e.target.value;
-    if (!name) { onChange(idx, "description", ""); onProductSelect(idx, ""); }
-    else { onProductSelect(idx, name); }
+    const id = e.target.value;
+    if (!id) { onChange(idx, "description", ""); onProductSelect(idx, null); }
+    else { onProductSelect(idx, products.find((p) => String(p.id) === id) || null); }
   };
 
   const handleManual = (e) => {
@@ -1098,9 +1126,9 @@ function ItemRow({ item, idx, products, onChange, onProductSelect, onRemove, can
       <td>
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           {products.length > 0 && (
-            <select className="qt-select" value={isMatched ? item.description : ""} onChange={handleDropdown} style={{ fontSize: 12, color: isMatched ? "#0f172a" : "#8c959f" }}>
+            <select className="qt-select" value="" onChange={handleDropdown} style={{ fontSize: 12, color: isMatched ? "#0f172a" : "#8c959f" }}>
               <option value="">— Select from catalog —</option>
-              {products.map((p) => <option key={p.id} value={p.product_name}>{p.product_name}{p.selling_price ? `  ₹${parseFloat(p.selling_price).toFixed(2)}` : ""}{p.stock_qty != null ? `  (Stock: ${p.stock_qty})` : ""}</option>)}
+              {products.map((p) => <option key={p.id} value={p.id}>{p.product_name}{p.selling_price ? `  ₹${parseFloat(p.selling_price).toFixed(2)}` : ""}{p.stock_qty != null ? `  (Stock: ${p.stock_qty})` : ""}{p.branch_id ? `  [${BRANCH_NAMES[p.branch_id] || `Branch ${p.branch_id}`}]` : ""}</option>)}
             </select>
           )}
           <input className="qt-input" value={item.description} onChange={handleManual} placeholder={products.length > 0 ? "Or type custom description…" : "Product / Service"} style={{ fontSize: 12 }} />

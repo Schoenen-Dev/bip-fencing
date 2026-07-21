@@ -243,6 +243,51 @@ const mapItemsToProducts = (items) =>
       }))
     : [emptyProduct()];
 
+// Map a quotation row (from /quotation_api.php?id=) into invoice form state —
+// used by the Clients page "Go to Tax Invoice" button to quick-fill a bill
+// from an existing quotation. Invoice No / lock state are intentionally left
+// out here; the normal invoice-number peek assigns a fresh, real one.
+const mapQuotationToForm = (q) => ({
+  dispatchedThrough: q.dispatched_through || "",
+  motorVehicleNo: q.vehicle_no || "",
+  referenceNo: q.po_no || "",
+  buyersOrderNo: q.po_no || "",
+  consigneeName: q.ship_name || "",
+  consigneeAddress: q.ship_address || "",
+  consigneeState: q.ship_state || DEFAULT_FORM.consigneeState,
+  consigneeStateCode: q.ship_state_code || DEFAULT_FORM.consigneeStateCode,
+  buyerName: q.client_name || "",
+  buyerAddress: q.client_address || "",
+  buyerPhone: q.client_phone || "",
+  buyerGst: q.client_gst || "",
+  buyerState: q.client_state || DEFAULT_FORM.buyerState,
+  buyerStateCode: q.client_state_code || DEFAULT_FORM.buyerStateCode,
+  gstRate:
+    q.is_gst == null || Number(q.is_gst) === 1
+      ? q.tax_percent
+        ? Number(q.tax_percent)
+        : DEFAULT_FORM.gstRate
+      : DEFAULT_FORM.gstRate,
+});
+
+// Quotation items have no branch_id (they never touch stock) — leave branchId
+// unset so the user picks a branch per line, same as starting a fresh invoice.
+// stockDeducted stays false: this is now a real bill, so stock gets deducted
+// for real when it's previewed/saved.
+const mapQuotationItemsToProducts = (items) =>
+  items && items.length
+    ? items.map((it) => ({
+        branchId: null,
+        productId: null,
+        desc: it.description || "",
+        hsn: it.hsn || "",
+        qty: it.quantity,
+        rateIncl: it.rate,
+        per: it.unit || "NOS",
+        stockDeducted: false,
+      }))
+    : [emptyProduct()];
+
 // ─── PRINT STYLES ─────────────────────────────────────────────────────────────
 const printStyles = `
 @media print {
@@ -313,6 +358,11 @@ export default function TaxInvoice() {
   const [continueInvoiceNo] = useState(
     () => location.state?.continueInvoiceNo || null,
   );
+  // Captured once at mount — set when arriving via the Clients page
+  // "Go to Tax Invoice" button on a quotation (quick-fill a bill from it).
+  const [fromQuotationId] = useState(
+    () => location.state?.fromQuotationId || null,
+  );
 
   const [step, setStep] = useState(1);
   const [productsByBranch, setProductsByBranch] = useState({});
@@ -321,7 +371,7 @@ export default function TaxInvoice() {
   const [isAdmin, setIsAdmin] = useState(null); // null = loading, true = admin, false = not admin
   const [loading, setLoading] = useState(true);
   const [loadingExistingInvoice, setLoadingExistingInvoice] = useState(
-    !!continueInvoiceNo,
+    !!continueInvoiceNo || !!fromQuotationId,
   );
   const [existingInvoiceError, setExistingInvoiceError] = useState(null);
 
@@ -348,7 +398,7 @@ export default function TaxInvoice() {
   // ── Load persisted form from sessionStorage on mount ──────────────────────
   // (skipped when continuing an existing invoice — that's loaded from the server instead)
   const [form, setForm] = useState(() => {
-    if (continueInvoiceNo) return { ...DEFAULT_FORM };
+    if (continueInvoiceNo || fromQuotationId) return { ...DEFAULT_FORM };
     try {
       const saved = sessionStorage.getItem(SESSION_KEY);
       if (saved) {
@@ -360,7 +410,7 @@ export default function TaxInvoice() {
   });
 
   const [products, setProducts] = useState(() => {
-    if (continueInvoiceNo) return [emptyProduct()];
+    if (continueInvoiceNo || fromQuotationId) return [emptyProduct()];
     try {
       const saved = sessionStorage.getItem(SESSION_KEY);
       if (saved) {
@@ -427,6 +477,36 @@ export default function TaxInvoice() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!form.invoiceNoLocked && !continueInvoiceNo) fetchInvoiceNoPeek();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Quick-filling from a quotation (via Clients page "Go to Tax Invoice") ──
+  useEffect(() => {
+    if (!fromQuotationId) return;
+    (async () => {
+      try {
+        const res = await apiFetch(`/quotation_api.php?id=${fromQuotationId}`);
+        const data = await res.json();
+        if (data.error || !data.id) {
+          setExistingInvoiceError(
+            data.error || "Could not load that quotation.",
+          );
+          setLoadingExistingInvoice(false);
+          return;
+        }
+        // Merge (not replace) so the invoice number peeked above isn't clobbered.
+        setForm((prev) => ({ ...prev, ...mapQuotationToForm(data) }));
+        setProducts(mapQuotationItemsToProducts(data.items));
+      } catch (_) {
+        setExistingInvoiceError(
+          "Could not reach the server for that quotation.",
+        );
+      } finally {
+        setLoadingExistingInvoice(false);
+        // Clear the hand-off state so refresh/back doesn't redo this fetch.
+        navigate(location.pathname, { replace: true, state: {} });
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -830,6 +910,12 @@ export default function TaxInvoice() {
         JSON.stringify([...filtered, newInvoice]),
       );
     } catch (_) {}
+    // Invoice is saved now — drop the draft so reopening Tax Invoice later
+    // starts blank instead of resurfacing this already-saved bill. To edit
+    // it again, use "Continue" on the Clients page (loads fresh from the server).
+    try {
+      sessionStorage.removeItem(SESSION_KEY);
+    } catch (_) {}
     setStep(2);
     window.scrollTo(0, 0);
   };
@@ -899,7 +985,11 @@ export default function TaxInvoice() {
           <div className="spinner-border text-primary" role="status">
             <span className="visually-hidden">Loading...</span>
           </div>
-          <p className="mt-2">Loading invoice {continueInvoiceNo}…</p>
+          <p className="mt-2">
+            {fromQuotationId
+              ? "Loading quotation details…"
+              : `Loading invoice ${continueInvoiceNo}…`}
+          </p>
         </div>
       </div>
     );
@@ -938,10 +1028,18 @@ export default function TaxInvoice() {
         >
           <div className="card shadow-sm border-0">
             <div
-              className="card-header text-white"
+              className="card-header text-white d-flex justify-content-between align-items-center"
               style={{ background: "#1a1a2e" }}
             >
               <h5 className="mb-0">🧾 BIP Fencing – Tax Invoice Generator</h5>
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-light"
+                title="Clear all fields and start a fresh invoice"
+                onClick={handleNewInvoice}
+              >
+                🔄 Refresh
+              </button>
             </div>
             <div className="card-body">
               {/* Copy / GST / Payment */}

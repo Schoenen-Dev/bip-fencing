@@ -70,9 +70,16 @@ if ($method === 'GET') {
     $params = [];
     $types = '';
 
-    if ($effectiveBranch !== null) {
+    // Admin can request the catalog across all branches (e.g. the Quotation
+    // page's item picker — quotations are estimates and don't touch stock).
+    $branchFilter = $effectiveBranch;
+    if (!empty($_GET['all_branches']) && $authUser['role'] === 'admin') {
+        $branchFilter = null;
+    }
+
+    if ($branchFilter !== null) {
         $sql .= " WHERE branch_id = ?";
-        $params[] = $effectiveBranch;
+        $params[] = $branchFilter;
         $types = 'i';
     }
     $sql .= " ORDER BY created_at DESC";

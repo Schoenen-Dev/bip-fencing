@@ -79,7 +79,14 @@ function AdminRoute({ children }) {
         <Route path="ot" element={<OT />} />
 
         {/* CRM */}
-        <Route path="clients" element={<Clients />} />
+        <Route
+          path="clients"
+          element={
+            <AdminRoute>
+              <Clients />
+            </AdminRoute>
+          }
+        />
       </Route>
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

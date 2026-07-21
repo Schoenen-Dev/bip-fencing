@@ -15,12 +15,18 @@
     $method = $_SERVER['REQUEST_METHOD'];
 
     // ── Branch resolution ─────────────────────────────────────────
+    // Used when recording a payment (tag it with the acting branch context).
     $branch_id = null;
     if ($authUser['role'] === 'admin' && isset($authUser['view_branch_id'])) {
         $branch_id = $authUser['view_branch_id'];
     } elseif ($authUser['role'] !== 'admin') {
         $branch_id = $authUser['branch_id'];
     }
+
+    // Used when listing clients — admin always sees every branch's clients,
+    // even while impersonating a specific branch elsewhere in the app. Only
+    // non-admin branch users are scoped to their own branch.
+    $list_branch_id = ($authUser['role'] !== 'admin') ? $authUser['branch_id'] : null;
 
     switch ($method) {
 
@@ -91,6 +97,28 @@
                 $payments = $pStmt->get_result()->fetch_all(MYSQLI_ASSOC);
                 $pStmt->close();
 
+                // All quotations for this client
+                $qStmt = $conn->prepare("
+                    SELECT q.id, q.quote_no, q.quote_date, q.valid_until, q.discount_percent, q.is_gst, q.tax_percent,
+                        (SELECT COALESCE(SUM(quantity * rate),0) FROM quotation_items WHERE quotation_id = q.id) AS subtotal
+                    FROM quotations q WHERE q.client_id = ? ORDER BY q.quote_date DESC
+                ");
+                $qStmt->bind_param('i', $client_id);
+                $qStmt->execute();
+                $quotations = $qStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                $qStmt->close();
+
+                foreach ($quotations as &$q) {
+                    $sub      = (float) $q['subtotal'];
+                    $discAmt  = $sub * (float) $q['discount_percent'] / 100;
+                    $taxable  = $sub - $discAmt;
+                    $taxRate  = ((int) $q['is_gst'] === 1) ? (float) $q['tax_percent'] : 0;
+                    $taxAmt   = $taxable * $taxRate / 100;
+                    $roundOff = round($taxable + $taxAmt) - ($taxable + $taxAmt);
+                    $q['grand_total'] = round($taxable + $taxAmt + $roundOff, 2);
+                }
+                unset($q);
+
                 // Calculate balances
                 $total_billed = array_sum(array_column($invoices, 'net_amount'));
                 $total_paid   = array_sum(array_column($payments, 'amount'));
@@ -101,6 +129,7 @@
                     'client'        => $client,
                     'invoices'      => $invoices,
                     'payments'      => $payments,
+                    'quotations'    => $quotations,
                     'total_billed'  => $total_billed,
                     'total_paid'    => $total_paid,
                     'pending'       => $pending,
@@ -109,7 +138,7 @@
             }
 
             // ── All clients with balance summary ──────────────────
-            if ($branch_id !== null) {
+            if ($list_branch_id !== null) {
                 $stmt = $conn->prepare("
                     SELECT
                         c.id,
@@ -138,7 +167,7 @@
                     GROUP BY c.id
                     ORDER BY c.name ASC
                 ");
-                $stmt->bind_param('i', $branch_id);
+                $stmt->bind_param('i', $list_branch_id);
                 $stmt->execute();
                 $clients = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                 $stmt->close();

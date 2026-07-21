@@ -354,10 +354,12 @@ CREATE TABLE `quotations` (
   `ship_state` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `ship_state_code` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `discount_percent` decimal(5,2) NOT NULL DEFAULT '0.00',
+  `is_gst` tinyint(1) NOT NULL DEFAULT 1,
   `tax_percent` decimal(5,2) NOT NULL DEFAULT '18.00',
   `notes` text COLLATE utf8mb4_unicode_ci,
   `declaration` text COLLATE utf8mb4_unicode_ci,
   `branch_id` int(10) UNSIGNED NOT NULL,
+  `client_id` int(10) UNSIGNED DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -602,7 +604,8 @@ ALTER TABLE `purchase_stock`
 ALTER TABLE `quotations`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `uq_quote_branch` (`quote_no`,`branch_id`),
-  ADD KEY `idx_q_branch` (`branch_id`);
+  ADD KEY `idx_q_branch` (`branch_id`),
+  ADD KEY `idx_quotation_client` (`client_id`);
 
 --
 -- Indexes for table `quotation_items`
@@ -839,7 +842,8 @@ ALTER TABLE `purchase_stock`
 -- Constraints for table `quotations`
 --
 ALTER TABLE `quotations`
-  ADD CONSTRAINT `fk_quotations_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE CASCADE;
+  ADD CONSTRAINT `fk_quotations_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_quotation_client` FOREIGN KEY (`client_id`) REFERENCES `clients` (`id`) ON DELETE SET NULL;
 
 --
 -- Constraints for table `quotation_items`

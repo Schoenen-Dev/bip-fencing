@@ -229,19 +229,23 @@ export default function Sidebar() {
           </NavLink>
         </DropdownItem>
 
-        <div className="sb-section">CRM</div>
-        <NavLink
-          to="/clients"
-          onClick={handleSubNavClick}
-          className={({ isActive }) =>
-            `nav-item-link${isActive ? " active" : ""}`
-          }
-        >
-          <div className="nav-icon-wrap">
-            <i className="bi bi-person-lines-fill"></i>
-          </div>
-          <span>Clients</span>
-        </NavLink>
+        {role === "admin" && (
+          <>
+            <div className="sb-section">CRM</div>
+            <NavLink
+              to="/clients"
+              onClick={handleSubNavClick}
+              className={({ isActive }) =>
+                `nav-item-link${isActive ? " active" : ""}`
+              }
+            >
+              <div className="nav-icon-wrap">
+                <i className="bi bi-person-lines-fill"></i>
+              </div>
+              <span>Clients</span>
+            </NavLink>
+          </>
+        )}
       </nav>
 
       {/* Footer */}

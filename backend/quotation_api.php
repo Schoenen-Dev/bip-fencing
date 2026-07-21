@@ -29,6 +29,33 @@ function getEffectiveBranchId(array $user): ?int {
     return null; // Super-admin, no filter
 }
 
+// ── Auto-create or link a client record by phone ──────────────
+function linkClient(PDO $pdo, ?int $branchId, string $name, ?string $phone, ?string $address, ?string $gst): ?int {
+    if (!$phone) return null;
+    $phone = preg_replace('/\D/', '', $phone);
+    if (!$phone) return null;
+
+    if ($branchId === null) {
+        $chk = $pdo->prepare("SELECT id FROM clients WHERE phone = ? AND branch_id IS NULL");
+        $chk->execute([$phone]);
+    } else {
+        $chk = $pdo->prepare("SELECT id FROM clients WHERE phone = ? AND branch_id = ?");
+        $chk->execute([$phone, $branchId]);
+    }
+    $existing = $chk->fetch(PDO::FETCH_ASSOC);
+
+    if ($existing) {
+        $clientId = (int) $existing['id'];
+        $upd = $pdo->prepare("UPDATE clients SET name=?, address=?, gst=? WHERE id=?");
+        $upd->execute([$name, $address, $gst, $clientId]);
+        return $clientId;
+    }
+
+    $ins = $pdo->prepare("INSERT INTO clients (name, phone, address, gst, branch_id) VALUES (?,?,?,?,?)");
+    $ins->execute([$name, $phone, $address, $gst, $branchId]);
+    return (int) $pdo->lastInsertId();
+}
+
 // ── Branch access check for a specific quotation ─────────────
 function checkBranchAccess(PDO $pdo, array $user, int $id): bool {
     $branchId = getEffectiveBranchId($user);
@@ -85,6 +112,12 @@ function handleGetSingle(): void {
 function handleGetAll(): void {
     global $pdo, $authUser;
     $branchId = getEffectiveBranchId($authUser);
+
+    // Admin can request the unfiltered list across all branches (e.g. the
+    // Clients page's Quotations view), even while impersonating a branch.
+    if ($authUser['role'] === 'admin' && !empty($_GET['all_branches'])) {
+        $branchId = null;
+    }
 
     $sql = "
         SELECT q.*,
@@ -151,19 +184,21 @@ function handleCreate(): void {
         exit;
     }
 
+    $clientId = linkClient($pdo, $branchId, $f['client_name'], $f[':client_phone'], $f[':client_address'], $f[':client_gst']);
+
     $stmt = $pdo->prepare("
         INSERT INTO quotations
             (quote_no, quote_date, valid_until, po_no, dispatched_through, vehicle_no, other_ref,
              client_name, client_phone, client_email, client_gst, client_address, client_state, client_state_code,
              ship_name, ship_address, ship_gst, ship_state, ship_state_code,
-            discount_percent, is_gst, tax_percent, notes, declaration, branch_id)
+            discount_percent, is_gst, tax_percent, notes, declaration, branch_id, client_id)
         VALUES
             (:quote_no, :quote_date, :valid_until, :po_no, :dispatched_through, :vehicle_no, :other_ref,
              :client_name, :client_phone, :client_email, :client_gst, :client_address, :client_state, :client_state_code,
              :ship_name, :ship_address, :ship_gst, :ship_state, :ship_state_code,
-             :discount_percent, :is_gst, :tax_percent, :notes, :declaration, :branch_id)
+             :discount_percent, :is_gst, :tax_percent, :notes, :declaration, :branch_id, :client_id)
     ");
-    $stmt->execute(array_merge($f, [':branch_id' => $branchId]));
+    $stmt->execute(array_merge($f, [':branch_id' => $branchId, ':client_id' => $clientId]));
     $quotationId = (int) $pdo->lastInsertId();
 
     insertItems($pdo, $quotationId, $data['items']);
@@ -192,6 +227,9 @@ function handleUpdate(): void {
         http_response_code(400); echo json_encode(['message'=>'Missing required fields']); exit;
     }
 
+    $branchId = getEffectiveBranchId($authUser);
+    $clientId = linkClient($pdo, $branchId, $f['client_name'], $f[':client_phone'], $f[':client_address'], $f[':client_gst']);
+
     $stmt = $pdo->prepare("
         UPDATE quotations SET
             quote_no=:quote_no, quote_date=:quote_date, valid_until=:valid_until,
@@ -202,10 +240,10 @@ function handleUpdate(): void {
             ship_name=:ship_name, ship_address=:ship_address, ship_gst=:ship_gst,
             ship_state=:ship_state, ship_state_code=:ship_state_code,
             discount_percent=:discount_percent, is_gst=:is_gst, tax_percent=:tax_percent,
-            notes=:notes, declaration=:declaration
+            notes=:notes, declaration=:declaration, client_id=:client_id
         WHERE id=:id
     ");
-    $stmt->execute(array_merge($f, [':id' => $id]));
+    $stmt->execute(array_merge($f, [':id' => $id, ':client_id' => $clientId]));
 
     // Refresh items
     $pdo->prepare("DELETE FROM quotation_items WHERE quotation_id = ?")->execute([$id]);
