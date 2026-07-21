@@ -1,6 +1,8 @@
 // ✅ v3 — Logo image, 2-col meta, hide blank fields, sessionStorage persistence
+// ✅ Added role-based access control - Only Admin can access
 
 import React, { useState, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { apiFetch } from "../utils/api";
 
 const SESSION_KEY = "bip_tax_invoice_form";
@@ -29,6 +31,13 @@ const COPY_TYPES = [
   "ORIGINAL FOR RECIPIENT",
   "DUPLICATE FOR TRANSPORTER",
   "TRIPLICATE FOR SUPPLIER",
+];
+
+// Products live per-branch — a single invoice can pull items from any of these.
+const BRANCHES = [
+  { id: 1, name: "Branch A" },
+  { id: 2, name: "Branch B" },
+  { id: 3, name: "Branch C" },
 ];
 
 // Logo as base64 so no external file dependency
@@ -128,11 +137,14 @@ const formatDate = (d) => {
   });
 };
 const emptyProduct = () => ({
+  branchId: null,
+  productId: null,
   desc: "",
   hsn: "",
   qty: "",
   rateIncl: "",
   per: "NOS",
+  stockDeducted: false,
 });
 
 const DEFAULT_FORM = {
@@ -171,6 +183,110 @@ const DEFAULT_FORM = {
   bankIfsc: DEFAULT_BANK.ifsc,
   bankBranch: DEFAULT_BANK.branch,
 };
+
+// Map a saved invoice row (snake_case, from /client.php?invoice_no=) back into form state.
+const mapInvoiceToForm = (inv) => ({
+  copyType: inv.copy_type || DEFAULT_FORM.copyType,
+  invoiceNo: inv.invoice_no,
+  invoiceNoLocked: true,
+  invoiceDate: inv.invoice_date,
+  referenceNo: inv.reference_no || "",
+  buyersOrderNo: inv.buyers_order_no || "",
+  dated: inv.dated || "",
+  dispatchDocNo: inv.dispatch_doc_no || "",
+  deliveryNoteDate: inv.delivery_note_date || "",
+  dispatchedThrough: inv.dispatched_through || "",
+  destination: inv.destination || "",
+  billOfLading: inv.bill_of_lading || "",
+  motorVehicleNo: inv.motor_vehicle_no || "",
+  ewayRequired: inv.eway_required || "",
+  ewayNumber: inv.eway_number || "",
+  paymentMode: inv.payment_mode || DEFAULT_FORM.paymentMode,
+  consigneeName: inv.consignee_name || "",
+  consigneeAddress: inv.consignee_address || "",
+  consigneeState: inv.consignee_state || DEFAULT_FORM.consigneeState,
+  consigneeStateCode: inv.consignee_state_code || DEFAULT_FORM.consigneeStateCode,
+  buyerName: inv.buyer_name || "",
+  buyerAddress: inv.buyer_address || "",
+  buyerPhone: inv.buyer_phone || "",
+  buyerGst: inv.buyer_gst || "",
+  buyerState: inv.buyer_state || DEFAULT_FORM.buyerState,
+  buyerStateCode: inv.buyer_state_code || DEFAULT_FORM.buyerStateCode,
+  // Balance columns default to '0.00' in the DB even when the user never set
+  // one — treat zero the same as blank so the printed balance banner doesn't
+  // reappear for invoices that never had a real balance.
+  openBalance: inv.open_balance && Number(inv.open_balance) !== 0 ? inv.open_balance : "",
+  closingBalance: inv.closing_balance && Number(inv.closing_balance) !== 0 ? inv.closing_balance : "",
+  gstRate: inv.gst_rate ? Number(inv.gst_rate) : DEFAULT_FORM.gstRate,
+  bankHolderName: inv.bank_holder_name || DEFAULT_BANK.holderName,
+  bankName: inv.bank_name || DEFAULT_BANK.bankName,
+  bankAccountNo: inv.bank_account_no || DEFAULT_BANK.accountNo,
+  bankIfsc: inv.bank_ifsc || DEFAULT_BANK.ifsc,
+  bankBranch: inv.bank_branch || DEFAULT_BANK.branch,
+});
+
+// Map saved invoice_items rows back into product row state. These were already
+// stock-deducted when first saved, so they're marked deducted and skipped by
+// reduceStock — only newly added rows (from continuing at another branch) get
+// their stock taken off.
+const mapItemsToProducts = (items) =>
+  items && items.length
+    ? items.map((it) => ({
+        branchId: it.branch_id ? Number(it.branch_id) : null,
+        productId: null,
+        desc: it.description || "",
+        hsn: it.hsn || "",
+        qty: it.qty,
+        rateIncl: it.rate_incl,
+        per: it.per || "NOS",
+        stockDeducted: true,
+      }))
+    : [emptyProduct()];
+
+// Map a quotation row (from /quotation_api.php?id=) into invoice form state —
+// used by the Clients page "Go to Tax Invoice" button to quick-fill a bill
+// from an existing quotation. Invoice No / lock state are intentionally left
+// out here; the normal invoice-number peek assigns a fresh, real one.
+const mapQuotationToForm = (q) => ({
+  dispatchedThrough: q.dispatched_through || "",
+  motorVehicleNo: q.vehicle_no || "",
+  referenceNo: q.po_no || "",
+  buyersOrderNo: q.po_no || "",
+  consigneeName: q.ship_name || "",
+  consigneeAddress: q.ship_address || "",
+  consigneeState: q.ship_state || DEFAULT_FORM.consigneeState,
+  consigneeStateCode: q.ship_state_code || DEFAULT_FORM.consigneeStateCode,
+  buyerName: q.client_name || "",
+  buyerAddress: q.client_address || "",
+  buyerPhone: q.client_phone || "",
+  buyerGst: q.client_gst || "",
+  buyerState: q.client_state || DEFAULT_FORM.buyerState,
+  buyerStateCode: q.client_state_code || DEFAULT_FORM.buyerStateCode,
+  gstRate:
+    q.is_gst == null || Number(q.is_gst) === 1
+      ? q.tax_percent
+        ? Number(q.tax_percent)
+        : DEFAULT_FORM.gstRate
+      : DEFAULT_FORM.gstRate,
+});
+
+// Quotation items have no branch_id (they never touch stock) — leave branchId
+// unset so the user picks a branch per line, same as starting a fresh invoice.
+// stockDeducted stays false: this is now a real bill, so stock gets deducted
+// for real when it's previewed/saved.
+const mapQuotationItemsToProducts = (items) =>
+  items && items.length
+    ? items.map((it) => ({
+        branchId: null,
+        productId: null,
+        desc: it.description || "",
+        hsn: it.hsn || "",
+        qty: it.quantity,
+        rateIncl: it.rate,
+        per: it.unit || "NOS",
+        stockDeducted: false,
+      }))
+    : [emptyProduct()];
 
 // ─── PRINT STYLES ─────────────────────────────────────────────────────────────
 const printStyles = `
@@ -226,7 +342,7 @@ const hCell = (extra = {}) => ({
 });
 const sectionHead = {
   fontWeight: "bold",
-  fontSize: 10,
+  fontSize: 15,
   textTransform: "uppercase",
   letterSpacing: 0.3,
   marginBottom: 2,
@@ -236,13 +352,53 @@ const sectionHead = {
 
 // ═════════════════════════════════════════════════════════════════════════════
 export default function TaxInvoice() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  // Captured once at mount — set when arriving via the Clients page "Continue" button.
+  const [continueInvoiceNo] = useState(
+    () => location.state?.continueInvoiceNo || null,
+  );
+  // Captured once at mount — set when arriving via the Clients page
+  // "Go to Tax Invoice" button on a quotation (quick-fill a bill from it).
+  const [fromQuotationId] = useState(
+    () => location.state?.fromQuotationId || null,
+  );
+
   const [step, setStep] = useState(1);
-  const [savedProducts, setSavedProducts] = useState([]);
+  const [productsByBranch, setProductsByBranch] = useState({});
   const [stockReduced, setStockReduced] = useState(false);
   const [stockReducing, setStockReducing] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(null); // null = loading, true = admin, false = not admin
+  const [loading, setLoading] = useState(true);
+  const [loadingExistingInvoice, setLoadingExistingInvoice] = useState(
+    !!continueInvoiceNo || !!fromQuotationId,
+  );
+  const [existingInvoiceError, setExistingInvoiceError] = useState(null);
+
+  // ── Check user role on mount ───────────────────────────────────────────────
+  useEffect(() => {
+    const checkUserRole = async () => {
+      try {
+        const res = await apiFetch("/check_session.php");
+        const data = await res.json();
+        if (data.success && data.user && data.user.role === "admin") {
+          setIsAdmin(true);
+        } else {
+          setIsAdmin(false);
+        }
+      } catch (_) {
+        setIsAdmin(false);
+      } finally {
+        setLoading(false);
+      }
+    };
+    checkUserRole();
+  }, []);
 
   // ── Load persisted form from sessionStorage on mount ──────────────────────
+  // (skipped when continuing an existing invoice — that's loaded from the server instead)
   const [form, setForm] = useState(() => {
+    if (continueInvoiceNo || fromQuotationId) return { ...DEFAULT_FORM };
     try {
       const saved = sessionStorage.getItem(SESSION_KEY);
       if (saved) {
@@ -254,6 +410,7 @@ export default function TaxInvoice() {
   });
 
   const [products, setProducts] = useState(() => {
+    if (continueInvoiceNo || fromQuotationId) return [emptyProduct()];
     try {
       const saved = sessionStorage.getItem(SESSION_KEY);
       if (saved) {
@@ -267,8 +424,6 @@ export default function TaxInvoice() {
   const [errors, setErrors] = useState({});
 
   // ── Branch-aware invoice numbering (server-assigned, never reused) ─────────
-  // { loading, branchId, error } — error is set when no branch is selected
-  // or the server couldn't be reached.
   const [branchInfo, setBranchInfo] = useState(() => ({
     loading: !form.invoiceNoLocked,
     branchId: null,
@@ -315,28 +470,91 @@ export default function TaxInvoice() {
   }, [form, products]);
 
   useEffect(() => {
-    fetchSavedProducts();
+    BRANCHES.forEach((b) => fetchProductsForBranch(b.id));
   }, []);
 
   // Only peek a fresh number if this draft hasn't already reserved one.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (!form.invoiceNoLocked) fetchInvoiceNoPeek();
+    if (!form.invoiceNoLocked && !continueInvoiceNo) fetchInvoiceNoPeek();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function fetchSavedProducts() {
+  // ── Quick-filling from a quotation (via Clients page "Go to Tax Invoice") ──
+  useEffect(() => {
+    if (!fromQuotationId) return;
+    (async () => {
+      try {
+        const res = await apiFetch(`/quotation_api.php?id=${fromQuotationId}`);
+        const data = await res.json();
+        if (data.error || !data.id) {
+          setExistingInvoiceError(
+            data.error || "Could not load that quotation.",
+          );
+          setLoadingExistingInvoice(false);
+          return;
+        }
+        // Merge (not replace) so the invoice number peeked above isn't clobbered.
+        setForm((prev) => ({ ...prev, ...mapQuotationToForm(data) }));
+        setProducts(mapQuotationItemsToProducts(data.items));
+      } catch (_) {
+        setExistingInvoiceError(
+          "Could not reach the server for that quotation.",
+        );
+      } finally {
+        setLoadingExistingInvoice(false);
+        // Clear the hand-off state so refresh/back doesn't redo this fetch.
+        navigate(location.pathname, { replace: true, state: {} });
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Continuing an existing invoice (via Clients page "Continue") ───────────
+  useEffect(() => {
+    if (!continueInvoiceNo) return;
+    (async () => {
+      try {
+        const res = await apiFetch(
+          `/client.php?invoice_no=${encodeURIComponent(continueInvoiceNo)}`,
+        );
+        const data = await res.json();
+        if (!data.success || !data.invoice) {
+          setExistingInvoiceError(
+            data.message || "Could not load that invoice.",
+          );
+          setLoadingExistingInvoice(false);
+          return;
+        }
+        const inv = data.invoice;
+        setForm({ ...DEFAULT_FORM, ...mapInvoiceToForm(inv) });
+        setProducts(mapItemsToProducts(inv.items));
+        setBranchInfo({ loading: false, branchId: inv.branch_id, error: null });
+        setStockReduced(true); // loaded items were already deducted when first saved
+      } catch (_) {
+        setExistingInvoiceError("Could not reach the server for that invoice.");
+      } finally {
+        setLoadingExistingInvoice(false);
+        // Clear the hand-off state so refresh/back doesn't redo this fetch.
+        navigate(location.pathname, { replace: true, state: {} });
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function fetchProductsForBranch(branchId) {
     try {
-     const res = await apiFetch("/products.php");
+      const res = await apiFetch("/products.php", { branchId });
 
-     if (!res.ok) return;
+      if (!res.ok) return;
 
-     const data = await res.json();
-      setSavedProducts(
-        data.map((p) => ({
+      const data = await res.json();
+      setProductsByBranch((prev) => ({
+        ...prev,
+        [branchId]: data.map((p) => ({
           id: p.id,
           productName: p.product_name,
-          sku: p.sku,
+          hsn: p.hsn,
           category: p.category,
           unit: p.unit,
           sellingPrice: p.selling_price,
@@ -345,7 +563,7 @@ export default function TaxInvoice() {
           description: p.description,
           _raw: p,
         })),
-      );
+      }));
     } catch (_) {}
   }
 
@@ -367,34 +585,63 @@ export default function TaxInvoice() {
     });
   };
 
-  const handleProductSelect = (idx, productName) => {
-    if (!productName) {
-      handleProduct(idx, "desc", "");
-      return;
-    }
-    const found = savedProducts.find((p) => p.productName === productName);
-    if (!found) return;
-    const unitMap = {
-      Pcs: "PCS",
-      Kg: "KGS",
-      Meter: "MTR",
-      Roll: "RFT",
-      Box: "SET",
-      Set: "SET",
-      Liter: "LTR",
-    };
+  const handleBranchSelect = (idx, branchId) => {
     setProducts((prev) => {
       const updated = [...prev];
       updated[idx] = {
         ...updated[idx],
-        desc: found.productName,
-        rateIncl: found.sellingPrice || "",
-        per: unitMap[found.unit] || "NOS",
-        hsn: found.sku || "",
+        branchId: branchId ? Number(branchId) : null,
+        productId: null,
+        desc: "",
+        hsn: "",
+        rateIncl: "",
       };
       return updated;
     });
   };
+
+  const handleProductSelect = (idx, productId) => {
+  if (!productId) {
+    handleProduct(idx, "desc", "");
+    return;
+  }
+  const branchId = products[idx]?.branchId;
+  const found = (productsByBranch[branchId] || []).find(
+    (p) => String(p.id) === String(productId),
+  );
+  if (!found) return;
+  const unitMap = {
+    "Pcs": "PCS",
+    "Pieces": "PCS",
+    "Kg": "KGS",
+    "Kgs": "KGS",
+    "Kilogram": "KGS",
+    "Kilograms": "KGS",
+    "Meter": "MTR",
+    "Meters": "MTR",
+    "Roll": "RFT",
+    "Box": "SET",
+    "Set": "SET",
+    "Sets": "SET",
+    "Liter": "LTR",
+    "Litre": "LTR",
+    "Nos": "NOS",
+    "Number": "NOS",
+    "No": "NOS"
+  };
+  setProducts((prev) => {
+    const updated = [...prev];
+    updated[idx] = {
+      ...updated[idx],
+      productId: found.id,
+      desc: found.productName,
+      rateIncl: found.sellingPrice || "",
+      per: unitMap[found.unit] || found.unit || "NOS",
+      hsn: found.hsn || "",
+    };
+    return updated;
+  });
+};
 
   const addProduct = () => setProducts((p) => [...p, emptyProduct()]);
   const removeProduct = (idx) => {
@@ -408,6 +655,7 @@ export default function TaxInvoice() {
     if (!form.invoiceDate) e.invoiceDate = "Required";
     if (!form.buyerName.trim()) e.buyerName = "Required";
     products.forEach((p, i) => {
+      if (!p.branchId) e[`branch_${i}`] = "Required";
       if (!p.desc.trim()) e[`desc_${i}`] = "Required";
       if (!p.qty || isNaN(p.qty) || Number(p.qty) <= 0)
         e[`qty_${i}`] = "Invalid";
@@ -447,20 +695,51 @@ export default function TaxInvoice() {
     hsnGroups[key].sgst += r.taxableAmt * (sgstRate / 100);
   });
 
+  // Safe to call every time Preview is clicked, including when continuing an
+  // already-saved bill at a different branch — rows already deducted (from an
+  // earlier Preview) are skipped, only newly added rows get stock taken off.
   const reduceStock = async () => {
     setStockReducing(true);
     try {
-      const res = await apiFetch("/products.php");
-      if (!res.ok) throw new Error("Failed to fetch products");
-      const dbProducts = await res.json();
-      let anyReduced = false;
-      for (const invoiceItem of products) {
+      const pendingIndexes = products
+        .map((p, idx) => idx)
+        .filter((idx) => {
+          const p = products[idx];
+          const usedQty = parseFloat(p.qty);
+          return (
+            !p.stockDeducted &&
+            p.branchId &&
+            p.productId &&
+            usedQty &&
+            usedQty > 0
+          );
+        });
+
+      if (pendingIndexes.length === 0) {
+        setStockReducing(false);
+        return false;
+      }
+
+      // Items can come from different branches — fetch each touched branch's
+      // fresh product list (with the matching X-Branch-ID) rather than
+      // relying on whichever branch the admin currently has selected.
+      const branchIds = [
+        ...new Set(pendingIndexes.map((idx) => products[idx].branchId)),
+      ];
+
+      const dbProductsByBranch = {};
+      for (const branchId of branchIds) {
+        const res = await apiFetch("/products.php", { branchId });
+        if (!res.ok) throw new Error("Failed to fetch products");
+        dbProductsByBranch[branchId] = await res.json();
+      }
+
+      const deductedIndexes = [];
+      for (const idx of pendingIndexes) {
+        const invoiceItem = products[idx];
         const usedQty = parseFloat(invoiceItem.qty);
-        if (!invoiceItem.desc.trim() || !usedQty || usedQty <= 0) continue;
-        const match = dbProducts.find(
-          (p) =>
-            p.product_name.trim().toLowerCase() ===
-            invoiceItem.desc.trim().toLowerCase(),
+        const match = (dbProductsByBranch[invoiceItem.branchId] || []).find(
+          (p) => String(p.id) === String(invoiceItem.productId),
         );
         if (!match) continue;
         const currentStock = parseFloat(match.stock_qty) || 0;
@@ -472,30 +751,35 @@ export default function TaxInvoice() {
           return false;
         }
         const newStock = currentStock - usedQty;
-       const updateRes = await apiFetch(`/products.php?id=${match.id}`, {
-         method: "PUT",
-         body: JSON.stringify({
-           productName: match.product_name,
-           sku: match.sku,
-           category: match.category,
-           unit: match.unit,
-           sellingPrice: match.selling_price,
-           stockQty: newStock,
-           minStock: match.min_stock,
-           description: match.description,
-         }),
-       });
+        const updateRes = await apiFetch(`/products.php?id=${match.id}`, {
+          method: "PUT",
+          branchId: invoiceItem.branchId,
+          body: JSON.stringify({
+            productName: match.product_name,
+            hsn: match.hsn,
+            category: match.category,
+            unit: match.unit,
+            sellingPrice: match.selling_price,
+            stockQty: newStock,
+            minStock: match.min_stock,
+            description: match.description,
+          }),
+        });
 
-       if (!updateRes.ok)
-         if (!updateRes.ok)
-           throw new Error(
-             `Failed to update stock for "${match.product_name}"`,
-           );
-        anyReduced = true;
+        if (!updateRes.ok)
+          throw new Error(`Failed to update stock for "${match.product_name}"`);
+        deductedIndexes.push(idx);
       }
+
+      const anyReduced = deductedIndexes.length > 0;
       if (anyReduced) {
+        setProducts((prev) =>
+          prev.map((p, idx) =>
+            deductedIndexes.includes(idx) ? { ...p, stockDeducted: true } : p,
+          ),
+        );
         setStockReduced(true);
-        await fetchSavedProducts();
+        await Promise.all(branchIds.map((id) => fetchProductsForBranch(id)));
       }
       setStockReducing(false);
       return anyReduced;
@@ -518,9 +802,6 @@ export default function TaxInvoice() {
       return;
     }
 
-    // ── Reserve the invoice number exactly once per draft ───────────────────
-    // (server increments the per-branch counter atomically; once reserved,
-    // re-previewing the same draft, e.g. after Edit, reuses the same number.)
     let invoiceNoToUse = form.invoiceNo;
     if (!form.invoiceNoLocked) {
       try {
@@ -549,7 +830,7 @@ export default function TaxInvoice() {
       }
     }
 
-    if (!stockReduced) await reduceStock();
+    await reduceStock();
     try {
       const payload = {
         invoice_no: invoiceNoToUse,
@@ -594,6 +875,7 @@ export default function TaxInvoice() {
         bank_ifsc: form.bankIfsc,
         bank_branch: form.bankBranch,
         items: rows.map((r) => ({
+          branch_id: r.branchId,
           desc: r.desc,
           hsn: r.hsn,
           qty: r.qty,
@@ -628,6 +910,12 @@ export default function TaxInvoice() {
         JSON.stringify([...filtered, newInvoice]),
       );
     } catch (_) {}
+    // Invoice is saved now — drop the draft so reopening Tax Invoice later
+    // starts blank instead of resurfacing this already-saved bill. To edit
+    // it again, use "Continue" on the Clients page (loads fresh from the server).
+    try {
+      sessionStorage.removeItem(SESSION_KEY);
+    } catch (_) {}
     setStep(2);
     window.scrollTo(0, 0);
   };
@@ -651,8 +939,84 @@ export default function TaxInvoice() {
     borderColor: errors[name] ? "#dc3545" : undefined,
   });
 
+  // ── Show loading state ──────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "60vh" }}>
+        <div className="text-center">
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="mt-2">Checking permissions...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Show access denied for non-admin users ────────────────────────────────
+  if (!isAdmin) {
+    return (
+      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "60vh" }}>
+        <div className="text-center">
+          <div style={{ fontSize: 48, marginBottom: 16 }}>🚫</div>
+          <h2 className="text-danger">Access Denied</h2>
+          <p className="text-muted" style={{ fontSize: 16 }}>
+            You do not have permission to access the Tax Invoice page.
+          </p>
+          <p className="text-muted" style={{ fontSize: 14 }}>
+            This page is only accessible to Admin users.
+          </p>
+          <button
+            className="btn btn-primary mt-3"
+            onClick={() => window.location.href = "/dashboard"}
+          >
+            Go to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Show loading state while pulling in a "Continue" invoice ───────────────
+  if (loadingExistingInvoice) {
+    return (
+      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "60vh" }}>
+        <div className="text-center">
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="mt-2">
+            {fromQuotationId
+              ? "Loading quotation details…"
+              : `Loading invoice ${continueInvoiceNo}…`}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (existingInvoiceError) {
+    return (
+      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "60vh" }}>
+        <div className="text-center">
+          <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
+          <h2 className="text-danger">Couldn't load invoice</h2>
+          <p className="text-muted" style={{ fontSize: 14 }}>
+            {existingInvoiceError}
+          </p>
+          <button
+            className="btn btn-primary mt-3"
+            onClick={() => setExistingInvoiceError(null)}
+          >
+            Start a New Invoice Instead
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
-  // STEP 1 — FORM
+  // STEP 1 — FORM (only shown to Admin users)
   // ═══════════════════════════════════════════════════════════════════════════
   if (step === 1) {
     return (
@@ -664,10 +1028,18 @@ export default function TaxInvoice() {
         >
           <div className="card shadow-sm border-0">
             <div
-              className="card-header text-white"
+              className="card-header text-white d-flex justify-content-between align-items-center"
               style={{ background: "#1a1a2e" }}
             >
               <h5 className="mb-0">🧾 BIP Fencing – Tax Invoice Generator</h5>
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-light"
+                title="Clear all fields and start a fresh invoice"
+                onClick={handleNewInvoice}
+              >
+                🔄 Refresh
+              </button>
             </div>
             <div className="card-body">
               {/* Copy / GST / Payment */}
@@ -781,9 +1153,9 @@ export default function TaxInvoice() {
                   ["dated", "Dated", "", "date"],
                   ["dispatchDocNo", "Dispatch Doc No", ""],
                   ["deliveryNoteDate", "Delivery Note Date", "", "date"],
-                  ["dispatchedThrough", "Dispatched Through", "e.g. Velamadam"],
+                  ["dispatchedThrough", "Dispatched Through", ""],
                   ["destination", "Destination", ""],
-                  ["billOfLading", "Bill of Lading / LR-RR No.", "dt."],
+                  ["billOfLading", "Bill of Lading / LR-RR No.", ""],
                   ["motorVehicleNo", "Motor Vehicle No.", "TN XX XX XXXX"],
                 ].map(([name, label, placeholder, type]) => (
                   <div className="col-md-4" key={name}>
@@ -1041,19 +1413,14 @@ export default function TaxInvoice() {
               >
                 Products — Enter Rate Inclusive of Tax
               </h6>
-              {savedProducts.length > 0 && (
-                <div
-                  className="alert alert-info py-2 px-3 mb-2"
-                  style={{ fontSize: 12 }}
-                >
-                  💡{" "}
-                  <strong>
-                    {savedProducts.length} product
-                    {savedProducts.length !== 1 ? "s" : ""}
-                  </strong>{" "}
-                  available. Select from dropdown.
-                </div>
-              )}
+              <div
+                className="alert alert-info py-2 px-3 mb-2"
+                style={{ fontSize: 12 }}
+              >
+                💡 Pick a <strong>Branch</strong> for each row first — items
+                can come from Branch A, B and C on the same invoice. Once a
+                branch is chosen, its product list appears in Description.
+              </div>
               <div className="table-responsive mb-2">
                 <table
                   className="table table-bordered table-sm align-middle mb-0"
@@ -1062,10 +1429,11 @@ export default function TaxInvoice() {
                   <thead className="table-dark">
                     <tr>
                       <th style={{ width: 32 }}>#</th>
+                      <th style={{ width: 110 }}>Branch</th>
                       <th>Description</th>
                       <th style={{ width: 85 }}>HSN/SAC</th>
                       <th style={{ width: 75 }}>Qty</th>
-                      <th style={{ width: 55 }}>Per</th>
+                      <th style={{ width: 90 }}>Per</th>
                       <th style={{ width: 115 }}>Rate (Incl. Tax)</th>
                       <th style={{ width: 100 }}>Rate (Excl. Tax)</th>
                       <th style={{ width: 105 }}>Taxable Value</th>
@@ -1078,76 +1446,82 @@ export default function TaxInvoice() {
                       const ri = parseFloat(p.rateIncl) || 0;
                       const re = ri / (1 + gstRate / 100);
                       const ta = re * q;
+                      const branchProducts = productsByBranch[p.branchId] || [];
                       return (
                         <tr key={i}>
                           <td className="text-center">{i + 1}</td>
                           <td>
-                            {savedProducts.length > 0 ? (
-                              <div style={{ display: "flex", gap: 4 }}>
-                                <select
-                                  className="form-select form-select-sm"
-                                  style={{
-                                    width: 200,
-                                    flexShrink: 0,
-                                    borderColor: errors[`desc_${i}`]
-                                      ? "#dc3545"
-                                      : undefined,
-                                  }}
-                                  value={
-                                    savedProducts.find(
-                                      (sp) => sp.productName === p.desc,
-                                    )
-                                      ? p.desc
-                                      : ""
-                                  }
-                                  onChange={(e) =>
-                                    handleProductSelect(i, e.target.value)
-                                  }
-                                >
-                                  <option value="">— Select Product —</option>
-                                  {savedProducts.map((sp) => (
-                                    <option key={sp.id} value={sp.productName}>
-                                      {sp.productName}
-                                    </option>
-                                  ))}
-                                </select>
-                                <input
-                                  className="form-control form-control-sm"
-                                  value={p.desc}
-                                  placeholder="or type manually"
-                                  onChange={(e) =>
-                                    handleProduct(i, "desc", e.target.value)
-                                  }
-                                  style={{
-                                    borderColor: errors[`desc_${i}`]
-                                      ? "#dc3545"
-                                      : undefined,
-                                  }}
-                                />
-                              </div>
-                            ) : (
-                              <input
-                                className="form-control form-control-sm"
-                                value={p.desc}
-                                onChange={(e) =>
-                                  handleProduct(i, "desc", e.target.value)
-                                }
-                                style={{
-                                  borderColor: errors[`desc_${i}`]
-                                    ? "#dc3545"
-                                    : undefined,
-                                }}
-                              />
-                            )}
-                            {errors[`desc_${i}`] && (
+                            <select
+                              className="form-select form-select-sm"
+                              style={{
+                                borderColor: errors[`branch_${i}`]
+                                  ? "#dc3545"
+                                  : undefined,
+                                cursor: "pointer",
+                              }}
+                              value={p.branchId || ""}
+                              onChange={(e) =>
+                                handleBranchSelect(i, e.target.value)
+                              }
+                            >
+                              <option value="">— Branch —</option>
+                              {BRANCHES.map((b) => (
+                                <option key={b.id} value={b.id}>
+                                  {b.name}
+                                </option>
+                              ))}
+                            </select>
+                            {errors[`branch_${i}`] && (
                               <div
                                 className="text-danger"
                                 style={{ fontSize: 11 }}
                               >
-                                {errors[`desc_${i}`]}
+                                {errors[`branch_${i}`]}
                               </div>
                             )}
                           </td>
+                          <td>
+  <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+    {p.branchId ? (
+      <select
+        className="form-select form-select-sm"
+        style={{
+          width: 320,
+          flexShrink: 0,
+          borderColor: errors[`desc_${i}`] ? "#dc3545" : undefined,
+          minHeight: "31px",
+          cursor: "pointer",
+        }}
+        value={p.productId || ""}
+        onChange={(e) => handleProductSelect(i, e.target.value)}
+      >
+        <option value="">
+          {!p.productId && p.desc ? p.desc : "— Select Product —"}
+        </option>
+        {branchProducts.map((sp) => (
+          <option key={sp.id} value={sp.id}>
+            {sp.productName}
+          </option>
+        ))}
+      </select>
+    ) : (
+      <input
+        className="form-control form-control-sm"
+        value=""
+        placeholder="Select a branch first"
+        disabled
+        style={{
+          borderColor: errors[`desc_${i}`] ? "#dc3545" : undefined,
+        }}
+      />
+    )}
+  </div>
+  {errors[`desc_${i}`] && (
+    <div className="text-danger" style={{ fontSize: 11 }}>
+      {errors[`desc_${i}`]}
+    </div>
+  )}
+</td>
                           <td>
                             <input
                               className="form-control form-control-sm"
@@ -1174,28 +1548,18 @@ export default function TaxInvoice() {
                               }}
                             />
                           </td>
-                          <td>
-                            <select
-                              className="form-select form-select-sm"
-                              value={p.per}
-                              onChange={(e) =>
-                                handleProduct(i, "per", e.target.value)
-                              }
-                            >
-                              {[
-                                "NOS",
-                                "KGS",
-                                "MTR",
-                                "SQM",
-                                "RFT",
-                                "SET",
-                                "PCS",
-                                "LTR",
-                              ].map((u) => (
-                                <option key={u}>{u}</option>
-                              ))}
-                            </select>
-                          </td>
+<td>
+  <select
+    className="form-select form-select-sm"
+    value={p.per || "NOS"}
+    onChange={(e) => handleProduct(i, "per", e.target.value)}
+    style={{ width: "100%" }}
+  >
+    {["NOS","KGS","MTR","SQM","RFT","SET","PCS","LTR"].map((u) => (
+      <option key={u} value={u}>{u}</option>
+    ))}
+  </select>
+</td>
                           <td>
                             <input
                               type="number"
@@ -1378,11 +1742,11 @@ export default function TaxInvoice() {
   // STEP 2 — INVOICE PREVIEW
   // ═══════════════════════════════════════════════════════════════════════════
 
-  const itemCount = rows.length;
-  const dynFont =
-    itemCount <= 10 ? 11 : itemCount <= 20 ? 10 : itemCount <= 30 ? 9 : 8;
-  const dynPad =
-    itemCount <= 10 ? "2px 4px" : itemCount <= 20 ? "1px 3px" : "1px 2px";
+const itemCount = rows.length;
+const dynFont =
+  itemCount <= 10 ? 11 : itemCount <= 20 ? 12 : itemCount <= 30 ? 11 : 10;
+const dynPad =
+  itemCount <= 10 ? "3px 6px" : itemCount <= 20 ? "3px 6px" : "2px 5px";
 
   const dc = (extra = {}) => ({
     border: "none",
@@ -1403,14 +1767,14 @@ export default function TaxInvoice() {
     ...extra,
   });
 
-  const MIN_ROWS = itemCount >= 10 ? 0 : Math.max(0, 5 - itemCount);
+  const MIN_ROWS = itemCount >= 15 ? 0 : Math.max(0, 15 - itemCount);
 
   // ── Meta fields: only show if filled ─────────────────────────────────────
   // LEFT column: Invoice No, Reference No, Buyer's Order No
   // RIGHT column: Dispatch Doc No, Dispatched Through, Destination
   // Each only shows if value is non-empty
   const leftMetaFields = [
-    { label: "Invoice No.", value: form.invoiceNo },
+   { label: "Invoice No.", value: form.invoiceNo },
     form.referenceNo
       ? { label: "Reference No. & Date", value: form.referenceNo }
       : null,
@@ -1430,33 +1794,26 @@ export default function TaxInvoice() {
           value: formatDate(form.deliveryNoteDate),
         }
       : null,
+].filter(Boolean);
+
+  // Buyer panel right-side details (only non-empty)
+
+  // Buyer panel right-side details (only non-empty)
+const buyerRightDetails = [
+    { label: "Payment", value: form.paymentMode },
     form.dispatchedThrough
-      ? { label: "Dispatched through", value: form.dispatchedThrough }
+      ? { label: "Transport", value: form.dispatchedThrough }
       : null,
-    form.destination ? { label: "Destination", value: form.destination } : null,
+    form.ewayNumber
+      ? { label: "E-Way Bill No.", value: form.ewayNumber }
+      : null,
+    form.destination ? { label: "Delivery To", value: form.destination } : null,
     form.billOfLading
       ? { label: "Bill of Lading/LR-RR No.", value: form.billOfLading }
       : null,
     form.motorVehicleNo
       ? { label: "Motor Vehicle No.", value: form.motorVehicleNo }
       : null,
-  ].filter(Boolean);
-
-  // Buyer panel right-side details (only non-empty)
-  const buyerRightDetails = [
-    { label: "Invoice No.", value: form.invoiceNo },
-    { label: "Invoice Date", value: formatDate(form.invoiceDate) },
-    { label: "Payment", value: form.paymentMode },
-    form.dispatchedThrough
-      ? { label: "Transport", value: form.dispatchedThrough }
-      : null,
-    form.motorVehicleNo
-      ? { label: "Motor Vehicle No.", value: form.motorVehicleNo }
-      : null,
-    form.ewayNumber
-      ? { label: "E-Way Bill No.", value: form.ewayNumber }
-      : null,
-    form.destination ? { label: "Delivery To", value: form.destination } : null,
   ].filter(Boolean);
 
   return (
@@ -1502,18 +1859,23 @@ export default function TaxInvoice() {
       )}
 
       {/* ── INVOICE ── */}
-      <div
-        id="bip-invoice-print"
-        style={{
-          maxWidth: 900,
-          margin: "0 auto 30px",
-          fontFamily: "'Times New Roman', Times, serif",
-          color: "#000",
-          background: "#fff",
-          border: "2px solid #000",
-          fontSize: dynFont,
-        }}
-      >
+<div
+  id="bip-invoice-print"
+  style={{
+    width: "210mm",
+    minHeight: "297mm",
+    margin: "0 auto 30px",
+    padding: "8mm",
+    fontFamily: "'Times New Roman', Times, serif",
+    color: "#000",
+    background: "#fff",
+    border: "2px solid #000",
+    fontSize: dynFont + 2,
+    boxSizing: "border-box",
+    display: "flex",
+    flexDirection: "column",
+  }}
+>
         {/* Copy label */}
         <div
           style={{
@@ -1563,16 +1925,16 @@ export default function TaxInvoice() {
                   verticalAlign: "middle",
                 }}
               >
-                <div
-                  style={{
-                    fontSize: 17,
-                    fontWeight: "bold",
-                    letterSpacing: 1.5,
-                    textTransform: "uppercase",
-                  }}
-                >
-                  {COMPANY.name}
-                </div>
+<div
+  style={{
+    fontSize: 24,  // ← Changed from 17 to 20
+    fontWeight: "bold",
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
+  }}
+>
+  {COMPANY.name}
+</div>
                 <div style={{ fontSize: 10, marginTop: 1 }}>
                   {COMPANY.address}
                 </div>
@@ -1588,12 +1950,7 @@ export default function TaxInvoice() {
                     gap: 24,
                   }}
                 >
-                  <span>Ph: {COMPANY.phone}</span>
-                  {form.ewayNumber && (
-                    <span>
-                      <strong>E-Way Bill No:</strong> {form.ewayNumber}
-                    </span>
-                  )}
+              <span>Ph: {COMPANY.phone}</span>
                 </div>
               </td>
             </tr>
@@ -1601,232 +1958,142 @@ export default function TaxInvoice() {
         </table>
 
         {/* ── CONSIGNEE + META (2-column split) ── */}
-        <table
-          style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}
-        >
-          <tbody>
-            <tr>
-              {/* Consignee */}
-              <td
-                style={{
-                  width: "50%",
-                  borderRight: B,
-                  padding: "3px 7px",
-                  verticalAlign: "top",
-                  fontSize: 10,
-                }}
-              >
-                <div style={sectionHead}>Consignee (Ship to)</div>
-                <div style={{ fontWeight: "bold", fontSize: 11 }}>
-                  {form.consigneeName || form.buyerName}
-                </div>
-                <div>{form.consigneeAddress || form.buyerAddress}</div>
-                <div>
-                  State Name: {form.consigneeState || form.buyerState}, Code:{" "}
-                  {form.consigneeStateCode || form.buyerStateCode}
-                </div>
-              </td>
-              {/* Meta: 2-column layout inside right cell */}
-              <td style={{ padding: 0, verticalAlign: "top" }}>
-                <table
-                  style={{
-                    width: "100%",
-                    borderCollapse: "collapse",
-                    fontSize: 10,
-                    height: "100%",
-                  }}
-                >
-                  <tbody>
-                    <tr>
-                      {/* Left meta column */}
-                      <td
-                        style={{
-                          width: "50%",
-                          padding: "3px 7px",
-                          borderRight: B,
-                          verticalAlign: "top",
-                        }}
-                      >
-                        {leftMetaFields.map(({ label, value }) => (
-                          <div
-                            key={label}
-                            style={{ display: "flex", marginBottom: 1 }}
-                          >
-                            <span
-                              style={{
-                                fontWeight: "bold",
-                                minWidth: 100,
-                                whiteSpace: "nowrap",
-                                fontSize: 9,
-                              }}
-                            >
-                              {label}
-                            </span>
-                            <span>: {value}</span>
-                          </div>
-                        ))}
-                      </td>
-                      {/* Right meta column */}
-                      <td
-                        style={{
-                          width: "50%",
-                          padding: "3px 7px",
-                          verticalAlign: "top",
-                        }}
-                      >
-                        {rightMetaFields.map(({ label, value }) => (
-                          <div
-                            key={label}
-                            style={{ display: "flex", marginBottom: 1 }}
-                          >
-                            <span
-                              style={{
-                                fontWeight: "bold",
-                                minWidth: 110,
-                                whiteSpace: "nowrap",
-                                fontSize: 9,
-                              }}
-                            >
-                              {label}
-                            </span>
-                            <span>: {value}</span>
-                          </div>
-                        ))}
-                        {rightMetaFields.length === 0 && (
-                          <div
-                            style={{
-                              color: "#999",
-                              fontSize: 9,
-                              fontStyle: "italic",
-                            }}
-                          >
-                            —
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </td>
-            </tr>
-          </tbody>
-        </table>
 
-        {/* ── BUYER + PAYMENT ── */}
-        <table
-          style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}
-        >
-          <tbody>
-            <tr>
-              <td
-                style={{
-                  width: "50%",
-                  borderRight: B,
-                  padding: "3px 7px",
-                  verticalAlign: "top",
-                  fontSize: 10,
-                }}
-              >
-                <div style={sectionHead}>Buyer (Bill to)</div>
-                <div style={{ fontWeight: "bold", fontSize: 11 }}>
-                  {form.buyerName}
-                </div>
-                <div>{form.buyerAddress}</div>
-                {form.buyerPhone && <div>Ph: {form.buyerPhone}</div>}
-                {form.buyerGst && <div>GSTIN/UIN: {form.buyerGst}</div>}
-                <div>
-                  State Name: {form.buyerState}, Code: {form.buyerStateCode}
-                </div>
-              </td>
-              {/* Right side: 2-column split */}
-              <td style={{ padding: 0, verticalAlign: "top" }}>
-                <table
-                  style={{
-                    width: "100%",
-                    borderCollapse: "collapse",
-                    fontSize: 10,
-                    height: "100%",
-                  }}
-                >
-                  <tbody>
-                    <tr>
-                      <td
-                        style={{
-                          width: "50%",
-                          padding: "3px 7px",
-                          borderRight: B,
-                          verticalAlign: "top",
-                        }}
-                      >
-                        {buyerRightDetails
-                          .slice(0, Math.ceil(buyerRightDetails.length / 2))
-                          .map(({ label, value }) => (
-                            <div
-                              key={label}
-                              style={{ display: "flex", marginBottom: 1 }}
-                            >
-                              <span
-                                style={{
-                                  fontWeight: "bold",
-                                  minWidth: 95,
-                                  whiteSpace: "nowrap",
-                                  fontSize: 9,
-                                }}
-                              >
-                                {label}
-                              </span>
-                              <span>: {value}</span>
-                            </div>
-                          ))}
-                      </td>
-                      <td
-                        style={{
-                          width: "50%",
-                          padding: "3px 7px",
-                          verticalAlign: "top",
-                        }}
-                      >
-                        {buyerRightDetails
-                          .slice(Math.ceil(buyerRightDetails.length / 2))
-                          .map(({ label, value }) => (
-                            <div
-                              key={label}
-                              style={{ display: "flex", marginBottom: 1 }}
-                            >
-                              <span
-                                style={{
-                                  fontWeight: "bold",
-                                  minWidth: 95,
-                                  whiteSpace: "nowrap",
-                                  fontSize: 9,
-                                }}
-                              >
-                                {label}
-                              </span>
-                              <span>: {value}</span>
-                            </div>
-                          ))}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+{/* ── CONSIGNEE + META (2-column split) ── */}
+<table
+  style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}
+  className="meta-table"
+>
+  <tbody>
+    <tr>
+      {/* Consignee - Left Column */}
+      <td
+        style={{
+          width: "50%",
+          borderRight: B,
+          padding: "6px 7px",
+          verticalAlign: "top",
+        }}
+      >
+        <div style={sectionHead}>Consignee (Ship to)</div>
+        <div style={{ fontWeight: "bold", fontSize: 16 }}>
+          {form.consigneeName || form.buyerName}
+        </div>
+        <div style={{ fontSize: 14 }}>{form.consigneeAddress || form.buyerAddress}</div>
+        <div style={{ fontSize: 14 }}>
+          State Name: {form.consigneeState || form.buyerState}, Code:{" "}
+          {form.consigneeStateCode || form.buyerStateCode}
+        </div>
+      </td>
+      
+      {/* Meta - Right Column */}
+      <td
+        style={{
+          width: "50%",
+          padding: "6px 7px",
+          verticalAlign: "top",
+        }}
+      >
+        <div>
+          {[...leftMetaFields, ...rightMetaFields].map(({ label, value }, idx) => (
+            <div key={label + idx} style={{ display: "flex", marginBottom: 2 }}>
+              <span style={{ fontWeight: "normal", minWidth: 130, whiteSpace: "nowrap", fontSize: 13 }}>
+                {label}
+              </span>
+              <span style={{ fontWeight: "bold", fontSize: 13 }}> : {value}</span>
+            </div>
+          ))}
+        </div>
+      </td>
+    </tr>
+  </tbody>
+</table>
+{/* ── BUYER + PAYMENT (2-column split) ── */}
+<table style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}>
+  <tbody>
+    <tr>
+      {/* Buyer - Left Column */}
+      <td
+        style={{
+          width: "50%",
+          borderRight: B,
+          padding: "6px 7px",
+          verticalAlign: "top",
+        }}
+      >
+        <div style={sectionHead}>Buyer (Bill to)</div>
+        <div style={{ fontWeight: "bold", fontSize: 16 }}>
+          {form.buyerName}
+        </div>
+        <div style={{ fontSize: 14 }}>{form.buyerAddress}</div>
+        {form.buyerPhone && <div style={{ fontSize: 14 }}>Ph: {form.buyerPhone}</div>}
+        {form.buyerGst && <div style={{ fontSize: 14 }}>GSTIN/UIN: {form.buyerGst}</div>}
+        <div style={{ fontSize: 14 }}>
+          State Name: {form.buyerState}, Code: {form.buyerStateCode}
+        </div>
+      </td>
+      
+      {/* Payment - Right Column */}
+      <td
+        style={{
+          padding: "6px 7px",
+          verticalAlign: "top",
+          width: "50%",
+        }}
+      >
+{buyerRightDetails.map(({ label, value }) => (
+          <div
+            key={label}
+            style={{ display: "flex", marginBottom: 2 }}
+          >
+            <span
+              style={{
+                fontWeight: "normal",
+                minWidth: 95,
+                whiteSpace: "nowrap",
+                fontSize: 14,
+              }}
+            >
+              {label}
+            </span>
+            <span style={{ fontWeight: "bold", fontSize: 14 }}>
+              {" "}
+              : {value}
+            </span>
+          </div>
+        ))}
+        {buyerRightDetails.length === 0 && (
+          <div
+            style={{
+              color: "#999",
+              fontSize: 12,
+              fontStyle: "italic",
+            }}
+          >
+            No additional details
+          </div>
+        )}
+      </td>
+    </tr>
+  </tbody>
+</table>
+     {/* ── BUYER + PAYMENT ── */}
 
-        {/* ── PRODUCT TABLE ── */}
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            tableLayout: "fixed",
-            borderBottom: B,
-          }}
-        >
+
+{/* ── PRODUCT TABLE ── */}
+        <div style={{ flex: 1 }}>
+       <table
+  style={{
+    width: "100%",
+    borderCollapse: "collapse",
+    tableLayout: "fixed",
+    borderTop: B,
+    borderBottom: B,
+  }}
+>
           <colgroup>
             <col style={{ width: "4%" }} />
-            <col style={{ width: "28%" }} />
+            <col style={{ width: "48%" }} />
             <col style={{ width: "8%" }} />
             <col style={{ width: "9%" }} />
             <col style={{ width: "11%" }} />
@@ -1863,16 +2130,19 @@ export default function TaxInvoice() {
             {rows.map((r, i) => (
               <tr key={i} className="inv-product-row">
                 <td style={dc({ textAlign: "center" })}>{i + 1}</td>
-                <td style={dc({ fontWeight: "bold" })}>{r.desc}</td>
-                <td style={dc({ textAlign: "center" })}>{r.hsn || "–"}</td>
-                <td style={dc({ textAlign: "center" })}>{fmt2(r.qty)}</td>
+              <td style={dc({ 
+  fontWeight: "bold",
+  fontSize: 18
+})}>{r.desc}</td>
+                <td style={dc({ textAlign: "center", fontWeight: "bold" })}>{r.hsn || "–"}</td>
+               <td style={dc({ textAlign: "center", fontWeight: "bold" })}>{fmt2(r.qty)}</td>
                 <td style={dc({ textAlign: "right" })}>{fmt2(r.rateIncl)}</td>
                 <td style={dc({ textAlign: "right" })}>{fmt2(r.rateExcl)}</td>
                 <td style={dc({ textAlign: "center" })}>{r.per}</td>
                 <td style={dc({ textAlign: "right" })}>{fmt2(r.taxableAmt)}</td>
               </tr>
             ))}
-            {Array.from({ length: MIN_ROWS }).map((_, i) => (
+{Array.from({ length: MIN_ROWS }).map((_, i) => (
               <tr key={`blank_${i}`} style={{ height: 18 }}>
                 {Array(8)
                   .fill(null)
@@ -1883,6 +2153,44 @@ export default function TaxInvoice() {
                   ))}
               </tr>
             ))}
+            
+            {(form.openBalance || form.closingBalance) && (
+              <tr>
+                <td colSpan={8} style={dc({ borderTop: "1px dashed #999", padding: "3px 7px" })}>
+                  {form.openBalance && (
+                    <div style={{ fontWeight: "bold", fontSize: dynFont + 2 }}>
+                      Open Balance: ₹ {fmt2(form.openBalance)}
+                    </div>
+                  )}
+                  {form.closingBalance && (
+                    <div style={{ fontWeight: "bold", fontSize: dynFont + 2 }}>
+                      Closing Balance: ₹ {fmt2(form.closingBalance)}
+                    </div>
+                  )}
+                </td>
+              </tr>
+            )}
+            <tr>
+  <td
+    colSpan={7}
+    style={dc({
+      textAlign: "right",
+      fontWeight: "bold",
+      borderTop: B,
+    })}
+  >
+    Total Taxable Amount
+  </td>
+  <td
+    style={dc({
+      textAlign: "right",
+      fontWeight: "bold",
+      borderTop: B,
+    })}
+  >
+    {fmt2(subtotal)}
+  </td>
+</tr>
             <tr>
               <td
                 colSpan={7}
@@ -1893,7 +2201,7 @@ export default function TaxInvoice() {
                   borderTop: B,
                 })}
               >
-                CGST TAX @ {cgstRate}%
+                CGST TAX
               </td>
               <td
                 style={dc({
@@ -1914,7 +2222,7 @@ export default function TaxInvoice() {
                   fontWeight: "bold",
                 })}
               >
-                SGST TAX @ {sgstRate}%
+                SGST TAX 
               </td>
               <td style={dc({ textAlign: "right", fontWeight: "bold" })}>
                 {fmt2(sgstAmt)}
@@ -1938,45 +2246,47 @@ export default function TaxInvoice() {
               </td>
             </tr>
             <tr style={{ background: "#f0f0f0" }}>
-              <td style={dc({ borderTop: B, borderBottom: B })}></td>
-              <td
-                style={dc({
-                  fontWeight: "bold",
-                  borderTop: B,
-                  borderBottom: B,
-                  fontSize: dynFont + 1,
-                })}
-              >
-                Total
-              </td>
-              <td style={dc({ borderTop: B, borderBottom: B })}></td>
-              <td
-                style={dc({
-                  textAlign: "center",
-                  fontWeight: "bold",
-                  borderTop: B,
-                  borderBottom: B,
-                })}
-              >
-                {fmt2(totalQty)}
-              </td>
-              <td style={dc({ borderTop: B, borderBottom: B })}></td>
-              <td style={dc({ borderTop: B, borderBottom: B })}></td>
-              <td style={dc({ borderTop: B, borderBottom: B })}></td>
-              <td
-                style={dc({
-                  textAlign: "right",
-                  fontWeight: "bold",
-                  borderTop: B,
-                  borderBottom: B,
-                  fontSize: dynFont + 1,
-                })}
-              >
-                ₹ {fmt2(subtotal)}
-              </td>
-            </tr>
+  <td style={dc({ borderTop: B, borderBottom: B })}></td>
+  <td
+    style={dc({
+      fontWeight: "bold",
+      borderTop: B,
+      borderBottom: B,
+      fontSize: dynFont + 1,
+    })}
+  >
+    Total
+  </td>
+  <td style={dc({ borderTop: B, borderBottom: B })}></td>
+  <td
+    style={dc({
+      textAlign: "center",
+      fontWeight: "bold",
+      borderTop: B,
+      borderBottom: B,
+      fontSize: dynFont + 1,
+    })}
+  >
+    {totalQty.toFixed(2)}
+  </td>
+  <td style={dc({ borderTop: B, borderBottom: B })}></td>
+  <td style={dc({ borderTop: B, borderBottom: B })}></td>
+  <td style={dc({ borderTop: B, borderBottom: B })}></td>
+  <td
+    style={dc({
+      textAlign: "right",
+      fontWeight: "bold",
+      borderTop: B,
+      borderBottom: B,
+      fontSize: dynFont + 3,
+    })}
+  >
+    ₹ {fmt2(netAmount)}
+  </td>
+</tr>
           </tbody>
         </table>
+        </div>
 
         {/* ── AMOUNT IN WORDS ── */}
         <table
@@ -1996,20 +2306,20 @@ export default function TaxInvoice() {
                 <span style={{ fontWeight: "bold" }}>
                   Amount Chargeable (in words):{" "}
                 </span>
-                <em>{amountInWords(netAmount)}</em>
+               <em style={{ fontWeight: "bold" }}>{amountInWords(netAmount)}</em>
               </td>
-              <td
-                style={{
-                  padding: "3px 7px",
-                  verticalAlign: "middle",
-                  textAlign: "right",
-                }}
-              >
-                <div style={{ fontSize: 17, fontWeight: "bold" }}>
-                  ₹ {fmt2(netAmount)}
-                </div>
-                <div style={{ fontSize: 9 }}>E. &amp; O.E</div>
-              </td>
+<td
+  style={{
+    padding: "3px 7px",
+    verticalAlign: "middle",
+    textAlign: "right",
+  }}
+>
+  <div style={{ fontSize: 2, fontWeight: "bold" }}>  {/* ← Changed from 17 to 20 */}
+    ₹ {fmt2(netAmount)}
+  </div>
+  <div style={{ fontSize: 10 }}>E. &amp; O.E</div>  {/* ← Changed from 9 to 10 */}
+</td>
             </tr>
           </tbody>
         </table>
@@ -2049,8 +2359,8 @@ export default function TaxInvoice() {
                   style={dhc({
                     textAlign: align,
                     whiteSpace: "pre-line",
-                    padding: "1px 4px",
-                    fontSize: 9,
+                     padding: "2px 6px",
+                     fontSize: 10,  
                   })}
                 >
                   {label}
@@ -2061,8 +2371,8 @@ export default function TaxInvoice() {
           <tbody>
             {Object.entries(hsnGroups).map(([hsn, d]) => (
               <tr key={hsn}>
-                <td style={dc({ textAlign: "center", fontSize: 10 })}>{hsn}</td>
-                <td style={dc({ textAlign: "right", fontSize: 10 })}>
+                <td style={dc({ textAlign: "center", fontSize: 11 })}>{hsn}</td>
+                <td style={dc({ textAlign: "right", fontSize: 11 })}>
                   {fmt2(d.taxableValue)}
                 </td>
                 <td style={dc({ textAlign: "center", fontSize: 10 })}>
@@ -2135,10 +2445,11 @@ export default function TaxInvoice() {
         {/* ── TAX IN WORDS ── */}
         <div style={{ padding: "2px 7px", borderBottom: B, fontSize: 10 }}>
           <strong>Tax Amount (in words):</strong>&nbsp;
-          <em>{amountInWords(totalTax)}</em>
+         <em style={{ fontWeight: "bold" }}>{amountInWords(totalTax)}</em>
         </div>
 
         {/* ── FOOTER ── */}
+        <div style={{ marginTop: "auto" }}>
         <table
           style={{ width: "100%", borderCollapse: "collapse" }}
           className="inv-footer"
@@ -2154,44 +2465,22 @@ export default function TaxInvoice() {
                   fontSize: 10,
                 }}
               >
-                <div style={{ fontWeight: "bold", marginBottom: 2 }}>
-                  Company's Bank Details
-                </div>
-                {[
-                  ["A/c Holder's Name", form.bankHolderName],
-                  ["Bank Name", form.bankName],
-                  ["A/c No.", form.bankAccountNo],
-                  [
-                    "Branch & IFS Code",
-                    `${form.bankBranch} & ${form.bankIfsc}`,
-                  ],
-                ].map(([k, v]) => (
-                  <div key={k} style={{ marginBottom: 1 }}>
-                    <strong>{k}</strong>: {v}
-                  </div>
-                ))}
-                {(form.openBalance || form.closingBalance) && (
-                  <div
-                    style={{
-                      marginTop: 4,
-                      borderTop: "1px dashed #999",
-                      paddingTop: 2,
-                    }}
-                  >
-                    {form.openBalance && (
-                      <div>
-                        <strong>Open Balance:</strong> ₹{" "}
-                        {fmt2(form.openBalance)}
-                      </div>
-                    )}
-                    {form.closingBalance && (
-                      <div>
-                        <strong>Closing Balance:</strong> ₹{" "}
-                        {fmt2(form.closingBalance)}
-                      </div>
-                    )}
-                  </div>
-                )}
+<div style={{ fontWeight: "bold", marginBottom: 2, fontSize: 15 }}>
+  Company's Bank Details
+</div>
+{[
+  ["A/c Holder's Name", form.bankHolderName],
+  ["Bank Name", form.bankName],
+  ["A/c No.", form.bankAccountNo],
+  [
+    "Branch & IFS Code",
+    `${form.bankBranch} & ${form.bankIfsc}`,
+  ],
+].map(([k, v]) => (
+  <div key={k} style={{ marginBottom: 2, fontSize: 12 }}>
+    <strong>{k}</strong>: {v}
+  </div>
+))}
               </td>
               <td style={{ padding: "4px 7px", verticalAlign: "top" }}>
                 <div style={{ fontSize: 9, marginBottom: 4 }}>
@@ -2239,6 +2528,7 @@ export default function TaxInvoice() {
             </tr>
           </tbody>
         </table>
+      </div>
       </div>
       {/* end invoice */}
 
