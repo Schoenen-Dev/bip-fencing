@@ -209,21 +209,43 @@ export default function Sidebar() {
             <i className="bi bi-cash-stack"></i>
             <span>Salary</span>
           </NavLink>
+          <NavLink
+            to="/attendance"
+            className={({ isActive }) =>
+              `nav-item-link nav-sub${isActive ? " active" : ""}`
+            }
+          >
+            <i className="bi bi-calendar-check"></i>
+            <span>Attendance</span>
+          </NavLink>
+          <NavLink
+            to="/ot"
+            className={({ isActive }) =>
+              `nav-item-link nav-sub${isActive ? " active" : ""}`
+            }
+          >
+            <i className="bi bi-clock-history"></i>
+            <span>OT</span>
+          </NavLink>
         </DropdownItem>
 
-        <div className="sb-section">CRM</div>
-        <NavLink
-          to="/clients"
-          onClick={handleSubNavClick}
-          className={({ isActive }) =>
-            `nav-item-link${isActive ? " active" : ""}`
-          }
-        >
-          <div className="nav-icon-wrap">
-            <i className="bi bi-person-lines-fill"></i>
-          </div>
-          <span>Clients</span>
-        </NavLink>
+        {role === "admin" && (
+          <>
+            <div className="sb-section">CRM</div>
+            <NavLink
+              to="/clients"
+              onClick={handleSubNavClick}
+              className={({ isActive }) =>
+                `nav-item-link${isActive ? " active" : ""}`
+              }
+            >
+              <div className="nav-icon-wrap">
+                <i className="bi bi-person-lines-fill"></i>
+              </div>
+              <span>Clients</span>
+            </NavLink>
+          </>
+        )}
       </nav>
 
       {/* Footer */}

@@ -23,6 +23,8 @@ import Products from "./pages/Products";
 import AdminFeatures from "./pages/AdminFeatures";
 import Employee_details from "./pages/Employee_details";
 import Salary from "./pages/Salary";
+import Attendance from "./pages/Attendance";
+import OT from "./pages/OT";
 
 // CRM
 import Clients from "./pages/Clients";
@@ -73,9 +75,18 @@ function AdminRoute({ children }) {
         />
         <Route path="employee-details" element={<Employee_details />} />
         <Route path="salary" element={<Salary />} />
+        <Route path="attendance" element={<Attendance />} />
+        <Route path="ot" element={<OT />} />
 
         {/* CRM */}
-        <Route path="clients" element={<Clients />} />
+        <Route
+          path="clients"
+          element={
+            <AdminRoute>
+              <Clients />
+            </AdminRoute>
+          }
+        />
       </Route>
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
