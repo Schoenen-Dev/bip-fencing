@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../utils/api";
 
 const BIP_LOGO_B64 =
@@ -810,6 +811,7 @@ const tdRight = { ...tdStyle, textAlign: "right" };
 // ── Main Component ────────────────────────────────────────────
 export default function Clients() {
   const isAdmin = getRole()?.toLowerCase() === "admin";
+  const navigate = useNavigate();
 
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1637,16 +1639,32 @@ export default function Clients() {
                                 <p className="mb-1 small fw-semibold text-success">
                                   ₹{fmt(inv.net_amount)}
                                 </p>
-                                <button
-                                  className="btn btn-outline-primary btn-sm py-0 px-2"
-                                  style={{ fontSize: "11px" }}
-                                  onClick={() =>
-                                    handleViewInvoice(inv.invoice_no)
-                                  }
-                                  disabled={viewLoading}
-                                >
-                                  {viewLoading ? "..." : "👁 View Bill"}
-                                </button>
+                                <div className="d-flex gap-1">
+                                  <button
+                                    className="btn btn-outline-primary btn-sm py-0 px-2"
+                                    style={{ fontSize: "11px" }}
+                                    onClick={() =>
+                                      handleViewInvoice(inv.invoice_no)
+                                    }
+                                    disabled={viewLoading}
+                                  >
+                                    {viewLoading ? "..." : "👁 View Bill"}
+                                  </button>
+                                  <button
+                                    className="btn btn-outline-success btn-sm py-0 px-2"
+                                    style={{ fontSize: "11px" }}
+                                    onClick={() =>
+                                      navigate("/tax-invoice", {
+                                        state: {
+                                          continueInvoiceNo: inv.invoice_no,
+                                        },
+                                      })
+                                    }
+                                    title="Add items from another branch to this same bill"
+                                  >
+                                    ➕ Continue
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           </div>

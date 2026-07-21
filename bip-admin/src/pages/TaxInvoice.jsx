@@ -2,6 +2,7 @@
 // ✅ Added role-based access control - Only Admin can access
 
 import React, { useState, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { apiFetch } from "../utils/api";
 
 const SESSION_KEY = "bip_tax_invoice_form";
@@ -30,6 +31,13 @@ const COPY_TYPES = [
   "ORIGINAL FOR RECIPIENT",
   "DUPLICATE FOR TRANSPORTER",
   "TRIPLICATE FOR SUPPLIER",
+];
+
+// Products live per-branch — a single invoice can pull items from any of these.
+const BRANCHES = [
+  { id: 1, name: "Branch A" },
+  { id: 2, name: "Branch B" },
+  { id: 3, name: "Branch C" },
 ];
 
 // Logo as base64 so no external file dependency
@@ -129,11 +137,14 @@ const formatDate = (d) => {
   });
 };
 const emptyProduct = () => ({
+  branchId: null,
+  productId: null,
   desc: "",
   hsn: "",
   qty: "",
   rateIncl: "",
   per: "NOS",
+  stockDeducted: false,
 });
 
 const DEFAULT_FORM = {
@@ -172,6 +183,65 @@ const DEFAULT_FORM = {
   bankIfsc: DEFAULT_BANK.ifsc,
   bankBranch: DEFAULT_BANK.branch,
 };
+
+// Map a saved invoice row (snake_case, from /client.php?invoice_no=) back into form state.
+const mapInvoiceToForm = (inv) => ({
+  copyType: inv.copy_type || DEFAULT_FORM.copyType,
+  invoiceNo: inv.invoice_no,
+  invoiceNoLocked: true,
+  invoiceDate: inv.invoice_date,
+  referenceNo: inv.reference_no || "",
+  buyersOrderNo: inv.buyers_order_no || "",
+  dated: inv.dated || "",
+  dispatchDocNo: inv.dispatch_doc_no || "",
+  deliveryNoteDate: inv.delivery_note_date || "",
+  dispatchedThrough: inv.dispatched_through || "",
+  destination: inv.destination || "",
+  billOfLading: inv.bill_of_lading || "",
+  motorVehicleNo: inv.motor_vehicle_no || "",
+  ewayRequired: inv.eway_required || "",
+  ewayNumber: inv.eway_number || "",
+  paymentMode: inv.payment_mode || DEFAULT_FORM.paymentMode,
+  consigneeName: inv.consignee_name || "",
+  consigneeAddress: inv.consignee_address || "",
+  consigneeState: inv.consignee_state || DEFAULT_FORM.consigneeState,
+  consigneeStateCode: inv.consignee_state_code || DEFAULT_FORM.consigneeStateCode,
+  buyerName: inv.buyer_name || "",
+  buyerAddress: inv.buyer_address || "",
+  buyerPhone: inv.buyer_phone || "",
+  buyerGst: inv.buyer_gst || "",
+  buyerState: inv.buyer_state || DEFAULT_FORM.buyerState,
+  buyerStateCode: inv.buyer_state_code || DEFAULT_FORM.buyerStateCode,
+  // Balance columns default to '0.00' in the DB even when the user never set
+  // one — treat zero the same as blank so the printed balance banner doesn't
+  // reappear for invoices that never had a real balance.
+  openBalance: inv.open_balance && Number(inv.open_balance) !== 0 ? inv.open_balance : "",
+  closingBalance: inv.closing_balance && Number(inv.closing_balance) !== 0 ? inv.closing_balance : "",
+  gstRate: inv.gst_rate ? Number(inv.gst_rate) : DEFAULT_FORM.gstRate,
+  bankHolderName: inv.bank_holder_name || DEFAULT_BANK.holderName,
+  bankName: inv.bank_name || DEFAULT_BANK.bankName,
+  bankAccountNo: inv.bank_account_no || DEFAULT_BANK.accountNo,
+  bankIfsc: inv.bank_ifsc || DEFAULT_BANK.ifsc,
+  bankBranch: inv.bank_branch || DEFAULT_BANK.branch,
+});
+
+// Map saved invoice_items rows back into product row state. These were already
+// stock-deducted when first saved, so they're marked deducted and skipped by
+// reduceStock — only newly added rows (from continuing at another branch) get
+// their stock taken off.
+const mapItemsToProducts = (items) =>
+  items && items.length
+    ? items.map((it) => ({
+        branchId: it.branch_id ? Number(it.branch_id) : null,
+        productId: null,
+        desc: it.description || "",
+        hsn: it.hsn || "",
+        qty: it.qty,
+        rateIncl: it.rate_incl,
+        per: it.per || "NOS",
+        stockDeducted: true,
+      }))
+    : [emptyProduct()];
 
 // ─── PRINT STYLES ─────────────────────────────────────────────────────────────
 const printStyles = `
@@ -237,12 +307,23 @@ const sectionHead = {
 
 // ═════════════════════════════════════════════════════════════════════════════
 export default function TaxInvoice() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  // Captured once at mount — set when arriving via the Clients page "Continue" button.
+  const [continueInvoiceNo] = useState(
+    () => location.state?.continueInvoiceNo || null,
+  );
+
   const [step, setStep] = useState(1);
-  const [savedProducts, setSavedProducts] = useState([]);
+  const [productsByBranch, setProductsByBranch] = useState({});
   const [stockReduced, setStockReduced] = useState(false);
   const [stockReducing, setStockReducing] = useState(false);
   const [isAdmin, setIsAdmin] = useState(null); // null = loading, true = admin, false = not admin
   const [loading, setLoading] = useState(true);
+  const [loadingExistingInvoice, setLoadingExistingInvoice] = useState(
+    !!continueInvoiceNo,
+  );
+  const [existingInvoiceError, setExistingInvoiceError] = useState(null);
 
   // ── Check user role on mount ───────────────────────────────────────────────
   useEffect(() => {
@@ -265,7 +346,9 @@ export default function TaxInvoice() {
   }, []);
 
   // ── Load persisted form from sessionStorage on mount ──────────────────────
+  // (skipped when continuing an existing invoice — that's loaded from the server instead)
   const [form, setForm] = useState(() => {
+    if (continueInvoiceNo) return { ...DEFAULT_FORM };
     try {
       const saved = sessionStorage.getItem(SESSION_KEY);
       if (saved) {
@@ -277,6 +360,7 @@ export default function TaxInvoice() {
   });
 
   const [products, setProducts] = useState(() => {
+    if (continueInvoiceNo) return [emptyProduct()];
     try {
       const saved = sessionStorage.getItem(SESSION_KEY);
       if (saved) {
@@ -336,28 +420,61 @@ export default function TaxInvoice() {
   }, [form, products]);
 
   useEffect(() => {
-    fetchSavedProducts();
+    BRANCHES.forEach((b) => fetchProductsForBranch(b.id));
   }, []);
 
   // Only peek a fresh number if this draft hasn't already reserved one.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (!form.invoiceNoLocked) fetchInvoiceNoPeek();
+    if (!form.invoiceNoLocked && !continueInvoiceNo) fetchInvoiceNoPeek();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function fetchSavedProducts() {
+  // ── Continuing an existing invoice (via Clients page "Continue") ───────────
+  useEffect(() => {
+    if (!continueInvoiceNo) return;
+    (async () => {
+      try {
+        const res = await apiFetch(
+          `/client.php?invoice_no=${encodeURIComponent(continueInvoiceNo)}`,
+        );
+        const data = await res.json();
+        if (!data.success || !data.invoice) {
+          setExistingInvoiceError(
+            data.message || "Could not load that invoice.",
+          );
+          setLoadingExistingInvoice(false);
+          return;
+        }
+        const inv = data.invoice;
+        setForm({ ...DEFAULT_FORM, ...mapInvoiceToForm(inv) });
+        setProducts(mapItemsToProducts(inv.items));
+        setBranchInfo({ loading: false, branchId: inv.branch_id, error: null });
+        setStockReduced(true); // loaded items were already deducted when first saved
+      } catch (_) {
+        setExistingInvoiceError("Could not reach the server for that invoice.");
+      } finally {
+        setLoadingExistingInvoice(false);
+        // Clear the hand-off state so refresh/back doesn't redo this fetch.
+        navigate(location.pathname, { replace: true, state: {} });
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function fetchProductsForBranch(branchId) {
     try {
-     const res = await apiFetch("/products.php");
+      const res = await apiFetch("/products.php", { branchId });
 
-     if (!res.ok) return;
+      if (!res.ok) return;
 
-     const data = await res.json();
-      setSavedProducts(
-        data.map((p) => ({
+      const data = await res.json();
+      setProductsByBranch((prev) => ({
+        ...prev,
+        [branchId]: data.map((p) => ({
           id: p.id,
           productName: p.product_name,
-          sku: p.sku,
+          hsn: p.hsn,
           category: p.category,
           unit: p.unit,
           sellingPrice: p.selling_price,
@@ -366,7 +483,7 @@ export default function TaxInvoice() {
           description: p.description,
           _raw: p,
         })),
-      );
+      }));
     } catch (_) {}
   }
 
@@ -388,12 +505,30 @@ export default function TaxInvoice() {
     });
   };
 
-  const handleProductSelect = (idx, productName) => {
-  if (!productName) {
+  const handleBranchSelect = (idx, branchId) => {
+    setProducts((prev) => {
+      const updated = [...prev];
+      updated[idx] = {
+        ...updated[idx],
+        branchId: branchId ? Number(branchId) : null,
+        productId: null,
+        desc: "",
+        hsn: "",
+        rateIncl: "",
+      };
+      return updated;
+    });
+  };
+
+  const handleProductSelect = (idx, productId) => {
+  if (!productId) {
     handleProduct(idx, "desc", "");
     return;
   }
-  const found = savedProducts.find((p) => p.productName === productName);
+  const branchId = products[idx]?.branchId;
+  const found = (productsByBranch[branchId] || []).find(
+    (p) => String(p.id) === String(productId),
+  );
   if (!found) return;
   const unitMap = {
     "Pcs": "PCS",
@@ -418,10 +553,11 @@ export default function TaxInvoice() {
     const updated = [...prev];
     updated[idx] = {
       ...updated[idx],
+      productId: found.id,
       desc: found.productName,
       rateIncl: found.sellingPrice || "",
       per: unitMap[found.unit] || found.unit || "NOS",
-      hsn: found.sku || "",
+      hsn: found.hsn || "",
     };
     return updated;
   });
@@ -439,6 +575,7 @@ export default function TaxInvoice() {
     if (!form.invoiceDate) e.invoiceDate = "Required";
     if (!form.buyerName.trim()) e.buyerName = "Required";
     products.forEach((p, i) => {
+      if (!p.branchId) e[`branch_${i}`] = "Required";
       if (!p.desc.trim()) e[`desc_${i}`] = "Required";
       if (!p.qty || isNaN(p.qty) || Number(p.qty) <= 0)
         e[`qty_${i}`] = "Invalid";
@@ -478,20 +615,51 @@ export default function TaxInvoice() {
     hsnGroups[key].sgst += r.taxableAmt * (sgstRate / 100);
   });
 
+  // Safe to call every time Preview is clicked, including when continuing an
+  // already-saved bill at a different branch — rows already deducted (from an
+  // earlier Preview) are skipped, only newly added rows get stock taken off.
   const reduceStock = async () => {
     setStockReducing(true);
     try {
-      const res = await apiFetch("/products.php");
-      if (!res.ok) throw new Error("Failed to fetch products");
-      const dbProducts = await res.json();
-      let anyReduced = false;
-      for (const invoiceItem of products) {
+      const pendingIndexes = products
+        .map((p, idx) => idx)
+        .filter((idx) => {
+          const p = products[idx];
+          const usedQty = parseFloat(p.qty);
+          return (
+            !p.stockDeducted &&
+            p.branchId &&
+            p.productId &&
+            usedQty &&
+            usedQty > 0
+          );
+        });
+
+      if (pendingIndexes.length === 0) {
+        setStockReducing(false);
+        return false;
+      }
+
+      // Items can come from different branches — fetch each touched branch's
+      // fresh product list (with the matching X-Branch-ID) rather than
+      // relying on whichever branch the admin currently has selected.
+      const branchIds = [
+        ...new Set(pendingIndexes.map((idx) => products[idx].branchId)),
+      ];
+
+      const dbProductsByBranch = {};
+      for (const branchId of branchIds) {
+        const res = await apiFetch("/products.php", { branchId });
+        if (!res.ok) throw new Error("Failed to fetch products");
+        dbProductsByBranch[branchId] = await res.json();
+      }
+
+      const deductedIndexes = [];
+      for (const idx of pendingIndexes) {
+        const invoiceItem = products[idx];
         const usedQty = parseFloat(invoiceItem.qty);
-        if (!invoiceItem.desc.trim() || !usedQty || usedQty <= 0) continue;
-        const match = dbProducts.find(
-          (p) =>
-            p.product_name.trim().toLowerCase() ===
-            invoiceItem.desc.trim().toLowerCase(),
+        const match = (dbProductsByBranch[invoiceItem.branchId] || []).find(
+          (p) => String(p.id) === String(invoiceItem.productId),
         );
         if (!match) continue;
         const currentStock = parseFloat(match.stock_qty) || 0;
@@ -503,30 +671,35 @@ export default function TaxInvoice() {
           return false;
         }
         const newStock = currentStock - usedQty;
-       const updateRes = await apiFetch(`/products.php?id=${match.id}`, {
-         method: "PUT",
-         body: JSON.stringify({
-           productName: match.product_name,
-           sku: match.sku,
-           category: match.category,
-           unit: match.unit,
-           sellingPrice: match.selling_price,
-           stockQty: newStock,
-           minStock: match.min_stock,
-           description: match.description,
-         }),
-       });
+        const updateRes = await apiFetch(`/products.php?id=${match.id}`, {
+          method: "PUT",
+          branchId: invoiceItem.branchId,
+          body: JSON.stringify({
+            productName: match.product_name,
+            hsn: match.hsn,
+            category: match.category,
+            unit: match.unit,
+            sellingPrice: match.selling_price,
+            stockQty: newStock,
+            minStock: match.min_stock,
+            description: match.description,
+          }),
+        });
 
-       if (!updateRes.ok)
-         if (!updateRes.ok)
-           throw new Error(
-             `Failed to update stock for "${match.product_name}"`,
-           );
-        anyReduced = true;
+        if (!updateRes.ok)
+          throw new Error(`Failed to update stock for "${match.product_name}"`);
+        deductedIndexes.push(idx);
       }
+
+      const anyReduced = deductedIndexes.length > 0;
       if (anyReduced) {
+        setProducts((prev) =>
+          prev.map((p, idx) =>
+            deductedIndexes.includes(idx) ? { ...p, stockDeducted: true } : p,
+          ),
+        );
         setStockReduced(true);
-        await fetchSavedProducts();
+        await Promise.all(branchIds.map((id) => fetchProductsForBranch(id)));
       }
       setStockReducing(false);
       return anyReduced;
@@ -577,7 +750,7 @@ export default function TaxInvoice() {
       }
     }
 
-    if (!stockReduced) await reduceStock();
+    await reduceStock();
     try {
       const payload = {
         invoice_no: invoiceNoToUse,
@@ -622,6 +795,7 @@ export default function TaxInvoice() {
         bank_ifsc: form.bankIfsc,
         bank_branch: form.bankBranch,
         items: rows.map((r) => ({
+          branch_id: r.branchId,
           desc: r.desc,
           hsn: r.hsn,
           qty: r.qty,
@@ -711,6 +885,40 @@ export default function TaxInvoice() {
             onClick={() => window.location.href = "/dashboard"}
           >
             Go to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Show loading state while pulling in a "Continue" invoice ───────────────
+  if (loadingExistingInvoice) {
+    return (
+      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "60vh" }}>
+        <div className="text-center">
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="mt-2">Loading invoice {continueInvoiceNo}…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (existingInvoiceError) {
+    return (
+      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "60vh" }}>
+        <div className="text-center">
+          <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
+          <h2 className="text-danger">Couldn't load invoice</h2>
+          <p className="text-muted" style={{ fontSize: 14 }}>
+            {existingInvoiceError}
+          </p>
+          <button
+            className="btn btn-primary mt-3"
+            onClick={() => setExistingInvoiceError(null)}
+          >
+            Start a New Invoice Instead
           </button>
         </div>
       </div>
@@ -1107,19 +1315,14 @@ export default function TaxInvoice() {
               >
                 Products — Enter Rate Inclusive of Tax
               </h6>
-              {savedProducts.length > 0 && (
-                <div
-                  className="alert alert-info py-2 px-3 mb-2"
-                  style={{ fontSize: 12 }}
-                >
-                  💡{" "}
-                  <strong>
-                    {savedProducts.length} product
-                    {savedProducts.length !== 1 ? "s" : ""}
-                  </strong>{" "}
-                  available. Select from dropdown.
-                </div>
-              )}
+              <div
+                className="alert alert-info py-2 px-3 mb-2"
+                style={{ fontSize: 12 }}
+              >
+                💡 Pick a <strong>Branch</strong> for each row first — items
+                can come from Branch A, B and C on the same invoice. Once a
+                branch is chosen, its product list appears in Description.
+              </div>
               <div className="table-responsive mb-2">
                 <table
                   className="table table-bordered table-sm align-middle mb-0"
@@ -1128,6 +1331,7 @@ export default function TaxInvoice() {
                   <thead className="table-dark">
                     <tr>
                       <th style={{ width: 32 }}>#</th>
+                      <th style={{ width: 110 }}>Branch</th>
                       <th>Description</th>
                       <th style={{ width: 85 }}>HSN/SAC</th>
                       <th style={{ width: 75 }}>Qty</th>
@@ -1137,19 +1341,50 @@ export default function TaxInvoice() {
                       <th style={{ width: 105 }}>Taxable Value</th>
                       <th style={{ width: 38 }}></th>
                     </tr>
-                  </thead>  
+                  </thead>
                   <tbody>
                     {products.map((p, i) => {
                       const q = parseFloat(p.qty) || 0;
                       const ri = parseFloat(p.rateIncl) || 0;
                       const re = ri / (1 + gstRate / 100);
                       const ta = re * q;
+                      const branchProducts = productsByBranch[p.branchId] || [];
                       return (
                         <tr key={i}>
                           <td className="text-center">{i + 1}</td>
                           <td>
+                            <select
+                              className="form-select form-select-sm"
+                              style={{
+                                borderColor: errors[`branch_${i}`]
+                                  ? "#dc3545"
+                                  : undefined,
+                                cursor: "pointer",
+                              }}
+                              value={p.branchId || ""}
+                              onChange={(e) =>
+                                handleBranchSelect(i, e.target.value)
+                              }
+                            >
+                              <option value="">— Branch —</option>
+                              {BRANCHES.map((b) => (
+                                <option key={b.id} value={b.id}>
+                                  {b.name}
+                                </option>
+                              ))}
+                            </select>
+                            {errors[`branch_${i}`] && (
+                              <div
+                                className="text-danger"
+                                style={{ fontSize: 11 }}
+                              >
+                                {errors[`branch_${i}`]}
+                              </div>
+                            )}
+                          </td>
+                          <td>
   <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-    {savedProducts.length > 0 ? (
+    {p.branchId ? (
       <select
         className="form-select form-select-sm"
         style={{
@@ -1159,22 +1394,24 @@ export default function TaxInvoice() {
           minHeight: "31px",
           cursor: "pointer",
         }}
-        value={p.desc || ""}
+        value={p.productId || ""}
         onChange={(e) => handleProductSelect(i, e.target.value)}
       >
-        <option value="">— Select Product —</option>
-        {savedProducts.map((sp) => (
-          <option key={sp.id} value={sp.productName}>
-            {sp.productName} 
+        <option value="">
+          {!p.productId && p.desc ? p.desc : "— Select Product —"}
+        </option>
+        {branchProducts.map((sp) => (
+          <option key={sp.id} value={sp.id}>
+            {sp.productName}
           </option>
         ))}
       </select>
     ) : (
       <input
         className="form-control form-control-sm"
-        value={p.desc}
-        placeholder="Loading products..."
-        onChange={(e) => handleProduct(i, "desc", e.target.value)}
+        value=""
+        placeholder="Select a branch first"
+        disabled
         style={{
           borderColor: errors[`desc_${i}`] ? "#dc3545" : undefined,
         }}

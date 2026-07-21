@@ -932,3 +932,18 @@ ALTER TABLE `purchase_stock`
 -- -------------------------------------------------------------
 UPDATE `purchase_stock` SET `current_stock` = 0 WHERE `current_stock` < 0;
 UPDATE `purchase_stock` SET `total_purchased` = 0 WHERE `total_purchased` < 0;
+
+-- =============================================================
+-- schema_updates_invoice_items_branch.sql
+-- Run this ONCE on the existing `bipfencing` database.
+-- Tags each invoice line item with the branch it was sourced
+-- from, so one tax invoice can bundle products taken from
+-- multiple branches for the same client.
+-- =============================================================
+
+USE `bipfencing`;
+
+ALTER TABLE `invoice_items`
+  ADD COLUMN `branch_id` INT(10) UNSIGNED DEFAULT NULL AFTER `invoice_id`,
+  ADD KEY `idx_ii_branch` (`branch_id`),
+  ADD CONSTRAINT `fk_invoice_items_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE SET NULL;

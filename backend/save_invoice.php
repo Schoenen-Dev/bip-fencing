@@ -258,11 +258,12 @@ if ($existing) {
 
 // ── Step 3: Insert line items ─────────────────────────────────
 $iStmt = $conn->prepare("
-    INSERT INTO invoice_items (invoice_id, description, hsn, qty, per, rate_incl, rate_excl, taxable_amt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO invoice_items (invoice_id, branch_id, description, hsn, qty, per, rate_incl, rate_excl, taxable_amt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 ");
 
 foreach ($data['items'] as $item) {
+    $item_branch_id = isset($item['branch_id']) && $item['branch_id'] !== '' ? (int)$item['branch_id'] : null;
     $desc      = trim($item['desc']          ?? '');
     $hsn       = trim($item['hsn']           ?? '');
     $qty       = floatval($item['qty']        ?? 0);
@@ -273,7 +274,7 @@ foreach ($data['items'] as $item) {
 
     if (!$desc || $qty <= 0) continue;
 
-    $iStmt->bind_param('issdsddd', $invoice_id, $desc, $hsn, $qty, $per, $rate_incl, $rate_excl, $taxable);
+    $iStmt->bind_param('iissdsddd', $invoice_id, $item_branch_id, $desc, $hsn, $qty, $per, $rate_incl, $rate_excl, $taxable);
     $iStmt->execute();
 }
 $iStmt->close();

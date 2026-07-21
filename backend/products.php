@@ -287,7 +287,10 @@ if ($method === 'PUT') {
     $stmt->bind_param('ssssddissi', $productName, $hsn, $unit, $productDate, $factoryPrice, $sellingPrice, $stockQty, $minStock, $description, $id);
 
     try {
-        $stmt->execute();
+        if (!$stmt->execute()) {
+            if ($conn->errno == 1062) respond(409, ['error' => 'HSN already exists']);
+            respond(500, ['error' => 'Update failed: ' . $conn->error]);
+        }
     } catch (mysqli_sql_exception $e) {
         if ($e->getCode() == 1062) respond(409, ['error' => 'HSN already exists']);
         respond(500, ['error' => $e->getMessage()]);
