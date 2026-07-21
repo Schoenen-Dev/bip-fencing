@@ -370,7 +370,7 @@ CREATE TABLE `quotation_items` (
   `id` int(10) UNSIGNED NOT NULL,
   `quotation_id` int(10) UNSIGNED NOT NULL,
   `description` text COLLATE utf8mb4_unicode_ci NOT NULL,
-  `hsn` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `hsn` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,  
   `due_on` date DEFAULT NULL,
   `unit` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT 'Nos',
   `quantity` decimal(12,2) NOT NULL,
