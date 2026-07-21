@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { apiFetch } from "../utils/api";
 
-
 const getHeaders = () => {
   const headers = {
     Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -32,12 +31,24 @@ const AdminFeatures = () => {
     total_entries: 0,
     current_month_amount: 0,
     current_week_amount: 0,
+    current_year_amount: 0,
   });
+  // NEW: holds a Total Amount breakdown per year, e.g. [{ year: 2026, amount: 115678, count: 4 }, ...]
+  const [yearlyHistory, setYearlyHistory] = useState([]);
+
+  const getTodayYMD = () => {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
   const [formData, setFormData] = useState({
     branch_id: "",
     branch_name: "",
     amount: "",
-    payment_date: "",
+    payment_date: getTodayYMD(),
     note: "",
     received_by: "",
   });
@@ -60,6 +71,10 @@ const AdminFeatures = () => {
   });
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
+
+  // NEW: which section tab is active — matches the Employee page pattern.
+  // Order requested: Branch Amount Records -> Add Branch Amount -> Yearly Amount History
+  const [activeTab, setActiveTab] = useState("records");
 
   const role = localStorage.getItem("role");
   const isBranchSelected =
@@ -102,21 +117,47 @@ const AdminFeatures = () => {
       startOfWeek.setDate(now.getDate() - now.getDay());
       const endOfWeek = new Date(startOfWeek);
       endOfWeek.setDate(startOfWeek.getDate() + 6);
+
       let currentMonthAmount = 0,
         currentWeekAmount = 0;
+
+      // NEW: aggregate every record into its calendar year so we can
+      // 1) show "Total Amount" for the CURRENT year only (auto-resets on Jan 1)
+      // 2) keep a full history of totals for every previous year
+      const yearlyMap = {};
+
       fetchedRecords.forEach((rec) => {
         const amt = parseFloat(rec.amount) || 0;
         const d = new Date(rec.payment_date);
+        const y = d.getFullYear();
+
         if (d.getFullYear() === currentYear && d.getMonth() === currentMonth)
           currentMonthAmount += amt;
         if (d >= startOfWeek && d <= endOfWeek) currentWeekAmount += amt;
+
+        if (!yearlyMap[y]) yearlyMap[y] = { amount: 0, count: 0 };
+        yearlyMap[y].amount += amt;
+        yearlyMap[y].count += 1;
       });
+
+      const yearlyHistoryArr = Object.keys(yearlyMap)
+        .map((y) => ({
+          year: parseInt(y, 10),
+          amount: yearlyMap[y].amount,
+          count: yearlyMap[y].count,
+        }))
+        .sort((a, b) => b.year - a.year);
+
+      const currentYearAmount = yearlyMap[currentYear]?.amount || 0;
+
       setRecords(fetchedRecords);
+      setYearlyHistory(yearlyHistoryArr);
       setStats({
         total_amount: parseFloat(data.stats?.total_amount) || 0,
         total_entries: data.stats?.total_entries || 0,
         current_month_amount: currentMonthAmount,
         current_week_amount: currentWeekAmount,
+        current_year_amount: currentYearAmount,
       });
     } catch (err) {
       setError(err.message);
@@ -160,7 +201,7 @@ const AdminFeatures = () => {
         setFormData((prev) => ({
           ...prev,
           amount: "",
-          payment_date: "",
+          payment_date: getTodayYMD(),
           note: "",
           received_by: "",
         }));
@@ -234,12 +275,12 @@ const AdminFeatures = () => {
   const handleDelete = async () => {
     if (!deleteConfirm) return;
     try {
-     const response = await apiFetch(
-       `/admin/admin_feature_delete_branch_amount.php?id=${deleteConfirm}`,
-       {
-         method: "DELETE",
-       },
-     );
+      const response = await apiFetch(
+        `/admin/admin_feature_delete_branch_amount.php?id=${deleteConfirm}`,
+        {
+          method: "DELETE",
+        },
+      );
       const result = await response.json();
       if (response.ok) {
         showToast(result.message);
@@ -305,10 +346,15 @@ const AdminFeatures = () => {
     });
   };
 
+  const thisYear = new Date().getFullYear();
+
   const statCards = [
     {
-      label: "Total Amount",
-      value: inr(stats.total_amount),
+      // CHANGED: was the all-time cumulative total_amount from the backend.
+      // Now shows only the CURRENT year's total, so it automatically resets
+      // to 0 the moment a new year begins — no manual reset needed.
+      label: `Total Amount (${thisYear})`,
+      value: inr(stats.current_year_amount),
       icon: "bi-cash-stack",
       color: "#15803d",
       bg: "#dcfce7",
@@ -388,290 +434,381 @@ const AdminFeatures = () => {
         ))}
       </div>
 
-      {/* Branch warning */}
-      {!isBranchSelected && role === "admin" && (
-        <div className="af-alert">
-          <i className="bi bi-exclamation-triangle-fill"></i>
-          Please select a specific branch (Branch A, B, or C) from the topbar to
-          add an amount.
-        </div>
-      )}
-
-      {/* Add Form */}
-      {isBranchSelected && (
-        <div className="af-card">
-          <div className="af-card__head">
-            <i className="bi bi-plus-circle"></i>
-            <span>Add Branch Amount</span>
-          </div>
-          <form onSubmit={handleSubmit}>
-            <div className="af-form-grid">
-              <FieldInput label="Branch Name" required>
-                <input
-                  className="af-input"
-                  type="text"
-                  name="branch_name"
-                  value={formData.branch_name}
-                  readOnly
-                  style={{ background: "#f8fafc", cursor: "not-allowed" }}
-                />
-              </FieldInput>
-              <FieldInput label="Amount" required>
-                <input
-                  className="af-input"
-                  type="number"
-                  name="amount"
-                  placeholder="0.00"
-                  value={formData.amount}
-                  onChange={handleChange}
-                  required
-                />
-              </FieldInput>
-              <FieldInput label="Date" required>
-                <input
-                  className="af-input"
-                  type="date"
-                  name="payment_date"
-                  value={formData.payment_date}
-                  onChange={handleChange}
-                  required
-                />
-              </FieldInput>
-              <FieldInput label="Received By">
-                <input
-                  className="af-input"
-                  type="text"
-                  name="received_by"
-                  placeholder="Person who received"
-                  value={formData.received_by}
-                  onChange={handleChange}
-                />
-              </FieldInput>
-              <div className="af-fg af-fg--full">
-                <label className="af-label">Note</label>
-                <input
-                  className="af-input"
-                  type="text"
-                  name="note"
-                  placeholder="Optional note…"
-                  value={formData.note}
-                  onChange={handleChange}
-                />
-              </div>
-            </div>
-            {error && <div className="af-error">{error}</div>}
-            <div className="af-form-actions">
-              <button type="submit" className="af-btn af-btn--primary">
-                <i className="bi bi-check-circle"></i> Save Amount
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Records */}
-      <div className="af-card">
-        <div className="af-card__head">
+      {/* NEW: Tab navigation — same pattern as the Employee page (icon + label,
+          active tab gets a green underline, badge shows a live count). */}
+      <div className="af-tabs">
+        <button
+          type="button"
+          className={`af-tab${activeTab === "records" ? " af-tab--active" : ""}`}
+          onClick={() => setActiveTab("records")}
+        >
           <i className="bi bi-table"></i>
           <span>Branch Amount Records</span>
-          <span className="af-count">{totalFiltered} records</span>
-        </div>
+          <span className="af-tab__badge">{totalFiltered}</span>
+        </button>
+        <button
+          type="button"
+          className={`af-tab${activeTab === "add" ? " af-tab--active" : ""}`}
+          onClick={() => setActiveTab("add")}
+        >
+          <i className="bi bi-plus-circle"></i>
+          <span>Add Branch Amount</span>
+        </button>
+        <button
+          type="button"
+          className={`af-tab${activeTab === "history" ? " af-tab--active" : ""}`}
+          onClick={() => setActiveTab("history")}
+        >
+          <i className="bi bi-bar-chart-line"></i>
+          <span>Yearly Amount History</span>
+          <span className="af-tab__badge">{yearlyHistory.length}</span>
+        </button>
+      </div>
 
-        {/* Filters */}
-        <div className="af-filters">
-          <div className="af-fgrp">
-            <i className="bi bi-search af-ficon"></i>
+      {/* TAB 1: Branch Amount Records */}
+      {activeTab === "records" && (
+        <div className="af-card">
+          <div className="af-card__head">
+            <i className="bi bi-table"></i>
+            <span>Branch Amount Records</span>
+            <span className="af-count">{totalFiltered} records</span>
+          </div>
+
+          {/* Filters */}
+          <div className="af-filters">
+            <div className="af-fgrp">
+              <i className="bi bi-search af-ficon"></i>
+              <input
+                className="af-finput af-finput--icon"
+                type="text"
+                name="branch_name"
+                placeholder="Branch name…"
+                value={filters.branch_name}
+                onChange={handleFilterChange}
+              />
+            </div>
             <input
-              className="af-finput af-finput--icon"
-              type="text"
-              name="branch_name"
-              placeholder="Branch name…"
-              value={filters.branch_name}
+              className="af-finput"
+              type="number"
+              name="amount_min"
+              placeholder="Min amount"
+              value={filters.amount_min}
               onChange={handleFilterChange}
             />
-          </div>
-          <input
-            className="af-finput"
-            type="number"
-            name="amount_min"
-            placeholder="Min amount"
-            value={filters.amount_min}
-            onChange={handleFilterChange}
-          />
-          <input
-            className="af-finput"
-            type="number"
-            name="amount_max"
-            placeholder="Max amount"
-            value={filters.amount_max}
-            onChange={handleFilterChange}
-          />
-          <input
-            className="af-finput"
-            type="date"
-            name="date_from"
-            value={filters.date_from}
-            onChange={handleFilterChange}
-            title="From date"
-          />
-          <input
-            className="af-finput"
-            type="date"
-            name="date_to"
-            value={filters.date_to}
-            onChange={handleFilterChange}
-            title="To date"
-          />
-          <div className="af-fgrp">
-            <i className="bi bi-person af-ficon"></i>
             <input
-              className="af-finput af-finput--icon"
-              type="text"
-              name="received_by"
-              placeholder="Received by…"
-              value={filters.received_by}
+              className="af-finput"
+              type="number"
+              name="amount_max"
+              placeholder="Max amount"
+              value={filters.amount_max}
               onChange={handleFilterChange}
             />
+            <input
+              className="af-finput"
+              type="date"
+              name="date_from"
+              value={filters.date_from}
+              onChange={handleFilterChange}
+              title="From date"
+            />
+            <input
+              className="af-finput"
+              type="date"
+              name="date_to"
+              value={filters.date_to}
+              onChange={handleFilterChange}
+              title="To date"
+            />
+            <div className="af-fgrp">
+              <i className="bi bi-person af-ficon"></i>
+              <input
+                className="af-finput af-finput--icon"
+                type="text"
+                name="received_by"
+                placeholder="Received by…"
+                value={filters.received_by}
+                onChange={handleFilterChange}
+              />
+            </div>
           </div>
-        </div>
 
-        {loading ? (
-          <div className="af-loading">
-            <div className="af-spinner"></div>
-            <span>Loading records…</span>
+          {loading ? (
+            <div className="af-loading">
+              <div className="af-spinner"></div>
+              <span>Loading records…</span>
+            </div>
+          ) : error ? (
+            <div className="af-error">{error}</div>
+          ) : (
+            <>
+              <div className="af-table-wrap">
+                <table className="af-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Branch</th>
+                      <th>Amount</th>
+                      <th>Date</th>
+                      <th>Time</th>
+                      <th>Received By</th>
+                      <th>Note</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedRecords.length > 0 ? (
+                      paginatedRecords.map((rec, idx) => (
+                        <tr key={rec.id} className="af-tr">
+                          <td className="af-td--num">{startIndex + idx + 1}</td>
+                          <td>
+                            <span className="af-branch-tag">
+                              {rec.branch_name}
+                            </span>
+                          </td>
+                          <td>
+                            <span className="af-amount">{inr(rec.amount)}</span>
+                          </td>
+                          <td>
+                            <span className="af-date">
+                              {formatDate(rec.payment_date)}
+                            </span>
+                          </td>
+                          <td>
+                            <span className="af-time">
+                              {formatTime(rec.created_at)}
+                            </span>
+                          </td>
+                          <td>
+                            {rec.received_by || (
+                              <span className="af-nil">—</span>
+                            )}
+                          </td>
+                          <td>
+                            {rec.note ? (
+                              <span className="af-note">{rec.note}</span>
+                            ) : (
+                              <span className="af-nil">—</span>
+                            )}
+                          </td>
+                          <td>
+                            <div className="af-actions">
+                              <button
+                                className="af-act af-act--edit"
+                                onClick={() => handleEdit(rec)}
+                                title="Edit"
+                              >
+                                <i className="bi bi-pencil-fill"></i>
+                              </button>
+                              <button
+                                className="af-act af-act--del"
+                                onClick={() => setDeleteConfirm(rec.id)}
+                                title="Delete"
+                              >
+                                <i className="bi bi-trash-fill"></i>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="8">
+                          <div className="af-empty">
+                            <i className="bi bi-inbox"></i>
+                            <p>No records found</p>
+                            <span>Try adjusting your filters</span>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {totalFiltered > 0 && (
+                <div className="af-pagination">
+                  <div className="af-pg-left">
+                    <span>Show</span>
+                    <select
+                      className="af-pg-select"
+                      value={rowsPerPage}
+                      onChange={(e) => {
+                        setRowsPerPage(parseInt(e.target.value));
+                        setCurrentPage(1);
+                      }}
+                    >
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                      <option value={-1}>All</option>
+                    </select>
+                    <span>entries per page</span>
+                  </div>
+                  {rowsPerPage !== -1 && (
+                    <div className="af-pg-right">
+                      <span className="af-pg-info">
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <button
+                        className="af-pg-btn"
+                        disabled={currentPage === 1}
+                        onClick={() => setCurrentPage((p) => p - 1)}
+                      >
+                        <i className="bi bi-chevron-left"></i> Previous
+                      </button>
+                      <button
+                        className="af-pg-btn"
+                        disabled={currentPage === totalPages}
+                        onClick={() => setCurrentPage((p) => p + 1)}
+                      >
+                        Next <i className="bi bi-chevron-right"></i>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* TAB 2: Add Branch Amount */}
+      {activeTab === "add" && (
+        <>
+          {!isBranchSelected && role === "admin" && (
+            <div className="af-alert">
+              <i className="bi bi-exclamation-triangle-fill"></i>
+              Please select a specific branch (Branch A, B, or C) from the
+              topbar to add an amount.
+            </div>
+          )}
+
+          {isBranchSelected && (
+            <div className="af-card">
+              <div className="af-card__head">
+                <i className="bi bi-plus-circle"></i>
+                <span>Add Branch Amount</span>
+              </div>
+              <form onSubmit={handleSubmit}>
+                <div className="af-form-grid">
+                  <FieldInput label="Branch Name" required>
+                    <input
+                      className="af-input"
+                      type="text"
+                      name="branch_name"
+                      value={formData.branch_name}
+                      readOnly
+                      style={{ background: "#f8fafc", cursor: "not-allowed" }}
+                    />
+                  </FieldInput>
+                  <FieldInput label="Amount" required>
+                    <input
+                      className="af-input"
+                      type="number"
+                      name="amount"
+                      placeholder="0.00"
+                      value={formData.amount}
+                      onChange={handleChange}
+                      required
+                    />
+                  </FieldInput>
+                  <FieldInput label="Date" required>
+                    <input
+                      className="af-input"
+                      type="date"
+                      name="payment_date"
+                      value={formData.payment_date}
+                      onChange={handleChange}
+                      required
+                    />
+                  </FieldInput>
+                  <FieldInput label="Received By">
+                    <input
+                      className="af-input"
+                      type="text"
+                      name="received_by"
+                      placeholder="Person who received"
+                      value={formData.received_by}
+                      onChange={handleChange}
+                    />
+                  </FieldInput>
+                  <div className="af-fg af-fg--full">
+                    <label className="af-label">Note</label>
+                    <input
+                      className="af-input"
+                      type="text"
+                      name="note"
+                      placeholder="Optional note…"
+                      value={formData.note}
+                      onChange={handleChange}
+                    />
+                  </div>
+                </div>
+                {error && <div className="af-error">{error}</div>}
+                <div className="af-form-actions">
+                  <button type="submit" className="af-btn af-btn--primary">
+                    <i className="bi bi-check-circle"></i> Save Amount
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* TAB 3: Yearly Amount History */}
+      {activeTab === "history" && (
+        <div className="af-card">
+          <div className="af-card__head">
+            <i className="bi bi-bar-chart-line"></i>
+            <span>Yearly Amount History</span>
+            <span className="af-count">
+              {yearlyHistory.length} year{yearlyHistory.length > 1 ? "s" : ""}
+            </span>
           </div>
-        ) : error ? (
-          <div className="af-error">{error}</div>
-        ) : (
-          <>
+          {yearlyHistory.length > 0 ? (
             <div className="af-table-wrap">
               <table className="af-table">
                 <thead>
                   <tr>
-                    <th>#</th>
-                    <th>Branch</th>
-                    <th>Amount</th>
-                    <th>Date</th>
-                    <th>Time</th>
-                    <th>Received By</th>
-                    <th>Note</th>
-                    <th>Actions</th>
+                    <th>Year</th>
+                    <th>Entries</th>
+                    <th>Total Amount</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedRecords.length > 0 ? (
-                    paginatedRecords.map((rec, idx) => (
-                      <tr key={rec.id} className="af-tr">
-                        <td className="af-td--num">{startIndex + idx + 1}</td>
-                        <td>
-                          <span className="af-branch-tag">
-                            {rec.branch_name}
-                          </span>
-                        </td>
-                        <td>
-                          <span className="af-amount">{inr(rec.amount)}</span>
-                        </td>
-                        <td>
-                          <span className="af-date">
-                            {formatDate(rec.payment_date)}
-                          </span>
-                        </td>
-                        <td>
-                          <span className="af-time">
-                            {formatTime(rec.created_at)}
-                          </span>
-                        </td>
-                        <td>
-                          {rec.received_by || <span className="af-nil">—</span>}
-                        </td>
-                        <td>
-                          {rec.note ? (
-                            <span className="af-note">{rec.note}</span>
-                          ) : (
-                            <span className="af-nil">—</span>
-                          )}
-                        </td>
-                        <td>
-                          <div className="af-actions">
-                            <button
-                              className="af-act af-act--edit"
-                              onClick={() => handleEdit(rec)}
-                              title="Edit"
-                            >
-                              <i className="bi bi-pencil-fill"></i>
-                            </button>
-                            <button
-                              className="af-act af-act--del"
-                              onClick={() => setDeleteConfirm(rec.id)}
-                              title="Delete"
-                            >
-                              <i className="bi bi-trash-fill"></i>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan="8">
-                        <div className="af-empty">
-                          <i className="bi bi-inbox"></i>
-                          <p>No records found</p>
-                          <span>Try adjusting your filters</span>
-                        </div>
+                  {yearlyHistory.map((yh) => (
+                    <tr
+                      key={yh.year}
+                      className={`af-tr${
+                        yh.year === thisYear ? " af-year-row--current" : ""
+                      }`}
+                    >
+                      <td>
+                        <span className="af-branch-tag">
+                          {yh.year}
+                          {yh.year === thisYear ? " (Current)" : ""}
+                        </span>
+                      </td>
+                      <td>{yh.count}</td>
+                      <td>
+                        <span className="af-amount">{inr(yh.amount)}</span>
                       </td>
                     </tr>
-                  )}
+                  ))}
                 </tbody>
               </table>
             </div>
-
-            {totalFiltered > 0 && (
-              <div className="af-pagination">
-                <div className="af-pg-left">
-                  <span>Show</span>
-                  <select
-                    className="af-pg-select"
-                    value={rowsPerPage}
-                    onChange={(e) => {
-                      setRowsPerPage(parseInt(e.target.value));
-                      setCurrentPage(1);
-                    }}
-                  >
-                    <option value={10}>10</option>
-                    <option value={25}>25</option>
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
-                    <option value={-1}>All</option>
-                  </select>
-                  <span>entries per page</span>
-                </div>
-                {rowsPerPage !== -1 && (
-                  <div className="af-pg-right">
-                    <span className="af-pg-info">
-                      Page {currentPage} of {totalPages}
-                    </span>
-                    <button
-                      className="af-pg-btn"
-                      disabled={currentPage === 1}
-                      onClick={() => setCurrentPage((p) => p - 1)}
-                    >
-                      <i className="bi bi-chevron-left"></i> Previous
-                    </button>
-                    <button
-                      className="af-pg-btn"
-                      disabled={currentPage === totalPages}
-                      onClick={() => setCurrentPage((p) => p + 1)}
-                    >
-                      Next <i className="bi bi-chevron-right"></i>
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </>
-        )}
-      </div>
+          ) : (
+            <div className="af-empty">
+              <i className="bi bi-inbox"></i>
+              <p>No history yet</p>
+              <span>Yearly totals will appear once records exist</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Edit Modal */}
       {editModal && (
@@ -802,6 +939,21 @@ const AdminFeatures = () => {
       )}
 
       <style>{`
+        /* NEW: hide the native scrollbar (and its up/down arrow buttons) everywhere —
+           widened from html/body to ALL elements, since the scrollbar shown was
+           coming from a wrapper container in the app layout, not html/body directly.
+           Scrolling still works via mouse wheel, trackpad, touch, and keyboard —
+           only the visible track/arrows are removed. */
+        * {
+          scrollbar-width: none;       /* Firefox */
+          -ms-overflow-style: none;    /* old Edge / IE */
+        }
+        *::-webkit-scrollbar {
+          display: none;               /* Chrome, Edge, Safari */
+          width: 0;
+          height: 0;
+        }
+
         .af-root { width: 100%; max-width: 100%; min-width: 0; color: #0f172a; position: relative; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
 
         /* Toast */
@@ -825,6 +977,17 @@ const AdminFeatures = () => {
 
         /* Alert */
         .af-alert { display: flex; align-items: center; gap: 10px; background: #fffbeb; border: 1px solid #fde68a; color: #92400e; border-radius: 8px; padding: 12px 16px; font-size: 14px; font-weight: 500; margin-bottom: 24px; }
+
+        /* NEW: Tabs — Employee-page style (icon + label, green underline on active, badge count) */
+        .af-tabs { display: flex; align-items: center; gap: 32px; border-bottom: 1.5px solid #e2e8f0; margin-bottom: 24px; overflow-x: auto; }
+        .af-tab { display: inline-flex; align-items: center; gap: 8px; background: none; border: none; padding: 14px 2px; font-size: 14.5px; font-weight: 700; color: #94a3b8; cursor: pointer; position: relative; white-space: nowrap; transition: color .15s; }
+        .af-tab i { font-size: 16px; color: #cbd5e1; transition: color .15s; }
+        .af-tab:hover { color: #475569; }
+        .af-tab:hover i { color: #94a3b8; }
+        .af-tab--active { color: #008b3e; }
+        .af-tab--active i { color: #008b3e; }
+        .af-tab--active::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1.5px; height: 2.5px; background: #008b3e; border-radius: 2px; }
+        .af-tab__badge { background: #dcfce7; color: #15803d; font-size: 12px; font-weight: 700; padding: 1px 9px; border-radius: 20px; }
 
         /* Card */
         .af-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 14px; padding: 24px; margin-bottom: 24px; }
@@ -880,6 +1043,10 @@ const AdminFeatures = () => {
         .af-act--edit:hover { background: #dbeafe; }
         .af-act--del { background: #fef2f2; color: #dc2626; }
         .af-act--del:hover { background: #fee2e2; }
+
+        /* NEW: highlight the current year's row in the Yearly Amount History table */
+        .af-year-row--current td { background: #f0fdf4; }
+        .af-year-row--current .af-branch-tag { background: #bbf7d0; }
 
         /* Empty */
         .af-empty { display: flex; flex-direction: column; align-items: center; padding: 52px 20px; color: #94a3b8; }

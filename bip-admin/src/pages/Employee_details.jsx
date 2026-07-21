@@ -35,9 +35,8 @@ const Employee_details = () => {
 
   const [filters, setFilters] = useState({
     name: "",
-    emp_id: "",
     salary_type: "",
-    phone: "",
+    whatsapp: "",
     date_from: "",
     date_to: "",
   });
@@ -49,22 +48,26 @@ const Employee_details = () => {
     total_pages: 1,
   });
 
+  const getTodayYMD = () => {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
   const emptyForm = {
     employee_name: "",
-    emp_id: "",
-    department: "",
-    destination: "",
     gender: "",
-    email: "",
-    phone_number: "",
+    whatsapp_number: "",
     address: "",
     salary_type: "",
-    date_of_joining: "",
+    price_per_bags: "",
+    date_of_joining: getTodayYMD(),
   };
   const [formData, setFormData] = useState(emptyForm);
   const [editId, setEditId] = useState(null);
   const [showModal, setShowModal] = useState(false);
-
 
   const showToast = (message, type = "success") => {
     setToast({ show: true, message, type });
@@ -94,10 +97,10 @@ const Employee_details = () => {
       params.append("page", resetPage ? 1 : page);
       params.append("limit", limit);
       if (activeFilters.name) params.append("name", activeFilters.name);
-      if (activeFilters.emp_id) params.append("emp_id", activeFilters.emp_id);
       if (activeFilters.salary_type)
         params.append("salary_type", activeFilters.salary_type);
-      if (activeFilters.phone) params.append("phone", activeFilters.phone);
+      if (activeFilters.whatsapp)
+        params.append("whatsapp", activeFilters.whatsapp);
       if (activeFilters.date_from)
         params.append("date_from", activeFilters.date_from);
       if (activeFilters.date_to)
@@ -146,7 +149,7 @@ const Employee_details = () => {
   };
 
   const resetForm = () => {
-    setFormData(emptyForm);
+    setFormData({ ...emptyForm, date_of_joining: getTodayYMD() });
     setEditId(null);
   };
 
@@ -165,29 +168,29 @@ const Employee_details = () => {
       return;
     }
 
-    // Validate Indian phone number
+    // Validate Indian WhatsApp number
     const phoneRegex = /^[6-9]\d{9}$/;
     if (
-      !formData.phone_number ||
-      !phoneRegex.test(formData.phone_number.replace(/\s/g, ""))
+      !formData.whatsapp_number ||
+      !phoneRegex.test(formData.whatsapp_number.replace(/\s/g, ""))
     ) {
       showToast(
-        "Please enter a valid 10-digit Indian mobile number (starting with 6-9).",
+        "Please enter a valid 10-digit WhatsApp number (starting with 6-9).",
         "error",
       );
       return;
     }
 
     try {
-const response = await apiFetch(
-  editId
-    ? `/employees/update_employee.php?id=${editId}`
-    : "/employees/add_employee.php",
-  {
-    method: editId ? "PUT" : "POST",
-    body: JSON.stringify(formData),
-  },
-);
+      const response = await apiFetch(
+        editId
+          ? `/employees/update_employee.php?id=${editId}`
+          : "/employees/add_employee.php",
+        {
+          method: editId ? "PUT" : "POST",
+          body: JSON.stringify(formData),
+        },
+      );
       if (response.ok) {
         showToast(
           editId
@@ -219,14 +222,11 @@ const response = await apiFetch(
   const handleEdit = (emp) => {
     setFormData({
       employee_name: emp.employee_name,
-      emp_id: emp.emp_id,
-      department: emp.department || "",
-      destination: emp.destination || "",
       gender: emp.gender || "",
-      email: emp.email || "",
-      phone_number: emp.phone_number || "",
+      whatsapp_number: emp.whatsapp_number || emp.phone_number || "",
       address: emp.address || "",
       salary_type: emp.salary_type,
+      price_per_bags: emp.price_per_bags || "",
       date_of_joining: emp.date_of_joining,
     });
     setEditId(emp.id);
@@ -237,12 +237,12 @@ const response = await apiFetch(
     if (!window.confirm("Are you sure you want to delete this employee?"))
       return;
     try {
-     const response = await apiFetch(
-       `/employees/delete_employee.php?id=${id}`,
-       {
-         method: "DELETE",
-       },
-     );
+      const response = await apiFetch(
+        `/employees/delete_employee.php?id=${id}`,
+        {
+          method: "DELETE",
+        },
+      );
       if (response.ok) {
         showToast("Employee deleted successfully");
         fetchEmployees(pagination.page, pagination.limit);
@@ -259,9 +259,9 @@ const response = await apiFetch(
   useEffect(() => {
     const fetchCount = async () => {
       try {
-       const response = await apiFetch(
-         "/employees/get_employees.php?page=1&limit=1",
-       );
+        const response = await apiFetch(
+          "/employees/get_employees.php?page=1&limit=1",
+        );
         if (response.ok) {
           const result = await response.json();
           setPagination((prev) => ({ ...prev, total: result.total || 0 }));
@@ -392,34 +392,11 @@ const response = await apiFetch(
                   label: "Employee Name",
                   req: true,
                   type: "text",
+                  hint: "Must be unique — no two employees can share the same name",
                 },
                 {
-                  name: "emp_id",
-                  label: "Employee ID",
-                  req: true,
-                  type: "text",
-                },
-                {
-                  name: "department",
-                  label: "Department",
-                  req: true,
-                  type: "text",
-                },
-                {
-                  name: "destination",
-                  label: "Designation",
-                  req: false,
-                  type: "text",
-                },
-                {
-                  name: "email",
-                  label: "Email Address",
-                  req: false,
-                  type: "email",
-                },
-                {
-                  name: "phone_number",
-                  label: "Phone Number",
+                  name: "whatsapp_number",
+                  label: "WhatsApp Number",
                   req: true,
                   type: "text",
                 },
@@ -440,6 +417,7 @@ const response = await apiFetch(
                     className="ep-input"
                     placeholder={`Enter ${f.label.toLowerCase()}`}
                   />
+                  {f.hint && <span className="ep-hint">{f.hint}</span>}
                 </div>
               ))}
 
@@ -479,6 +457,21 @@ const response = await apiFetch(
                   <option value="weekly">Weekly</option>
                   <option value="daily">Daily</option>
                 </select>
+              </div>
+
+              <div className="ep-fg">
+                <label className="ep-label">Price per Bags</label>
+                <input
+                  type="number"
+                  name="price_per_bags"
+                  value={formData.price_per_bags}
+                  onChange={handleChange}
+                  min="0"
+                  step="0.01"
+                  disabled={!isBranchSelected && userRole === "admin"}
+                  className="ep-input"
+                  placeholder="Enter price per bags"
+                />
               </div>
 
               <div className="ep-fg">
@@ -537,17 +530,6 @@ const response = await apiFetch(
                 className="ep-filter-input ep-filter-input--icon"
               />
             </div>
-            <div className="ep-filter-group">
-              <i className="bi bi-person-badge ep-filter-icon"></i>
-              <input
-                type="text"
-                name="emp_id"
-                placeholder="Employee ID…"
-                value={filters.emp_id}
-                onChange={handleFilterChange}
-                className="ep-filter-input ep-filter-input--icon"
-              />
-            </div>
             <select
               name="salary_type"
               value={filters.salary_type}
@@ -560,12 +542,12 @@ const response = await apiFetch(
               <option value="daily">Daily</option>
             </select>
             <div className="ep-filter-group">
-              <i className="bi bi-phone ep-filter-icon"></i>
+              <i className="bi bi-whatsapp ep-filter-icon"></i>
               <input
                 type="text"
-                name="phone"
-                placeholder="Phone…"
-                value={filters.phone}
+                name="whatsapp"
+                placeholder="WhatsApp…"
+                value={filters.whatsapp}
                 onChange={handleFilterChange}
                 className="ep-filter-input ep-filter-input--icon"
               />
@@ -604,12 +586,9 @@ const response = await apiFetch(
                     <tr>
                       <th>#</th>
                       <th>Employee</th>
-                      <th>Emp ID</th>
-                      <th>Department</th>
-                      <th>Designation</th>
-                      <th>Contact</th>
+                      <th>WhatsApp</th>
                       <th>Salary Type</th>
-                      <th>Date of Joining</th>
+                      <th>Price per Bags</th>
                       {userRole === "admin" && <th>Actions</th>}
                     </tr>
                   </thead>
@@ -635,41 +614,42 @@ const response = await apiFetch(
                                   {emp.employee_name}
                                 </div>
                                 <div className="ep-emp-meta">
-                                  {emp.gender || "—"} &middot;{" "}
-                                  {emp.email || "No email"}
+                                  {emp.gender || "—"}
                                 </div>
                               </div>
                             </div>
                           </td>
                           <td>
-                            <span className="ep-id-tag">{emp.emp_id}</span>
-                          </td>
-                          <td>{emp.department || "—"}</td>
-                          <td>{emp.destination || "—"}</td>
-                          <td>
                             <div className="ep-contact-cell">
-                              {emp.phone_number && (
+                              {(emp.whatsapp_number || emp.phone_number) && (
                                 <span>
-                                  <i className="bi bi-telephone"></i>{" "}
-                                  {emp.phone_number}
+                                  <i className="bi bi-whatsapp"></i>{" "}
+                                  {emp.whatsapp_number || emp.phone_number}
                                 </span>
                               )}
-                              {!emp.phone_number && "—"}
+                              {!(emp.whatsapp_number || emp.phone_number) &&
+                                "—"}
                             </div>
                           </td>
                           <td>{salaryBadge(emp.salary_type)}</td>
                           <td>
-                            <span className="ep-date">
-                              {emp.date_of_joining
-                                ? new Date(
-                                    emp.date_of_joining,
-                                  ).toLocaleDateString("en-GB", {
-                                    day: "2-digit",
-                                    month: "short",
-                                    year: "numeric",
-                                  })
-                                : "—"}
-                            </span>
+                            {emp.price_per_bags != null &&
+                            emp.price_per_bags !== "" ? (
+                              <span
+                                style={{
+                                  fontFamily: "monospace",
+                                  fontWeight: 700,
+                                  color: "#15803d",
+                                }}
+                              >
+                                ₹
+                                {Number(emp.price_per_bags).toLocaleString(
+                                  "en-IN",
+                                )}
+                              </span>
+                            ) : (
+                              <span className="ep-nil">—</span>
+                            )}
                           </td>
                           {userRole === "admin" && (
                             <td>
@@ -696,7 +676,7 @@ const response = await apiFetch(
                     ) : (
                       <tr>
                         <td
-                          colSpan={userRole === "admin" ? 9 : 8}
+                          colSpan={userRole === "admin" ? 6 : 5}
                           className="ep-empty"
                         >
                           <div className="ep-empty-inner">
@@ -812,6 +792,17 @@ const response = await apiFetch(
                       onChange={handleChange}
                       className="ep-input"
                     />
+                  ) : key === "price_per_bags" ? (
+                    <input
+                      type="number"
+                      name={key}
+                      value={formData[key] || ""}
+                      onChange={handleChange}
+                      min="0"
+                      step="0.01"
+                      className="ep-input"
+                      placeholder="Enter price per bags"
+                    />
                   ) : (
                     <input
                       type="text"
@@ -841,6 +832,20 @@ const response = await apiFetch(
       )}
 
       <style>{`
+        /* NEW: hide the native scrollbar (and its up/down arrow buttons) everywhere,
+           matching the same fix applied on the Admin Features page.
+           Scrolling still works via mouse wheel, trackpad, touch, and keyboard —
+           only the visible track/arrows are removed. */
+        * {
+          scrollbar-width: none;       /* Firefox */
+          -ms-overflow-style: none;    /* old Edge / IE */
+        }
+        *::-webkit-scrollbar {
+          display: none;               /* Chrome, Edge, Safari */
+          width: 0;
+          height: 0;
+        }
+
         /* ── Root ── */
         .ep-root {
           padding: 0;
@@ -911,36 +916,53 @@ const response = await apiFetch(
         }
 
         /* ── Tabs ── */
+        /* CHANGED: restyled to match AdminFeatures — muted gray inactive tabs,
+           icon + label only (no button-like hover background), green text +
+           thin green underline (via ::after) only on the active tab. */
         .ep-tabs {
           display: flex;
-          gap: 4px;
+          align-items: center;
+          gap: 32px;
           border-bottom: 1.5px solid #e2e8f0;
           margin-top: 28px;
           margin-bottom: 32px;
+          overflow-x: auto;
         }
         .ep-tab {
-          display: flex;
+          display: inline-flex;
           align-items: center;
           gap: 8px;
-          padding: 14px 20px;
+          background: none;
           border: none;
-          background: transparent;
-          font-size: 14px;
-          font-weight: 600;
-          color: #64748b;
+          padding: 14px 2px;
+          font-size: 14.5px;
+          font-weight: 700;
+          color: #94a3b8;
           cursor: pointer;
-          border-bottom: 2.5px solid transparent;
-          margin-bottom: -1.5px;
-          border-radius: 6px 6px 0 0;
-          transition: color .15s, border-color .15s, background .15s;
+          position: relative;
+          white-space: nowrap;
+          transition: color .15s;
         }
-        .ep-tab:hover { background: #f8fafc; color: #1e293b; }
-        .ep-tab--active { color: #008b3e; border-bottom-color: #008b3e; }
+        .ep-tab i { font-size: 16px; color: #cbd5e1; transition: color .15s; }
+        .ep-tab:hover { color: #475569; }
+        .ep-tab:hover i { color: #94a3b8; }
+        .ep-tab--active { color: #008b3e; }
+        .ep-tab--active i { color: #008b3e; }
+        .ep-tab--active::after {
+          content: "";
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: -1.5px;
+          height: 2.5px;
+          background: #008b3e;
+          border-radius: 2px;
+        }
         .ep-tab__badge {
           background: #dcfce7;
           color: #15803d;
           border-radius: 20px;
-          padding: 1px 8px;
+          padding: 1px 9px;
           font-size: 12px;
           font-weight: 700;
         }
@@ -985,6 +1007,8 @@ const response = await apiFetch(
         .ep-fg { display: flex; flex-direction: column; gap: 7px; }
         .ep-label { font-size: 13px; font-weight: 600; color: #374151; }
         .ep-req { color: #ef4444; margin-left: 3px; }
+        .ep-nil { color: #cbd5e1; }
+        .ep-hint { font-size: 12px; color: #64748b; margin-top: 2px; }
         .ep-input {
           height: 42px;
           border: 1.5px solid #e2e8f0;
