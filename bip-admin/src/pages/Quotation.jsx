@@ -183,6 +183,90 @@ const PRINT_STYLES = `
 }
 `;
 
+// ─── SCREEN STYLES (matches the Tax Invoice page's design system) ──────────
+const screenStyles = `
+  .at-root { color: #0f172a; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+
+  .at-header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 20px; margin-bottom: 20px; border-bottom: 1.5px solid #e2e8f0; flex-wrap: wrap; gap: 14px; }
+  .at-header__left { display: flex; align-items: center; gap: 14px; }
+  .at-header__icon { width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #008b3e, #00b84f); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 17px; flex-shrink: 0; box-shadow: 0 3px 10px rgba(0,139,62,.25); }
+  .at-header__title { margin: 0 0 2px; font-size: 22px; font-weight: 800; letter-spacing: -.4px; }
+  .at-header__sub { margin: 0; font-size: 13px; color: #64748b; }
+
+  .at-btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 20px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; border: none; transition: box-shadow .15s, opacity .15s; }
+  .at-btn--primary { background: linear-gradient(135deg,#008b3e,#00b84f); color: #fff; box-shadow: 0 2px 10px rgba(0,139,62,.3); }
+  .at-btn--primary:hover { box-shadow: 0 4px 16px rgba(0,139,62,.38); }
+  .at-btn--ghost { background: #f8fafc; color: #374151; border: 1.5px solid #e2e8f0; }
+  .at-btn--ghost:hover { background: #f1f5f9; }
+  .at-btn--lg { padding: 13px 32px; font-size: 15px; }
+  .at-btn:disabled { opacity: .55; cursor: not-allowed; }
+
+  .at-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 14px; padding: 24px; margin-bottom: 20px; }
+  .at-card__head { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid #f1f5f9; }
+  .at-card__head i { color: #008b3e; font-size: 17px; }
+
+  .at-form-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+  .at-form-grid--2 { display: grid; grid-template-columns: repeat(2,1fr); gap: 16px; }
+  .at-form-grid--5 { display: grid; grid-template-columns: repeat(5,1fr); gap: 16px; }
+  .at-fg { display: flex; flex-direction: column; gap: 6px; }
+  .at-fg--span2 { grid-column: span 2; }
+  .at-label { font-size: 12px; font-weight: 700; color: #374151; }
+  .at-label .req { color: #ef4444; }
+  .at-input, .at-select { height: 38px; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 0 11px; font-size: 13.5px; color: #1e293b; background: #fafbfc; width: 100%; box-sizing: border-box; outline: none; transition: border-color .15s, box-shadow .15s; font-family: inherit; }
+  textarea.at-input { height: auto; padding: 9px 11px; resize: vertical; }
+  .at-input:focus, .at-select:focus { border-color: #008b3e; background: #fff; box-shadow: 0 0 0 3px rgba(0,139,62,.1); }
+  .at-input[readonly], .at-input:disabled { background: #f1f5f9; color: #475569; font-weight: 600; cursor: not-allowed; }
+  .at-input.error-field, .at-select.error-field { border-color: #ef4444; background: #fef2f2; }
+  .at-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px; cursor: pointer; }
+  .at-hint { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+  .at-error-text { font-size: 11px; color: #ef4444; font-weight: 600; margin-top: 2px; }
+
+  .at-alert { display: flex; align-items: flex-start; gap: 10px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; border-radius: 10px; padding: 12px 16px; font-size: 13px; margin-bottom: 18px; }
+  .at-alert i { margin-top: 2px; flex-shrink: 0; }
+
+  .at-table-wrap { border-radius: 10px; border: 1.5px solid #e2e8f0; overflow-x: auto; margin-bottom: 16px; }
+  .at-table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 780px; }
+  .at-table thead tr { background: #f8fafc; }
+  .at-table th { padding: 10px 8px; text-align: left; font-size: 10.5px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .5px; border-bottom: 1.5px solid #e2e8f0; white-space: nowrap; }
+  .at-table td { padding: 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+  .at-table tbody tr:last-child td { border-bottom: none; }
+  .at-table tbody tr:hover td { background: #f9fdfb; }
+  .at-input-t, .at-select-t { height: 34px; border: 1.5px solid #e2e8f0; border-radius: 6px; padding: 0 8px; font-size: 12.5px; color: #1e293b; background: #fafbfc; width: 100%; box-sizing: border-box; outline: none; font-family: inherit; }
+  .at-input-t:focus, .at-select-t:focus { border-color: #008b3e; background: #fff; box-shadow: 0 0 0 2px rgba(0,139,62,.1); }
+  .at-input-t.error-field, .at-select-t.error-field { border-color: #ef4444; background: #fef2f2; }
+  .at-input-t:disabled { background: #f1f5f9; color: #94a3b8; }
+  .at-select-t { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='3'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; padding-right: 24px; cursor: pointer; }
+  .at-remove-btn { width: 30px; height: 30px; border-radius: 7px; border: 1.5px solid #fca5a5; background: #fee2e2; color: #dc2626; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
+  .at-remove-btn:hover:not(:disabled) { background: #fecaca; }
+  .at-remove-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  .at-totals-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+  .at-totals-box { background: #f8fbff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 14px 18px; font-size: 13px; text-align: right; min-width: 260px; }
+  .at-totals-box .muted { color: #64748b; font-size: 12px; margin-top: 2px; }
+  .at-totals-box .net { font-size: 17px; font-weight: 800; color: #008b3e; margin-top: 6px; }
+
+  .at-form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; margin-bottom: 40px; }
+
+  .at-spinner { width: 30px; height: 30px; border: 3px solid #e2e8f0; border-top-color: #008b3e; border-radius: 50%; animation: at-spin .7s linear infinite; margin: 0 auto 16px; }
+  @keyframes at-spin { to { transform: rotate(360deg); } }
+  .at-center-card { max-width: 460px; margin: 80px auto; text-align: center; }
+  .at-center-card .icon { font-size: 44px; margin-bottom: 14px; }
+
+  @media (max-width: 900px) {
+    .at-form-grid, .at-form-grid--5 { grid-template-columns: 1fr 1fr; }
+    .at-fg--span2 { grid-column: span 2; }
+  }
+  @media (max-width: 600px) {
+    .at-form-grid, .at-form-grid--2, .at-form-grid--5 { grid-template-columns: 1fr; }
+    .at-fg--span2 { grid-column: auto; }
+    .at-header { align-items: flex-start; }
+    .at-header > .at-btn { width: 100%; justify-content: center; }
+    .at-form-actions { flex-direction: column-reverse; }
+    .at-form-actions .at-btn { width: 100%; justify-content: center; }
+    .at-totals-box { width: 100%; text-align: left; }
+  }
+`;
+
 // ─── UNIT MAP ──────────────────────────────────────────────────────────────
 const UNIT_MAP = {
   Pcs: "NOS",
@@ -204,7 +288,7 @@ const UNIT_MAP = {
   No: "NOS",
 };
 
-const UNITS = ["NOS", "KGS", "MTR", "SQM", "RFT", "SET", "PCS", "LTR" ,"FEET"];
+const UNITS = ["NOS", "KGS", "MTR", "SQM", "RFT", "SET", "PCS", "LTR", "FEET"];
 
 const emptyForm = () => ({
   quoteNo: "",
@@ -226,7 +310,7 @@ const emptyForm = () => ({
   shipGst: "",
   shipState: "Tamil Nadu",
   shipStateCode: "33",
-discount: 0,
+  discount: 0,
   priceUnit: "Nos",
   isGst: true,
   taxPercent: 18,
@@ -377,7 +461,14 @@ export default function Quotation() {
       ...form,
       items: [
         ...form.items,
-        { description: "", hsn: "", dueOn: "", unit: "NOS", qty: 1, rateIncl: 0 },
+        {
+          description: "",
+          hsn: "",
+          dueOn: "",
+          unit: "NOS",
+          qty: 1,
+          rateIncl: 0,
+        },
       ],
     });
   const removeItem = (i) =>
@@ -476,7 +567,16 @@ export default function Quotation() {
               qty: i.quantity,
               rateIncl: i.rate,
             }))
-          : [{ description: "", hsn: "", dueOn: "", unit: "NOS", qty: 1, rateIncl: 0 }],
+          : [
+              {
+                description: "",
+                hsn: "",
+                dueOn: "",
+                unit: "NOS",
+                qty: 1,
+                rateIncl: 0,
+              },
+            ],
       });
       setSameAsClient(!data.ship_name && !data.ship_address);
       setEditId(rec.id);
@@ -536,13 +636,16 @@ export default function Quotation() {
     const isGst = d.is_gst == null ? true : !!Number(d.is_gst);
     const items = d.items || [];
     const disc = parseFloat(d.discount_percent) || 0;
-    const tax = isGst ? (parseFloat(d.tax_percent) || 18) : 0;
+    const tax = isGst ? parseFloat(d.tax_percent) || 18 : 0;
     const rows = items.map((i) => ({
       ...i,
       qty: parseFloat(i.quantity) || 0,
       rateIncl: parseFloat(i.rate) || 0,
     }));
-const sub = rows.reduce((s, r) => s + r.qty * (r.rateIncl / (1 + tax / 100)), 0);
+    const sub = rows.reduce(
+      (s, r) => s + r.qty * (r.rateIncl / (1 + tax / 100)),
+      0,
+    );
     const discAmt = sub * (disc / 100);
     const taxable = sub - discAmt;
     const cgstRate = tax / 2;
@@ -559,12 +662,22 @@ const sub = rows.reduce((s, r) => s + r.qty * (r.rateIncl / (1 + tax / 100)), 0)
       const key = r.hsn || "–";
       if (!hsnGroups[key]) hsnGroups[key] = { taxable: 0, cgst: 0, sgst: 0 };
       hsnGroups[key].taxable += r.qty * r.rateIncl * (1 - disc / 100);
-      hsnGroups[key].cgst += r.qty * r.rateIncl * (1 - disc / 100) * (cgstRate / 100);
-      hsnGroups[key].sgst += r.qty * r.rateIncl * (1 - disc / 100) * (sgstRate / 100);
+      hsnGroups[key].cgst +=
+        r.qty * r.rateIncl * (1 - disc / 100) * (cgstRate / 100);
+      hsnGroups[key].sgst +=
+        r.qty * r.rateIncl * (1 - disc / 100) * (sgstRate / 100);
     });
 
-    const dynFont = rows.length <= 10 ? 11 : rows.length <= 20 ? 12 : rows.length <= 30 ? 11 : 10;
-    const dynPad = rows.length <= 10 ? "3px 6px" : rows.length <= 20 ? "3px 6px" : "2px 5px";
+    const dynFont =
+      rows.length <= 10
+        ? 11
+        : rows.length <= 20
+          ? 12
+          : rows.length <= 30
+            ? 11
+            : 10;
+    const dynPad =
+      rows.length <= 10 ? "3px 6px" : rows.length <= 20 ? "3px 6px" : "2px 5px";
 
     const dc = (extra = {}) => ({
       border: "none",
@@ -591,74 +704,255 @@ const sub = rows.reduce((s, r) => s + r.qty * (r.rateIncl / (1 + tax / 100)), 0)
       <>
         <style>{PRINT_STYLES}</style>
 
-        <div className="qt-no-print" style={{ display: "flex", justifyContent: "center", gap: 12, padding: "16px 0", background: "#f6f8fa" }}>
-          <button onClick={() => setView("table")} style={{ padding: "8px 20px", borderRadius: 8, border: "1px solid #d0d7de", background: "#fff", fontWeight: 600, cursor: "pointer" }}>← Back to List</button>
-          <button onClick={() => window.print()} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#1a1a2e", color: "#fff", fontWeight: 600, cursor: "pointer" }}>🖨️ Print Quotation</button>
+        <div
+          className="qt-no-print"
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            gap: 12,
+            padding: "16px 0",
+            background: "#f6f8fa",
+          }}
+        >
+          <button
+            onClick={() => setView("table")}
+            style={{
+              padding: "8px 20px",
+              borderRadius: 8,
+              border: "1px solid #d0d7de",
+              background: "#fff",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            ← Back to List
+          </button>
+          <button
+            onClick={() => window.print()}
+            style={{
+              padding: "8px 20px",
+              borderRadius: 8,
+              border: "none",
+              background: "#1a1a2e",
+              color: "#fff",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            🖨️ Print Quotation
+          </button>
         </div>
 
-        <div id="qt-print-area" style={{ width: "210mm", minHeight: "297mm", margin: "0 auto 30px", padding: "8mm", fontFamily: "'Times New Roman', Times, serif", color: "#000", background: "#fff", border: "2px solid #000", boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
-          <div style={{ textAlign: "center", padding: "2px 8px", fontWeight: "bold", fontSize: 14, borderBottom: B }}>ESTIMATE</div>
+        <div
+          id="qt-print-area"
+          style={{
+            width: "210mm",
+            minHeight: "297mm",
+            margin: "0 auto 30px",
+            padding: "8mm",
+            fontFamily: "'Times New Roman', Times, serif",
+            color: "#000",
+            background: "#fff",
+            border: "2px solid #000",
+            boxSizing: "border-box",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <div
+            style={{
+              textAlign: "center",
+              padding: "2px 8px",
+              fontWeight: "bold",
+              fontSize: 14,
+              borderBottom: B,
+            }}
+          >
+            ESTIMATE
+          </div>
 
           {/* ─── HEADER ─── */}
-          <table style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}>
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              borderBottom: B,
+            }}
+          >
             <tbody>
               <tr>
-                <td style={{ width: 80, borderRight: B, padding: "4px", textAlign: "center", verticalAlign: "middle" }}>
-                  <img src={BIP_LOGO_B64} alt="BIP Fencing" style={{ width: 68, height: 68, objectFit: "contain", display: "block", margin: "0 auto" }} />
+                <td
+                  style={{
+                    width: 80,
+                    borderRight: B,
+                    padding: "4px",
+                    textAlign: "center",
+                    verticalAlign: "middle",
+                  }}
+                >
+                  <img
+                    src={BIP_LOGO_B64}
+                    alt="BIP Fencing"
+                    style={{
+                      width: 68,
+                      height: 68,
+                      objectFit: "contain",
+                      display: "block",
+                      margin: "0 auto",
+                    }}
+                  />
                 </td>
-                <td style={{ padding: "4px 10px", textAlign: "center", verticalAlign: "middle" }}>
-                  <div style={{ fontSize: 24, fontWeight: "bold", letterSpacing: 1.5, textTransform: "uppercase" }}>{COMPANY.name}</div>
-                  <div style={{ fontSize: 10, marginTop: 1 }}>{COMPANY.address}</div>
-                  {isGst && <div style={{ fontSize: 10 }}>GSTIN/UIN: <strong>{COMPANY.gst}</strong>&nbsp;&nbsp;State: {COMPANY.state}, Code: {COMPANY.stateCode}</div>}
-                  <div style={{ fontSize: 10, display: "flex", justifyContent: "center", gap: 24 }}><span>Ph: {COMPANY.phone}</span></div>
+                <td
+                  style={{
+                    padding: "4px 10px",
+                    textAlign: "center",
+                    verticalAlign: "middle",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 24,
+                      fontWeight: "bold",
+                      letterSpacing: 1.5,
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {COMPANY.name}
+                  </div>
+                  <div style={{ fontSize: 10, marginTop: 1 }}>
+                    {COMPANY.address}
+                  </div>
+                  {isGst && (
+                    <div style={{ fontSize: 10 }}>
+                      GSTIN/UIN: <strong>{COMPANY.gst}</strong>
+                      &nbsp;&nbsp;State: {COMPANY.state}, Code:{" "}
+                      {COMPANY.stateCode}
+                    </div>
+                  )}
+                  <div
+                    style={{
+                      fontSize: 10,
+                      display: "flex",
+                      justifyContent: "center",
+                      gap: 24,
+                    }}
+                  >
+                    <span>Ph: {COMPANY.phone}</span>
+                  </div>
                 </td>
               </tr>
             </tbody>
           </table>
 
           {/* ─── CONSIGNEE + META ─── */}
-          <table style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}>
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              borderBottom: B,
+            }}
+          >
             <tbody>
               <tr>
-                <td style={{ width: "50%", borderRight: B, padding: "6px 7px", verticalAlign: "top" }}>
+                <td
+                  style={{
+                    width: "50%",
+                    borderRight: B,
+                    padding: "6px 7px",
+                    verticalAlign: "top",
+                  }}
+                >
                   <div style={sectionHead}>Consignee (Ship to)</div>
-                  <div style={{ fontWeight: "bold", fontSize: 16 }}>{d.ship_name || d.client_name}</div>
-                  <div style={{ fontSize: 14 }}>{d.ship_address || d.client_address}</div>
-                  <div style={{ fontSize: 14 }}>State Name: {d.ship_state || d.client_state || "Tamil Nadu"}, Code: {d.ship_state_code || d.client_state_code || "33"}</div>
+                  <div style={{ fontWeight: "bold", fontSize: 16 }}>
+                    {d.ship_name || d.client_name}
+                  </div>
+                  <div style={{ fontSize: 14 }}>
+                    {d.ship_address || d.client_address}
+                  </div>
+                  <div style={{ fontSize: 14 }}>
+                    State Name: {d.ship_state || d.client_state || "Tamil Nadu"}
+                    , Code: {d.ship_state_code || d.client_state_code || "33"}
+                  </div>
                 </td>
                 <td style={{ padding: "6px 7px", verticalAlign: "top" }}>
-                {[
+                  {[
                     ["Quotation No.", d.quote_no],
                     ["Date", formatDate(d.quote_date)],
-                    ["Valid Until", d.valid_until ? formatDate(d.valid_until) : "—"],
+                    [
+                      "Valid Until",
+                      d.valid_until ? formatDate(d.valid_until) : "—",
+                    ],
                     ["PO/Order No.", d.po_no || "—"],
                     ["Dispatched Through", d.dispatched_through || "—"],
-                  ].filter(([_, v]) => v && v !== "—").map(([label, value]) => (
-                    <div key={label} style={{ display: "flex", marginBottom: 2 }}>
-                      <span style={{ fontWeight: "normal", minWidth: 130, whiteSpace: "nowrap", fontSize: 13 }}>{label}</span>
-                      <span style={{ fontWeight: "bold", fontSize: 13 }}> : {value}</span>
-                    </div>
-                  ))}
+                  ]
+                    .filter(([_, v]) => v && v !== "—")
+                    .map(([label, value]) => (
+                      <div
+                        key={label}
+                        style={{ display: "flex", marginBottom: 2 }}
+                      >
+                        <span
+                          style={{
+                            fontWeight: "normal",
+                            minWidth: 130,
+                            whiteSpace: "nowrap",
+                            fontSize: 13,
+                          }}
+                        >
+                          {label}
+                        </span>
+                        <span style={{ fontWeight: "bold", fontSize: 13 }}>
+                          {" "}
+                          : {value}
+                        </span>
+                      </div>
+                    ))}
                 </td>
               </tr>
             </tbody>
           </table>
 
           {/* ─── BUYER + PAYMENT ─── */}
-          <table style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}>
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              borderBottom: B,
+            }}
+          >
             <tbody>
               <tr>
-                <td style={{ width: "50%", borderRight: B, padding: "6px 7px", verticalAlign: "top" }}>
+                <td
+                  style={{
+                    width: "50%",
+                    borderRight: B,
+                    padding: "6px 7px",
+                    verticalAlign: "top",
+                  }}
+                >
                   <div style={sectionHead}>Buyer (Bill to)</div>
-                  <div style={{ fontWeight: "bold", fontSize: 16 }}>{d.client_name}</div>
+                  <div style={{ fontWeight: "bold", fontSize: 16 }}>
+                    {d.client_name}
+                  </div>
                   <div style={{ fontSize: 14 }}>{d.client_address}</div>
-                  {d.client_phone && <div style={{ fontSize: 14 }}>Ph: {d.client_phone}</div>}
-                  {d.client_email && <div style={{ fontSize: 14 }}>Email: {d.client_email}</div>}
-                  {isGst && d.client_gst && <div style={{ fontSize: 14 }}>GSTIN/UIN: {d.client_gst}</div>}
-                  <div style={{ fontSize: 14 }}>State Name: {d.client_state || "Tamil Nadu"}, Code: {d.client_state_code || "33"}</div>
+                  {d.client_phone && (
+                    <div style={{ fontSize: 14 }}>Ph: {d.client_phone}</div>
+                  )}
+                  {d.client_email && (
+                    <div style={{ fontSize: 14 }}>Email: {d.client_email}</div>
+                  )}
+                  {isGst && d.client_gst && (
+                    <div style={{ fontSize: 14 }}>
+                      GSTIN/UIN: {d.client_gst}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 14 }}>
+                    State Name: {d.client_state || "Tamil Nadu"}, Code:{" "}
+                    {d.client_state_code || "33"}
+                  </div>
                 </td>
                 <td style={{ padding: "6px 7px", verticalAlign: "top" }}>
-{[
+                  {[
                     ["Payment", "Credit"],
                     ["Transport", d.dispatched_through],
                     ["Delivery To", d.destination],
@@ -666,12 +960,29 @@ const sub = rows.reduce((s, r) => s + r.qty * (r.rateIncl / (1 + tax / 100)), 0)
                     ["Bill of Lading/LR-RR No.", d.billOfLading],
                     ["Vehicle No.", d.vehicle_no],
                     ["Other Ref.", d.other_ref],
-                  ].filter(([_, v]) => v).map(([label, value]) => (
-                    <div key={label} style={{ display: "flex", marginBottom: 2 }}>
-                      <span style={{ fontWeight: "normal", minWidth: 95, whiteSpace: "nowrap", fontSize: 14 }}>{label}</span>
-                      <span style={{ fontWeight: "bold", fontSize: 14 }}> : {value}</span>
-                    </div>
-                  ))}
+                  ]
+                    .filter(([_, v]) => v)
+                    .map(([label, value]) => (
+                      <div
+                        key={label}
+                        style={{ display: "flex", marginBottom: 2 }}
+                      >
+                        <span
+                          style={{
+                            fontWeight: "normal",
+                            minWidth: 95,
+                            whiteSpace: "nowrap",
+                            fontSize: 14,
+                          }}
+                        >
+                          {label}
+                        </span>
+                        <span style={{ fontWeight: "bold", fontSize: 14 }}>
+                          {" "}
+                          : {value}
+                        </span>
+                      </div>
+                    ))}
                 </td>
               </tr>
             </tbody>
@@ -679,95 +990,242 @@ const sub = rows.reduce((s, r) => s + r.qty * (r.rateIncl / (1 + tax / 100)), 0)
 
           {/* ─── PRODUCT TABLE ─── */}
           <div style={{ flex: 1 }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", borderTop: B, borderBottom: B }}>
-            <colgroup><col style={{ width: "10%" }} /><col style={{ width: "70%" }} /><col style={{ width: "20%" }} /></colgroup>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                tableLayout: "fixed",
+                borderTop: B,
+                borderBottom: B,
+              }}
+            >
+              <colgroup>
+                <col style={{ width: "10%" }} />
+                <col style={{ width: "70%" }} />
+                <col style={{ width: "20%" }} />
+              </colgroup>
               <thead className="inv-thead">
                 <tr>
-                 {[["Sl\nNo.", "center"], ["Description of Goods", "left"], ["Amount", "right"]].map(([label, align]) => (
-                    <th key={label} style={dhc({ textAlign: align, whiteSpace: "pre-line", padding: dynPad })}>{label}</th>
+                  {[
+                    ["Sl\nNo.", "center"],
+                    ["Description of Goods", "left"],
+                    ["Amount", "right"],
+                  ].map(([label, align]) => (
+                    <th
+                      key={label}
+                      style={dhc({
+                        textAlign: align,
+                        whiteSpace: "pre-line",
+                        padding: dynPad,
+                      })}
+                    >
+                      {label}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r, i) => {
-                 const rateExcl = r.rateIncl / (1 + tax / 100);
+                  const rateExcl = r.rateIncl / (1 + tax / 100);
                   const taxableAmt = rateExcl * r.qty * (1 - disc / 100);
                   return (
                     <tr key={i} className="inv-product-row">
-                <td style={dc({ textAlign: "center" })}>{i + 1}</td>
-<td style={dc({ fontWeight: "bold", fontSize: 14 })}>{r.description}</td>
-                      <td style={dc({ textAlign: "right" })}>{fmt2(taxableAmt)}</td>
+                      <td style={dc({ textAlign: "center" })}>{i + 1}</td>
+                      <td style={dc({ fontWeight: "bold", fontSize: 14 })}>
+                        {r.description}
+                      </td>
+                      <td style={dc({ textAlign: "right" })}>
+                        {fmt2(taxableAmt)}
+                      </td>
                     </tr>
                   );
                 })}
                 {Array.from({ length: MIN_ROWS }).map((_, i) => (
                   <tr key={`blank_${i}`} style={{ height: 18 }}>
-                 {Array(3).fill(null).map((__, j) => <td key={j} style={dc()}>&nbsp;</td>)}
+                    {Array(3)
+                      .fill(null)
+                      .map((__, j) => (
+                        <td key={j} style={dc()}>
+                          &nbsp;
+                        </td>
+                      ))}
                   </tr>
                 ))}
                 <tr>
-                <td colSpan={2} style={dc({ textAlign: "right", fontWeight: "bold", borderTop: B })}>Total Taxable Amount</td>
-                  <td style={dc({ textAlign: "right", fontWeight: "bold", borderTop: B })}>{fmt2(taxable)}</td>
+                  <td
+                    colSpan={2}
+                    style={dc({
+                      textAlign: "right",
+                      fontWeight: "bold",
+                      borderTop: B,
+                    })}
+                  >
+                    Total Taxable Amount
+                  </td>
+                  <td
+                    style={dc({
+                      textAlign: "right",
+                      fontWeight: "bold",
+                      borderTop: B,
+                    })}
+                  >
+                    {fmt2(taxable)}
+                  </td>
                 </tr>
                 {isGst && (
                   <>
                     <tr>
-                     <td colSpan={2} style={dc({ textAlign: "right", fontStyle: "italic", fontWeight: "bold", borderTop: B })}>CGST TAX</td>
-                      <td style={dc({ textAlign: "right", fontWeight: "bold", borderTop: B })}>{fmt2(cgstAmt)}</td>
+                      <td
+                        colSpan={2}
+                        style={dc({
+                          textAlign: "right",
+                          fontStyle: "italic",
+                          fontWeight: "bold",
+                          borderTop: B,
+                        })}
+                      >
+                        CGST TAX
+                      </td>
+                      <td
+                        style={dc({
+                          textAlign: "right",
+                          fontWeight: "bold",
+                          borderTop: B,
+                        })}
+                      >
+                        {fmt2(cgstAmt)}
+                      </td>
                     </tr>
                     <tr>
-                      <td colSpan={2} style={dc({ textAlign: "right", fontStyle: "italic", fontWeight: "bold" })}>SGST TAX</td>
-                      <td style={dc({ textAlign: "right", fontWeight: "bold" })}>{fmt2(sgstAmt)}</td>
+                      <td
+                        colSpan={2}
+                        style={dc({
+                          textAlign: "right",
+                          fontStyle: "italic",
+                          fontWeight: "bold",
+                        })}
+                      >
+                        SGST TAX
+                      </td>
+                      <td
+                        style={dc({ textAlign: "right", fontWeight: "bold" })}
+                      >
+                        {fmt2(sgstAmt)}
+                      </td>
                     </tr>
                   </>
                 )}
                 <tr>
-                <td colSpan={2} style={dc({ textAlign: "right", fontStyle: "italic", fontWeight: "bold" })}>ROUNDING OFF</td>
-                  <td style={dc({ textAlign: "right", fontWeight: "bold" })}>{roundOff >= 0 ? `(+) ${fmt2(Math.abs(roundOff))}` : `(-) ${fmt2(Math.abs(roundOff))}`}</td>
+                  <td
+                    colSpan={2}
+                    style={dc({
+                      textAlign: "right",
+                      fontStyle: "italic",
+                      fontWeight: "bold",
+                    })}
+                  >
+                    ROUNDING OFF
+                  </td>
+                  <td style={dc({ textAlign: "right", fontWeight: "bold" })}>
+                    {roundOff >= 0
+                      ? `(+) ${fmt2(Math.abs(roundOff))}`
+                      : `(-) ${fmt2(Math.abs(roundOff))}`}
+                  </td>
                 </tr>
                 <tr style={{ background: "#f0f0f0" }}>
                   <td style={dc({ borderTop: B, borderBottom: B })}></td>
-                <td style={dc({ fontWeight: "bold", borderTop: B, borderBottom: B, fontSize: dynFont + 1 })}>Total</td>
-                  <td style={dc({ textAlign: "right", fontWeight: "bold", borderTop: B, borderBottom: B, fontSize: dynFont + 3 })}>₹ {fmt2(netAmount)}</td>
+                  <td
+                    style={dc({
+                      fontWeight: "bold",
+                      borderTop: B,
+                      borderBottom: B,
+                      fontSize: dynFont + 1,
+                    })}
+                  >
+                    Total
+                  </td>
+                  <td
+                    style={dc({
+                      textAlign: "right",
+                      fontWeight: "bold",
+                      borderTop: B,
+                      borderBottom: B,
+                      fontSize: dynFont + 3,
+                    })}
+                  >
+                    ₹ {fmt2(netAmount)}
+                  </td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-        {/* ─── UNIT PRICE LINE ─── */}
-<div style={{ 
-  padding: "8px 8px 0px", 
-  margin: 0, 
-  fontSize: 18, 
-  fontWeight: "normal", 
-  color: "#333", 
-  textAlign: "left",
-  borderLeft: !isGst ? "4px solid #000" : "none",
-  paddingLeft: !isGst ? "12px" : "8px",
-  marginLeft: !isGst ? "4px" : "0px",
-  background: !isGst ? "#f9f9f9" : "transparent",
-  borderRadius: !isGst ? "4px" : "0px",
-  border: !isGst ? "1px solid #ddd" : "none",
-  borderLeftWidth: !isGst ? "6px" : "0px",
-  borderLeftStyle: !isGst ? "solid" : "none",
-  borderLeftColor: !isGst ? "#000" : "transparent",
-}}>
-{rows.map((r, i) => {
-    const rateExcl = r.rateIncl / (1 + tax / 100);
-    return <div key={i}>{r.description} per {r.unit} ₹{fmt2(rateExcl)}</div>;
-  })}
-</div>
+          {/* ─── UNIT PRICE LINE ─── */}
+          <div
+            style={{
+              padding: "8px 8px 0px",
+              margin: 0,
+              fontSize: 18,
+              fontWeight: "normal",
+              color: "#333",
+              textAlign: "left",
+              borderLeft: !isGst ? "4px solid #000" : "none",
+              paddingLeft: !isGst ? "12px" : "8px",
+              marginLeft: !isGst ? "4px" : "0px",
+              background: !isGst ? "#f9f9f9" : "transparent",
+              borderRadius: !isGst ? "4px" : "0px",
+              border: !isGst ? "1px solid #ddd" : "none",
+              borderLeftWidth: !isGst ? "6px" : "0px",
+              borderLeftStyle: !isGst ? "solid" : "none",
+              borderLeftColor: !isGst ? "#000" : "transparent",
+            }}
+          >
+            {rows.map((r, i) => {
+              const rateExcl = r.rateIncl / (1 + tax / 100);
+              return (
+                <div key={i}>
+                  {r.description} per {r.unit} ₹{fmt2(rateExcl)}
+                </div>
+              );
+            })}
+          </div>
 
           {/* ─── AMOUNT IN WORDS ─── */}
-          <table style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}>
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              borderBottom: B,
+            }}
+          >
             <tbody>
               <tr>
-                <td style={{ width: "58%", borderRight: B, padding: "3px 7px", verticalAlign: "middle", fontSize: 10 }}>
-                  <span style={{ fontWeight: "bold" }}>Amount Chargeable (in words): </span>
-                  <em style={{ fontWeight: "bold" }}>{amountInWords(netAmount)}</em>
+                <td
+                  style={{
+                    width: "58%",
+                    borderRight: B,
+                    padding: "3px 7px",
+                    verticalAlign: "middle",
+                    fontSize: 10,
+                  }}
+                >
+                  <span style={{ fontWeight: "bold" }}>
+                    Amount Chargeable (in words):{" "}
+                  </span>
+                  <em style={{ fontWeight: "bold" }}>
+                    {amountInWords(netAmount)}
+                  </em>
                 </td>
-                <td style={{ padding: "3px 7px", verticalAlign: "middle", textAlign: "right" }}>
-                  <div style={{ fontSize: 20, fontWeight: "bold" }}>₹ {fmt2(netAmount)}</div>
+                <td
+                  style={{
+                    padding: "3px 7px",
+                    verticalAlign: "middle",
+                    textAlign: "right",
+                  }}
+                >
+                  <div style={{ fontSize: 20, fontWeight: "bold" }}>
+                    ₹ {fmt2(netAmount)}
+                  </div>
                   <div style={{ fontSize: 10 }}>E. &amp; O.E</div>
                 </td>
               </tr>
@@ -776,35 +1234,123 @@ const sub = rows.reduce((s, r) => s + r.qty * (r.rateIncl / (1 + tax / 100)), 0)
 
           {/* ─── HSN TAX TABLE ─── */}
           {isGst && (
-            <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", borderBottom: B }} className="inv-footer">
-              <colgroup><col style={{ width: "14%" }} /><col style={{ width: "16%" }} /><col style={{ width: "10%" }} /><col style={{ width: "14%" }} /><col style={{ width: "14%" }} /><col style={{ width: "16%" }} /><col style={{ width: "16%" }} /></colgroup>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                tableLayout: "fixed",
+                borderBottom: B,
+              }}
+              className="inv-footer"
+            >
+              <colgroup>
+                <col style={{ width: "14%" }} />
+                <col style={{ width: "16%" }} />
+                <col style={{ width: "10%" }} />
+                <col style={{ width: "14%" }} />
+                <col style={{ width: "14%" }} />
+                <col style={{ width: "16%" }} />
+                <col style={{ width: "16%" }} />
+              </colgroup>
               <thead>
                 <tr>
-                  {[["HSN/SAC", "center"], ["Taxable\nValue", "right"], ["CGST\nRate", "center"], ["CGST\nAmount", "right"], ["SGST/UTGST\nRate", "center"], ["SGST/UTGST\nAmount", "right"], ["Total Tax\nAmount", "right"]].map(([label, align]) => (
-                    <th key={label} style={dhc({ textAlign: align, whiteSpace: "pre-line", padding: "2px 6px", fontSize: 10 })}>{label}</th>
+                  {[
+                    ["HSN/SAC", "center"],
+                    ["Taxable\nValue", "right"],
+                    ["CGST\nRate", "center"],
+                    ["CGST\nAmount", "right"],
+                    ["SGST/UTGST\nRate", "center"],
+                    ["SGST/UTGST\nAmount", "right"],
+                    ["Total Tax\nAmount", "right"],
+                  ].map(([label, align]) => (
+                    <th
+                      key={label}
+                      style={dhc({
+                        textAlign: align,
+                        whiteSpace: "pre-line",
+                        padding: "2px 6px",
+                        fontSize: 10,
+                      })}
+                    >
+                      {label}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {Object.entries(hsnGroups).map(([hsn, g]) => (
                   <tr key={hsn}>
-                    <td style={dc({ textAlign: "center", fontSize: 11 })}>{hsn}</td>
-                    <td style={dc({ textAlign: "right", fontSize: 11 })}>{fmt2(g.taxable)}</td>
-                    <td style={dc({ textAlign: "center", fontSize: 10 })}>{cgstRate}%</td>
-                    <td style={dc({ textAlign: "right", fontSize: 10 })}>{fmt2(g.cgst)}</td>
-                    <td style={dc({ textAlign: "center", fontSize: 10 })}>{sgstRate}%</td>
-                    <td style={dc({ textAlign: "right", fontSize: 10 })}>{fmt2(g.sgst)}</td>
-                    <td style={dc({ textAlign: "right", fontSize: 10 })}>{fmt2(g.cgst + g.sgst)}</td>
+                    <td style={dc({ textAlign: "center", fontSize: 11 })}>
+                      {hsn}
+                    </td>
+                    <td style={dc({ textAlign: "right", fontSize: 11 })}>
+                      {fmt2(g.taxable)}
+                    </td>
+                    <td style={dc({ textAlign: "center", fontSize: 10 })}>
+                      {cgstRate}%
+                    </td>
+                    <td style={dc({ textAlign: "right", fontSize: 10 })}>
+                      {fmt2(g.cgst)}
+                    </td>
+                    <td style={dc({ textAlign: "center", fontSize: 10 })}>
+                      {sgstRate}%
+                    </td>
+                    <td style={dc({ textAlign: "right", fontSize: 10 })}>
+                      {fmt2(g.sgst)}
+                    </td>
+                    <td style={dc({ textAlign: "right", fontSize: 10 })}>
+                      {fmt2(g.cgst + g.sgst)}
+                    </td>
                   </tr>
                 ))}
                 <tr style={{ background: "#f5f5f5", fontWeight: "bold" }}>
-                  <td style={dc({ borderTop: B, borderBottom: B, fontSize: 10 })}>Total</td>
-                  <td style={dc({ textAlign: "right", borderTop: B, borderBottom: B, fontSize: 10 })}>{fmt2(taxable)}</td>
+                  <td
+                    style={dc({ borderTop: B, borderBottom: B, fontSize: 10 })}
+                  >
+                    Total
+                  </td>
+                  <td
+                    style={dc({
+                      textAlign: "right",
+                      borderTop: B,
+                      borderBottom: B,
+                      fontSize: 10,
+                    })}
+                  >
+                    {fmt2(taxable)}
+                  </td>
                   <td style={dc({ borderTop: B, borderBottom: B })}></td>
-                  <td style={dc({ textAlign: "right", borderTop: B, borderBottom: B, fontSize: 10 })}>{fmt2(cgstAmt)}</td>
+                  <td
+                    style={dc({
+                      textAlign: "right",
+                      borderTop: B,
+                      borderBottom: B,
+                      fontSize: 10,
+                    })}
+                  >
+                    {fmt2(cgstAmt)}
+                  </td>
                   <td style={dc({ borderTop: B, borderBottom: B })}></td>
-                  <td style={dc({ textAlign: "right", borderTop: B, borderBottom: B, fontSize: 10 })}>{fmt2(sgstAmt)}</td>
-                  <td style={dc({ textAlign: "right", borderTop: B, borderBottom: B, fontSize: 10 })}>{fmt2(totalTax)}</td>
+                  <td
+                    style={dc({
+                      textAlign: "right",
+                      borderTop: B,
+                      borderBottom: B,
+                      fontSize: 10,
+                    })}
+                  >
+                    {fmt2(sgstAmt)}
+                  </td>
+                  <td
+                    style={dc({
+                      textAlign: "right",
+                      borderTop: B,
+                      borderBottom: B,
+                      fontSize: 10,
+                    })}
+                  >
+                    {fmt2(totalTax)}
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -820,26 +1366,94 @@ const sub = rows.reduce((s, r) => s + r.qty * (r.rateIncl / (1 + tax / 100)), 0)
 
           {/* ─── FOOTER ─── */}
           <div style={{ marginTop: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }} className="inv-footer">
+            <table
+              style={{ width: "100%", borderCollapse: "collapse" }}
+              className="inv-footer"
+            >
               <tbody>
                 <tr>
-                  <td style={{ width: "44%", borderRight: B, padding: "4px 7px", verticalAlign: "top", fontSize: 10 }}>
-                    <div style={{ fontWeight: "bold", marginBottom: 2, fontSize: 15 }}>Company's Bank Details</div>
+                  <td
+                    style={{
+                      width: "44%",
+                      borderRight: B,
+                      padding: "4px 7px",
+                      verticalAlign: "top",
+                      fontSize: 10,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontWeight: "bold",
+                        marginBottom: 2,
+                        fontSize: 15,
+                      }}
+                    >
+                      Company's Bank Details
+                    </div>
                     {[
-                      ["A/c Holder's Name", d.bank_holder_name || DEFAULT_BANK.holderName],
+                      [
+                        "A/c Holder's Name",
+                        d.bank_holder_name || DEFAULT_BANK.holderName,
+                      ],
                       ["Bank Name", d.bank_name || DEFAULT_BANK.bankName],
                       ["A/c No.", d.bank_account_no || DEFAULT_BANK.accountNo],
-                      ["Branch & IFS Code", `${d.bank_branch || DEFAULT_BANK.branch} & ${d.bank_ifsc || DEFAULT_BANK.ifsc}`],
-                    ].map(([k, v]) => <div key={k} style={{ marginBottom: 2, fontSize: 12 }}><strong>{k}</strong>: {v}</div>)}
+                      [
+                        "Branch & IFS Code",
+                        `${d.bank_branch || DEFAULT_BANK.branch} & ${d.bank_ifsc || DEFAULT_BANK.ifsc}`,
+                      ],
+                    ].map(([k, v]) => (
+                      <div key={k} style={{ marginBottom: 2, fontSize: 12 }}>
+                        <strong>{k}</strong>: {v}
+                      </div>
+                    ))}
                   </td>
                   <td style={{ padding: "4px 7px", verticalAlign: "top" }}>
-                    <div style={{ fontSize: 9, marginBottom: 4 }}><strong>Declaration:</strong> {d.declaration || DECLARATION}</div>
-                    <div style={{ textAlign: "right", fontWeight: "bold", fontSize: 10, marginBottom: 2 }}>for {COMPANY.name}</div>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 28 }}>
-                      <div style={{ textAlign: "center", width: "42%" }}><div style={{ borderTop: B, paddingTop: 2, fontSize: 10 }}>Receiver's Signature</div></div>
-                      <div style={{ textAlign: "center", width: "42%" }}><div style={{ borderTop: B, paddingTop: 2, fontSize: 10 }}>Authorised Signatory</div></div>
+                    <div style={{ fontSize: 9, marginBottom: 4 }}>
+                      <strong>Declaration:</strong>{" "}
+                      {d.declaration || DECLARATION}
                     </div>
-                    <div style={{ textAlign: "center", marginTop: 4, fontSize: 9, color: "#666" }}>This is a Computer Generated Quotation</div>
+                    <div
+                      style={{
+                        textAlign: "right",
+                        fontWeight: "bold",
+                        fontSize: 10,
+                        marginBottom: 2,
+                      }}
+                    >
+                      for {COMPANY.name}
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        marginTop: 28,
+                      }}
+                    >
+                      <div style={{ textAlign: "center", width: "42%" }}>
+                        <div
+                          style={{ borderTop: B, paddingTop: 2, fontSize: 10 }}
+                        >
+                          Receiver's Signature
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "center", width: "42%" }}>
+                        <div
+                          style={{ borderTop: B, paddingTop: 2, fontSize: 10 }}
+                        >
+                          Authorised Signatory
+                        </div>
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        textAlign: "center",
+                        marginTop: 4,
+                        fontSize: 9,
+                        color: "#666",
+                      }}
+                    >
+                      This is a Computer Generated Quotation
+                    </div>
                   </td>
                 </tr>
               </tbody>
@@ -847,272 +1461,867 @@ const sub = rows.reduce((s, r) => s + r.qty * (r.rateIncl / (1 + tax / 100)), 0)
           </div>
         </div>
 
-        <div className="qt-no-print" style={{ display: "flex", justifyContent: "center", gap: 12, paddingBottom: 30 }}>
-          <button onClick={() => setView("table")} style={{ padding: "8px 20px", borderRadius: 8, border: "1px solid #d0d7de", background: "#fff", fontWeight: 600, cursor: "pointer" }}>← Back to List</button>
-          <button onClick={() => window.print()} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#1a1a2e", color: "#fff", fontWeight: 600, cursor: "pointer" }}>🖨️ Print Quotation</button>
+        <div
+          className="qt-no-print"
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            gap: 12,
+            paddingBottom: 30,
+          }}
+        >
+          <button
+            onClick={() => setView("table")}
+            style={{
+              padding: "8px 20px",
+              borderRadius: 8,
+              border: "1px solid #d0d7de",
+              background: "#fff",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            ← Back to List
+          </button>
+          <button
+            onClick={() => window.print()}
+            style={{
+              padding: "8px 20px",
+              borderRadius: 8,
+              border: "none",
+              background: "#1a1a2e",
+              color: "#fff",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            🖨️ Print Quotation
+          </button>
         </div>
       </>
     );
   }
 
-  // ─── RENDER: TABLE ──────────────────────────────────────────────────────────
+  // ─── RENDER: TABLE (matches Tax Invoice at-* design) ───────────────────────
   if (view === "table") {
     return (
-      <div style={{ width: "100%", padding: "0 24px", boxSizing: "border-box", fontFamily: "'Inter',system-ui,sans-serif", color: "#0f172a" }}>
-        <style>{`
-          .qt-tbl { width:100%; border-collapse:collapse; }
-          .qt-tbl th { background:#f6f8fa; padding:11px 14px; text-align:left; font-size:12px; font-weight:600; border-bottom:1px solid #e1e8ed; }
-          .qt-tbl td { padding:11px 14px; border-bottom:1px solid #f0f0f0; font-size:13px; vertical-align:middle; }
-          .qt-tbl tbody tr:hover { background:#fafbfc; }
-          .qt-abtn { padding:4px 10px; border-radius:6px; font-size:11px; font-weight:600; border:none; cursor:pointer; }
-        `}</style>
-
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, paddingBottom: 16, borderBottom: "1px solid #e1e8ed" }}>
-          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>📋 Quotations</h2>
-          <button onClick={() => { resetForm(); setView("form"); }} style={{ padding: "9px 20px", background: "#1a1a2e", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, cursor: "pointer", fontSize: 13 }}>+ New Quotation</button>
-        </div>
-
-        <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
-          <input placeholder="Search by client name or quote no…" value={search} onChange={(e) => setSearch(e.target.value)} style={{ padding: "8px 14px", border: "1px solid #d0d7de", borderRadius: 8, fontSize: 13, width: 300, boxSizing: "border-box" }} />
-        </div>
-
-        <div style={{ display: "flex", gap: 0, background: "#fff", border: "1px solid #e1e8ed", borderRadius: "12px 12px 0 0", overflow: "hidden", marginBottom: 0 }}>
-          {[["Total Quotes", filtered.length, "#0f172a"], ["Total Subtotal", inr(summary.subtotal), "#0f172a"], ["Total Discount", inr(summary.discount), "#cf222e"], ["Total Revenue", inr(summary.revenue), "#bc4c00"]].map(([l, v, c], i, arr) => (
-            <div key={l} style={{ flex: 1, padding: "12px 18px", borderRight: i < arr.length - 1 ? "1px solid #e1e8ed" : "none" }}>
-              <div style={{ fontSize: 11, color: "#8c959f", textTransform: "uppercase", fontWeight: 600 }}>{l}</div>
-              <div style={{ fontSize: 15, fontWeight: 700, marginTop: 3, color: c }}>{v}</div>
-            </div>
-          ))}
-        </div>
-
-        <div style={{ background: "#fff", border: "1px solid #e1e8ed", borderTop: "none", borderRadius: "0 0 12px 12px", overflow: "hidden" }}>
-          {loading ? <div style={{ textAlign: "center", padding: 40, color: "#8c959f" }}>Loading…</div> : (
-            <div style={{ overflowX: "auto" }}>
-              <table className="qt-tbl">
-                <thead>
-                  <tr><th>Quote No</th><th>Client</th><th>Date</th><th>Valid Until</th><th>Items</th><th>Discount</th><th>Tax</th><th>Grand Total</th><th style={{ textAlign: "right" }}>Actions</th></tr>
-                </thead>
-                <tbody>
-                  {filtered.map((rec) => (
-                    <tr key={rec.id}>
-                      <td style={{ fontWeight: 700, color: "#bc4c00", fontFamily: "monospace" }}>{rec.quote_no}</td>
-                      <td><div style={{ fontWeight: 600 }}>{rec.client_name}</div>{rec.client_phone && <div style={{ fontSize: 11, color: "#8c959f" }}>{rec.client_phone}</div>}</td>
-                      <td>{formatDate(rec.quote_date)}</td>
-                      <td>{rec.valid_until ? formatDate(rec.valid_until) : "—"}</td>
-                      <td>{rec.items_count || 0} items</td>
-                      <td style={{ color: "#cf222e", fontFamily: "monospace" }}>{inr(rec.discount_amount)}</td>
-                      <td style={{ fontFamily: "monospace" }}>{Number(rec.is_gst) === 0 ? "—" : inr(rec.tax_amount)}</td>
-                      <td style={{ color: "#bc4c00", fontWeight: 700, fontFamily: "monospace" }}>{inr(rec.grand_total)}</td>
-                      <td><div style={{ display: "flex", gap: 5, justifyContent: "flex-end", flexWrap: "wrap" }}>
-                        <button className="qt-abtn" style={{ background: "#eef2ff", color: "#1d4ed8" }} onClick={() => handleViewBill(rec)}>👁 View</button>
-                        <button className="qt-abtn" style={{ background: "#fef3c7", color: "#b45309" }} onClick={() => handleEdit(rec)}>✏️ Edit</button>
-                        <button className="qt-abtn" style={{ background: "#dcfce7", color: "#15803d" }} onClick={() => handleViewBill(rec)}>🖨️ Print</button>
-                        <button className="qt-abtn" style={{ background: "#fee2e2", color: "#b91c1c" }} onClick={() => setDeleteId(rec.id)}>🗑 Del</button>
-                      </div></td>
-                    </tr>
-                  ))}
-                  {filtered.length === 0 && <tr><td colSpan={9} style={{ textAlign: "center", padding: 40, color: "#8c959f" }}>No quotations found</td></tr>}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        {deleteId && (
-          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => setDeleteId(null)}>
-            <div style={{ background: "#fff", borderRadius: 16, padding: 28, maxWidth: 380, textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
-              <div style={{ fontSize: "2rem", marginBottom: 8 }}>🗑️</div>
-              <div style={{ fontSize: 18, fontWeight: 700 }}>Delete Quotation?</div>
-              <div style={{ color: "#57606a", margin: "8px 0 20px" }}>This action cannot be undone.</div>
-              <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-                <button onClick={() => setDeleteId(null)} style={{ padding: "8px 18px", border: "1px solid #d0d7de", borderRadius: 8, background: "#f6f8fa", cursor: "pointer", fontWeight: 600 }}>Cancel</button>
-                <button onClick={handleDelete} style={{ padding: "8px 18px", border: "none", borderRadius: 8, background: "#cf222e", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Delete</button>
+      <>
+        <style>{screenStyles}</style>
+        <div className="at-root">
+          <div className="at-header">
+            <div className="at-header__left">
+              <div className="at-header__icon">
+                <i className="bi bi-file-earmark-text"></i>
+              </div>
+              <div>
+                <h1 className="at-header__title">Quotations</h1>
+                <p className="at-header__sub">
+                  BIP Fencing – Quotation / Estimate Manager
+                </p>
               </div>
             </div>
+            <button
+              type="button"
+              className="at-btn at-btn--primary"
+              onClick={() => {
+                resetForm();
+                setView("form");
+              }}
+            >
+              <i className="bi bi-plus-lg"></i> New Quotation
+            </button>
           </div>
-        )}
-      </div>
-    );
-  }
 
-  // ─── RENDER: FORM ──────────────────────────────────────────────────────────
-  return (
-    <div style={{ width: "100%", padding: "0 24px", boxSizing: "border-box", fontFamily: "'Inter',system-ui,sans-serif", color: "#0f172a" }}>
-      <style>{`
-        .qt-card { background:#fff; border:1px solid #e1e8ed; border-radius:12px; padding:20px; margin-bottom:20px; }
-        .qt-card-title { font-weight:700; font-size:14px; color:#bc4c00; margin-bottom:16px; display:flex; align-items:center; gap:8px; }
-        .qt-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
-        .qt-grid .span2 { grid-column:span 2; }
-        .qt-grid .span3 { grid-column:span 3; }
-        @media(max-width:900px){ .qt-grid { grid-template-columns:repeat(2,1fr); } .qt-grid .span3{grid-column:span 2;} }
-        @media(max-width:600px){ .qt-grid { grid-template-columns:1fr; } .qt-grid .span2,.qt-grid .span3{grid-column:span 1;} }
-        .qt-label { font-size:12px; font-weight:600; display:block; margin-bottom:4px; color:#444; }
-        .qt-input,.qt-select,.qt-textarea { width:100%; padding:8px 10px; border:1px solid #d0d7de; border-radius:8px; font-size:13px; box-sizing:border-box; font-family:inherit; }
-        .qt-textarea { resize:vertical; }
-        .qt-btn { border:none; border-radius:8px; padding:9px 20px; font-weight:600; font-size:13px; cursor:pointer; }
-        .qt-btn-primary { background:#1a1a2e; color:#fff; }
-        .qt-btn-ghost { background:#f6f8fa; border:1px solid #d0d7de; color:#333; }
-        .qt-btn-sm { padding:5px 12px; font-size:12px; }
-        .qt-items-table { width:100%; border-collapse:collapse; min-width:820px; }
-        .qt-items-table th,.qt-items-table td { padding:7px 8px; border-bottom:1px solid #f0f0f0; font-size:13px; text-align:left; vertical-align:middle; }
-        .qt-items-table th { background:#f6f8fa; font-size:12px; font-weight:600; }
-      `}</style>
-
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24, paddingBottom: 16, borderBottom: "1px solid #e1e8ed" }}>
-        <button className="qt-btn qt-btn-ghost qt-btn-sm" onClick={() => { resetForm(); setView("table"); }}>← Back</button>
-        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>{editId ? "Edit Quotation" : "New Quotation"}</h2>
-      </div>
-
-      <form onSubmit={handleSubmit}>
-        {/* ─── Quotation Details ─── */}
-        <div className="qt-card">
-          <div className="qt-card-title">📄 Quotation Details</div>
-          <div className="qt-grid">
-            <div><label className="qt-label">Quote No *</label><input name="quoteNo" value={form.quoteNo} onChange={handleChange} className="qt-input" required placeholder="QT-001" /></div>
-            <div><label className="qt-label">Quote Date *</label><input type="date" name="quoteDate" value={form.quoteDate} onChange={handleChange} className="qt-input" required /></div>
-            <div><label className="qt-label">Valid Until</label><input type="date" name="validUntil" value={form.validUntil} onChange={handleChange} className="qt-input" /></div>
-            <div><label className="qt-label">PO / Order No.</label><input name="poNo" value={form.poNo} onChange={handleChange} className="qt-input" /></div>
-            <div><label className="qt-label">Dispatched Through</label><input name="dispatchedThrough" value={form.dispatchedThrough} onChange={handleChange} className="qt-input" /></div>
-            <div><label className="qt-label">Vehicle No.</label><input name="vehicleNo" value={form.vehicleNo} onChange={handleChange} className="qt-input" /></div>
-            <div className="span3"><label className="qt-label">Other References</label><input name="otherRef" value={form.otherRef} onChange={handleChange} className="qt-input" /></div>
-            <div><label className="qt-label">Discount %</label><input type="number" name="discount" value={form.discount} onChange={handleChange} className="qt-input" min="0" step="any" /></div>
-            <div><label className="qt-label">GST Applicable?</label>
-              <select value={form.isGst ? "yes" : "no"} onChange={(e) => setForm({ ...form, isGst: e.target.value === "yes" })} className="qt-select">
-                <option value="yes">Yes — GST Bill</option>
-                <option value="no">No — Non-GST Bill</option>
-              </select>
+          <div className="at-card">
+            <div className="at-card__head">
+              <i className="bi bi-search"></i>
+              <span>Search</span>
             </div>
-            {form.isGst && (
-              <div><label className="qt-label">GST Rate %</label>
-                <select name="taxPercent" value={form.taxPercent} onChange={handleChange} className="qt-select">
-                  <option value={18}>18% (CGST 9% + SGST 9%)</option><option value={12}>12% (CGST 6% + SGST 6%)</option>
-                  <option value={5}>5% (CGST 2.5% + SGST 2.5%)</option><option value={28}>28% (CGST 14% + SGST 14%)</option><option value={0}>0%</option>
-                </select>
+            <input
+              className="at-input"
+              placeholder="Search by client name or quote no…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ maxWidth: 340 }}
+            />
+          </div>
+
+          <div className="at-form-grid" style={{ marginBottom: 20 }}>
+            {[
+              ["Total Quotes", filtered.length],
+              ["Total Subtotal", inr(summary.subtotal)],
+              ["Total Discount", inr(summary.discount)],
+              ["Total Revenue", inr(summary.revenue)],
+            ].map(([label, value]) => (
+              <div
+                className="at-card"
+                key={label}
+                style={{ marginBottom: 0, padding: 16 }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: "#64748b",
+                    textTransform: "uppercase",
+                    fontWeight: 700,
+                    letterSpacing: 0.5,
+                  }}
+                >
+                  {label}
+                </div>
+                <div
+                  style={{
+                    fontSize: 18,
+                    fontWeight: 800,
+                    marginTop: 4,
+                    color: "#008b3e",
+                  }}
+                >
+                  {value}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="at-card">
+            <div className="at-card__head">
+              <i className="bi bi-list-ul"></i>
+              <span>All Quotations</span>
+            </div>
+            {loading ? (
+              <div
+                style={{ textAlign: "center", padding: 40, color: "#64748b" }}
+              >
+                Loading…
+              </div>
+            ) : (
+              <div className="at-table-wrap">
+                <table className="at-table">
+                  <thead>
+                    <tr>
+                      <th>Quote No</th>
+                      <th>Client</th>
+                      <th>Date</th>
+                      <th>Valid Until</th>
+                      <th>Items</th>
+                      <th>Discount</th>
+                      <th>Tax</th>
+                      <th>Grand Total</th>
+                      <th style={{ textAlign: "right" }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((rec) => (
+                      <tr key={rec.id}>
+                        <td style={{ fontWeight: 700, color: "#008b3e" }}>
+                          {rec.quote_no}
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 600 }}>
+                            {rec.client_name}
+                          </div>
+                          {rec.client_phone && (
+                            <div style={{ fontSize: 11, color: "#94a3b8" }}>
+                              {rec.client_phone}
+                            </div>
+                          )}
+                        </td>
+                        <td>{formatDate(rec.quote_date)}</td>
+                        <td>
+                          {rec.valid_until ? formatDate(rec.valid_until) : "—"}
+                        </td>
+                        <td>{rec.items_count || 0} items</td>
+                        <td style={{ color: "#dc2626" }}>
+                          {inr(rec.discount_amount)}
+                        </td>
+                        <td>
+                          {Number(rec.is_gst) === 0 ? "—" : inr(rec.tax_amount)}
+                        </td>
+                        <td style={{ color: "#008b3e", fontWeight: 700 }}>
+                          {inr(rec.grand_total)}
+                        </td>
+                        <td>
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: 6,
+                              justifyContent: "flex-end",
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <button
+                              className="at-btn at-btn--ghost"
+                              style={{ padding: "6px 12px", fontSize: 12 }}
+                              onClick={() => handleViewBill(rec)}
+                            >
+                              <i className="bi bi-eye"></i> View
+                            </button>
+                            <button
+                              className="at-btn at-btn--ghost"
+                              style={{ padding: "6px 12px", fontSize: 12 }}
+                              onClick={() => handleEdit(rec)}
+                            >
+                              <i className="bi bi-pencil"></i> Edit
+                            </button>
+                            <button
+                              className="at-btn at-btn--ghost"
+                              style={{ padding: "6px 12px", fontSize: 12 }}
+                              onClick={() => handleViewBill(rec)}
+                            >
+                              <i className="bi bi-printer"></i> Print
+                            </button>
+                            <button
+                              className="at-btn at-btn--ghost"
+                              style={{
+                                padding: "6px 12px",
+                                fontSize: 12,
+                                color: "#dc2626",
+                                borderColor: "#fca5a5",
+                              }}
+                              onClick={() => setDeleteId(rec.id)}
+                            >
+                              <i className="bi bi-trash"></i> Del
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {filtered.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={9}
+                          style={{
+                            textAlign: "center",
+                            padding: 40,
+                            color: "#94a3b8",
+                          }}
+                        >
+                          No quotations found
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
-        </div>
 
-        {/* ─── Buyer ─── */}
-        <div className="qt-card">
-          <div className="qt-card-title">👤 Buyer (Bill to)</div>
-          <div className="qt-grid">
-            <div><label className="qt-label">Client Name *</label><input name="clientName" value={form.clientName} onChange={handleChange} className="qt-input" required /></div>
-            <div><label className="qt-label">Phone</label><input name="clientPhone" value={form.clientPhone} onChange={handleChange} className="qt-input" /></div>
-            <div><label className="qt-label">Email</label><input name="clientEmail" value={form.clientEmail} onChange={handleChange} className="qt-input" /></div>
-         {form.isGst && <div><label className="qt-label">GSTIN</label><input name="clientGst" value={form.clientGst} onChange={handleChange} className="qt-input" /></div>}
-            <div><label className="qt-label">State</label><input name="clientState" value={form.clientState} onChange={handleChange} className="qt-input" /></div>
-            <div><label className="qt-label">State Code</label><input name="clientStateCode" value={form.clientStateCode} onChange={handleChange} className="qt-input" /></div>
-            <div className="span3"><label className="qt-label">Address</label><textarea name="clientAddress" value={form.clientAddress} onChange={handleChange} className="qt-textarea" rows={2} /></div>
-          </div>
-        </div>
-
-        {/* ─── Consignee ─── */}
-        <div className="qt-card">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-           <div className="qt-card-title" style={{ margin: 0 }}>🚛 Consignee (Ship to)</div>
-            {sameAsClient ? <button type="button" className="qt-btn qt-btn-primary qt-btn-sm" onClick={copyClientToShip}>Same as Buyer →</button> :
-              <button type="button" className="qt-btn qt-btn-ghost qt-btn-sm" onClick={() => { setSameAsClient(true); setForm({ ...form, shipName: "", shipAddress: "", shipGst: "", shipState: "Tamil Nadu", shipStateCode: "33" }); }}>Clear Ship-to</button>}
-          </div>
-          {!sameAsClient && <div className="qt-grid">
-            <div className="span3"><label className="qt-label">Name</label><input name="shipName" value={form.shipName} onChange={handleChange} className="qt-input" /></div>
-            <div className="span3"><label className="qt-label">Address</label><textarea name="shipAddress" value={form.shipAddress} onChange={handleChange} className="qt-textarea" rows={2} /></div>
-           {form.isGst && <div><label className="qt-label">GSTIN</label><input name="shipGst" value={form.shipGst} onChange={handleChange} className="qt-input" /></div>}
-            <div><label className="qt-label">State</label><input name="shipState" value={form.shipState} onChange={handleChange} className="qt-input" /></div>
-            <div><label className="qt-label">State Code</label><input name="shipStateCode" value={form.shipStateCode} onChange={handleChange} className="qt-input" /></div>
-          </div>}
-          {sameAsClient && <p style={{ color: "#8c959f", fontSize: 13, margin: 0 }}>Ship-to same as Buyer. Click button to add separate address.</p>}
-        </div>
-
-        {/* ─── Items ─── */}
-        <div className="qt-card">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <div className="qt-card-title" style={{ margin: 0 }}>📦 Items</div>
-            <button type="button" className="qt-btn qt-btn-primary qt-btn-sm" onClick={addItem}>+ Add Item</button>
-          </div>
-
-          {products.length > 0 ? (
-            <div style={{ background: "#fef3ec", border: "1px solid #ffd7b5", borderRadius: 8, padding: "8px 12px", fontSize: 12, marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
-              💡 <span><strong>{products.length} products</strong> in catalog — pick from the <strong>dropdown</strong> to auto-fill HSN, unit &amp; rate. <em>Stock is not reduced.</em></span>
-            </div>
-          ) : (
-            <div style={{ background: "#f6f8fa", border: "1px solid #e1e8ed", borderRadius: 8, padding: "8px 12px", fontSize: 12, marginBottom: 12, color: "#8c959f" }}>
-              ℹ️ No products in catalog yet. Add products in <strong>Stock → Products</strong> to enable quick-fill.
+          {deleteId && (
+            <div
+              style={{
+                position: "fixed",
+                inset: 0,
+                background: "rgba(0,0,0,.5)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 1000,
+              }}
+              onClick={() => setDeleteId(null)}
+            >
+              <div
+                className="at-card"
+                style={{ maxWidth: 380, textAlign: "center", marginBottom: 0 }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div
+                  style={{
+                    fontSize: "2rem",
+                    marginBottom: 8,
+                    color: "#dc2626",
+                  }}
+                >
+                  <i className="bi bi-trash3-fill"></i>
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 800 }}>
+                  Delete Quotation?
+                </div>
+                <div style={{ color: "#64748b", margin: "8px 0 20px" }}>
+                  This action cannot be undone.
+                </div>
+                <div
+                  style={{ display: "flex", gap: 10, justifyContent: "center" }}
+                >
+                  <button
+                    className="at-btn at-btn--ghost"
+                    onClick={() => setDeleteId(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="at-btn at-btn--primary"
+                    style={{ background: "#dc2626", boxShadow: "none" }}
+                    onClick={handleDelete}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
             </div>
           )}
-
-          <div style={{ overflowX: "auto" }}>
-            <table className="qt-items-table">
-              <thead><tr><th style={{ width: 32 }}>#</th><th style={{ minWidth: 260 }}>Description</th><th style={{ width: 80 }}>HSN/SAC</th><th style={{ width: 105 }}>Due On</th><th style={{ width: 75 }}>Unit</th><th style={{ width: 70 }}>Qty</th><th style={{ width: 100 }}>Rate (₹)</th><th style={{ width: 110 }}>Amount (₹)</th><th style={{ width: 36 }}></th></tr></thead>
-              <tbody>
-                {form.items.map((item, i) => <ItemRow key={i} item={item} idx={i} products={products} onChange={handleItemChange} onProductSelect={handleProductSelect} onRemove={removeItem} canRemove={form.items.length > 1} units={UNITS} />)}
-              </tbody>
-            </table>
-          </div>
-
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
-            <div style={{ minWidth: 280, background: "#f6f8fa", borderRadius: 12, padding: 16 }}>
-              {[
-                ["Subtotal", inr(T.subtotal)],
-                T.discountAmt > 0 ? [`Discount (${form.discount}%)`, `- ${inr(T.discountAmt)}`] : null,
-                ["Taxable Value", inr(T.taxable)],
-                form.isGst ? [`CGST (${Number(form.taxPercent) / 2}%)`, inr(T.cgst)] : null,
-                form.isGst ? [`SGST (${Number(form.taxPercent) / 2}%)`, inr(T.sgst)] : null,
-                ["Round Off", T.roundOff >= 0 ? `+${inr(Math.abs(T.roundOff))}` : `-${inr(Math.abs(T.roundOff))}`],
-              ].filter(Boolean).map(([l, v]) => (
-                <div key={l} style={{ display: "flex", justifyContent: "space-between", marginBottom: 7, fontSize: 13 }}><span>{l}</span><span style={{ fontFamily: "monospace" }}>{v}</span></div>
-              ))}
-              <div style={{ height: 1, background: "#d0d7de", margin: "10px 0" }}></div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 15 }}><span>Grand Total</span><span style={{ color: "#bc4c00", fontFamily: "monospace" }}>{inr(T.grandTotal)}</span></div>
-            </div>
-          </div>
         </div>
-{/* ─── Unit Price ─── */}
-        <div className="qt-card">
-          <div className="qt-card-title">⚖️ Unit Price</div>
-          <div className="qt-grid">
-            <div>
-              <label className="qt-label">Select Unit</label>
-              <select className="qt-select" value={form.priceUnit} onChange={(e) => setForm({ ...form, priceUnit: e.target.value })}>
-                {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-              </select>
+      </>
+    );
+  }
+
+  // ─── RENDER: FORM (matches Tax Invoice at-* design) ─────────────────────────
+  return (
+    <>
+      <style>{screenStyles}</style>
+      <div className="at-root">
+        <div className="at-header">
+          <div className="at-header__left">
+            <div className="at-header__icon">
+              <i className="bi bi-file-earmark-text"></i>
             </div>
             <div>
-              <label className="qt-label">Price per {form.priceUnit}</label>
-              <input className="qt-input" readOnly value={(() => {
-  const totalQty = form.items.reduce((s, i) => s + (parseFloat(i.qty) || 0), 0);
-  return totalQty > 0 ? inr(T.grandTotal / totalQty) : inr(0);
-})()} />
+              <h1 className="at-header__title">
+                {editId ? "Edit Quotation" : "New Quotation"}
+              </h1>
+              <p className="at-header__sub">
+                BIP Fencing – Quotation / Estimate Generator
+              </p>
             </div>
           </div>
-        </div>
-        {/* ─── Notes ─── */}
-        <div className="qt-card">
-          <div className="qt-grid">
-            <div className="span3"><label className="qt-label">Terms &amp; Notes</label><textarea name="notes" value={form.notes} onChange={handleChange} className="qt-textarea" rows={2} /></div>
-            <div className="span3"><label className="qt-label">Declaration</label><textarea name="declaration" value={form.declaration} onChange={handleChange} className="qt-textarea" rows={2} /></div>
-          </div>
+          <button
+            type="button"
+            className="at-btn at-btn--ghost"
+            onClick={() => {
+              resetForm();
+              setView("table");
+            }}
+          >
+            <i className="bi bi-arrow-left"></i> Back to List
+          </button>
         </div>
 
-        <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginBottom: 40 }}>
-          <button type="submit" className="qt-btn qt-btn-primary">💾 {editId ? "Update" : "Save"} Quotation</button>
-          <button type="button" className="qt-btn qt-btn-ghost" onClick={resetForm}>Reset</button>
-        </div>
-      </form>
-    </div>
+        <form onSubmit={handleSubmit}>
+          {/* Quotation Details */}
+          <div className="at-card">
+            <div className="at-card__head">
+              <i className="bi bi-sliders"></i>
+              <span>Quotation Details</span>
+            </div>
+            <div className="at-form-grid">
+              <div className="at-fg">
+                <label className="at-label">
+                  Quote No <span className="req">*</span>
+                </label>
+                <input
+                  name="quoteNo"
+                  value={form.quoteNo}
+                  onChange={handleChange}
+                  className="at-input"
+                  required
+                  placeholder="QT-001"
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">
+                  Quote Date <span className="req">*</span>
+                </label>
+                <input
+                  type="date"
+                  name="quoteDate"
+                  value={form.quoteDate}
+                  onChange={handleChange}
+                  className="at-input"
+                  required
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">Valid Until</label>
+                <input
+                  type="date"
+                  name="validUntil"
+                  value={form.validUntil}
+                  onChange={handleChange}
+                  className="at-input"
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">PO / Order No.</label>
+                <input
+                  name="poNo"
+                  value={form.poNo}
+                  onChange={handleChange}
+                  className="at-input"
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">Dispatched Through</label>
+                <input
+                  name="dispatchedThrough"
+                  value={form.dispatchedThrough}
+                  onChange={handleChange}
+                  className="at-input"
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">Vehicle No.</label>
+                <input
+                  name="vehicleNo"
+                  value={form.vehicleNo}
+                  onChange={handleChange}
+                  className="at-input"
+                />
+              </div>
+              <div className="at-fg at-fg--span2">
+                <label className="at-label">Other References</label>
+                <input
+                  name="otherRef"
+                  value={form.otherRef}
+                  onChange={handleChange}
+                  className="at-input"
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">Discount %</label>
+                <input
+                  type="number"
+                  name="discount"
+                  value={form.discount}
+                  onChange={handleChange}
+                  className="at-input"
+                  min="0"
+                  step="any"
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">GST Applicable?</label>
+                <select
+                  value={form.isGst ? "yes" : "no"}
+                  onChange={(e) =>
+                    setForm({ ...form, isGst: e.target.value === "yes" })
+                  }
+                  className="at-select"
+                >
+                  <option value="yes">Yes — GST Bill</option>
+                  <option value="no">No — Non-GST Bill</option>
+                </select>
+              </div>
+              {form.isGst && (
+                <div className="at-fg">
+                  <label className="at-label">GST Rate %</label>
+                  <select
+                    name="taxPercent"
+                    value={form.taxPercent}
+                    onChange={handleChange}
+                    className="at-select"
+                  >
+                    <option value={18}>18% (CGST 9% + SGST 9%)</option>
+                    <option value={12}>12% (CGST 6% + SGST 6%)</option>
+                    <option value={5}>5% (CGST 2.5% + SGST 2.5%)</option>
+                    <option value={28}>28% (CGST 14% + SGST 14%)</option>
+                    <option value={0}>0%</option>
+                  </select>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Buyer */}
+          <div className="at-card">
+            <div className="at-card__head">
+              <i className="bi bi-person-badge"></i>
+              <span>Buyer (Bill to) *</span>
+            </div>
+            <div className="at-form-grid">
+              <div className="at-fg">
+                <label className="at-label">
+                  Client Name <span className="req">*</span>
+                </label>
+                <input
+                  name="clientName"
+                  value={form.clientName}
+                  onChange={handleChange}
+                  className="at-input"
+                  required
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">Phone</label>
+                <input
+                  name="clientPhone"
+                  value={form.clientPhone}
+                  onChange={handleChange}
+                  className="at-input"
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">Email</label>
+                <input
+                  name="clientEmail"
+                  value={form.clientEmail}
+                  onChange={handleChange}
+                  className="at-input"
+                />
+              </div>
+              {form.isGst && (
+                <div className="at-fg">
+                  <label className="at-label">GSTIN</label>
+                  <input
+                    name="clientGst"
+                    value={form.clientGst}
+                    onChange={handleChange}
+                    className="at-input"
+                  />
+                </div>
+              )}
+              <div className="at-fg">
+                <label className="at-label">State</label>
+                <input
+                  name="clientState"
+                  value={form.clientState}
+                  onChange={handleChange}
+                  className="at-input"
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">State Code</label>
+                <input
+                  name="clientStateCode"
+                  value={form.clientStateCode}
+                  onChange={handleChange}
+                  className="at-input"
+                />
+              </div>
+              <div className="at-fg at-fg--span2">
+                <label className="at-label">Address</label>
+                <input
+                  name="clientAddress"
+                  value={form.clientAddress}
+                  onChange={handleChange}
+                  className="at-input"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Consignee */}
+          <div className="at-card">
+            <div
+              className="at-card__head"
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <i className="bi bi-truck"></i>Consignee (Ship to)
+              </span>
+              {sameAsClient ? (
+                <button
+                  type="button"
+                  className="at-btn at-btn--primary"
+                  style={{ padding: "6px 14px", fontSize: 12 }}
+                  onClick={copyClientToShip}
+                >
+                  Same as Buyer →
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="at-btn at-btn--ghost"
+                  style={{ padding: "6px 14px", fontSize: 12 }}
+                  onClick={() => {
+                    setSameAsClient(true);
+                    setForm({
+                      ...form,
+                      shipName: "",
+                      shipAddress: "",
+                      shipGst: "",
+                      shipState: "Tamil Nadu",
+                      shipStateCode: "33",
+                    });
+                  }}
+                >
+                  Clear Ship-to
+                </button>
+              )}
+            </div>
+            {!sameAsClient ? (
+              <div className="at-form-grid">
+                <div className="at-fg at-fg--span2">
+                  <label className="at-label">Name</label>
+                  <input
+                    name="shipName"
+                    value={form.shipName}
+                    onChange={handleChange}
+                    className="at-input"
+                  />
+                </div>
+                <div className="at-fg">
+                  <label className="at-label">Address</label>
+                  <input
+                    name="shipAddress"
+                    value={form.shipAddress}
+                    onChange={handleChange}
+                    className="at-input"
+                  />
+                </div>
+                {form.isGst && (
+                  <div className="at-fg">
+                    <label className="at-label">GSTIN</label>
+                    <input
+                      name="shipGst"
+                      value={form.shipGst}
+                      onChange={handleChange}
+                      className="at-input"
+                    />
+                  </div>
+                )}
+                <div className="at-fg">
+                  <label className="at-label">State</label>
+                  <input
+                    name="shipState"
+                    value={form.shipState}
+                    onChange={handleChange}
+                    className="at-input"
+                  />
+                </div>
+                <div className="at-fg">
+                  <label className="at-label">State Code</label>
+                  <input
+                    name="shipStateCode"
+                    value={form.shipStateCode}
+                    onChange={handleChange}
+                    className="at-input"
+                  />
+                </div>
+              </div>
+            ) : (
+              <p style={{ color: "#94a3b8", fontSize: 13, margin: 0 }}>
+                Ship-to same as Buyer. Click the button above to add a separate
+                address.
+              </p>
+            )}
+          </div>
+
+          {/* Items */}
+          <div className="at-card">
+            <div
+              className="at-card__head"
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <i className="bi bi-box-seam"></i>Items
+              </span>
+              <button
+                type="button"
+                className="at-btn at-btn--primary"
+                style={{ padding: "6px 14px", fontSize: 12 }}
+                onClick={addItem}
+              >
+                <i className="bi bi-plus-lg"></i> Add Item
+              </button>
+            </div>
+
+            {products.length > 0 ? (
+              <div className="at-alert">
+                <i className="bi bi-info-circle-fill"></i>
+                <div>
+                  <strong>{products.length} products</strong> in catalog — pick
+                  from the dropdown to auto-fill HSN, unit &amp; rate. Stock is
+                  not reduced.
+                </div>
+              </div>
+            ) : (
+              <div
+                className="at-alert"
+                style={{
+                  background: "#f8fafc",
+                  borderColor: "#e2e8f0",
+                  color: "#64748b",
+                }}
+              >
+                <i className="bi bi-info-circle-fill"></i>
+                <div>
+                  No products in catalog yet. Add products in Stock → Products
+                  to enable quick-fill.
+                </div>
+              </div>
+            )}
+
+            <div className="at-table-wrap">
+              <table className="at-table" style={{ minWidth: 900 }}>
+                <thead>
+                  <tr>
+                    <th style={{ width: 32 }}>#</th>
+                    <th style={{ minWidth: 240 }}>Description</th>
+                    <th style={{ width: 80 }}>HSN/SAC</th>
+                    <th style={{ width: 110 }}>Due On</th>
+                    <th style={{ width: 75 }}>Unit</th>
+                    <th style={{ width: 70 }}>Qty</th>
+                    <th style={{ width: 100 }}>Rate (₹)</th>
+                    <th style={{ width: 110 }}>Amount (₹)</th>
+                    <th style={{ width: 40 }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {form.items.map((item, i) => (
+                    <ItemRow
+                      key={i}
+                      item={item}
+                      idx={i}
+                      products={products}
+                      onChange={handleItemChange}
+                      onProductSelect={handleProductSelect}
+                      onRemove={removeItem}
+                      canRemove={form.items.length > 1}
+                      units={UNITS}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div
+              className="at-totals-row"
+              style={{ justifyContent: "flex-end" }}
+            >
+              <div className="at-totals-box">
+                <div>
+                  Subtotal: <strong>₹ {fmt2(T.subtotal)}</strong>
+                </div>
+                {T.discountAmt > 0 && (
+                  <div className="muted">
+                    Discount ({form.discount}%): - ₹ {fmt2(T.discountAmt)}
+                  </div>
+                )}
+                <div className="muted">Taxable Value: ₹ {fmt2(T.taxable)}</div>
+                {form.isGst && (
+                  <div className="muted">
+                    CGST {Number(form.taxPercent) / 2}%: ₹ {fmt2(T.cgst)} | SGST{" "}
+                    {Number(form.taxPercent) / 2}%: ₹ {fmt2(T.sgst)}
+                  </div>
+                )}
+                <div className="muted">
+                  Round Off: {T.roundOff >= 0 ? "+" : "-"}₹{" "}
+                  {fmt2(Math.abs(T.roundOff))}
+                </div>
+                <div className="net">Grand Total: ₹ {fmt2(T.grandTotal)}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Unit Price */}
+          <div className="at-card">
+            <div className="at-card__head">
+              <i className="bi bi-rulers"></i>
+              <span>Unit Price</span>
+            </div>
+            <div className="at-form-grid--2">
+              <div className="at-fg">
+                <label className="at-label">Select Unit</label>
+                <select
+                  className="at-select"
+                  value={form.priceUnit}
+                  onChange={(e) =>
+                    setForm({ ...form, priceUnit: e.target.value })
+                  }
+                >
+                  {UNITS.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="at-fg">
+                <label className="at-label">Price per {form.priceUnit}</label>
+                <input
+                  className="at-input"
+                  readOnly
+                  value={(() => {
+                    const totalQty = form.items.reduce(
+                      (s, i) => s + (parseFloat(i.qty) || 0),
+                      0,
+                    );
+                    return totalQty > 0 ? inr(T.grandTotal / totalQty) : inr(0);
+                  })()}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div className="at-card">
+            <div className="at-card__head">
+              <i className="bi bi-card-text"></i>
+              <span>Terms &amp; Declaration</span>
+            </div>
+            <div className="at-form-grid--2">
+              <div className="at-fg">
+                <label className="at-label">Terms &amp; Notes</label>
+                <textarea
+                  name="notes"
+                  value={form.notes}
+                  onChange={handleChange}
+                  className="at-input"
+                  rows={2}
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">Declaration</label>
+                <textarea
+                  name="declaration"
+                  value={form.declaration}
+                  onChange={handleChange}
+                  className="at-input"
+                  rows={2}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="at-form-actions">
+            <button
+              type="button"
+              className="at-btn at-btn--ghost"
+              onClick={resetForm}
+            >
+              <i className="bi bi-arrow-clockwise"></i> Reset
+            </button>
+            <button type="submit" className="at-btn at-btn--primary at-btn--lg">
+              {editId ? "Update" : "Save"} Quotation{" "}
+              <i className="bi bi-check2"></i>
+            </button>
+          </div>
+        </form>
+      </div>
+    </>
   );
 }
 
-// ─── ITEM ROW ──────────────────────────────────────────────────────────────
+// ─── ITEM ROW (matches Tax Invoice's at-input-t / at-select-t table cells) ──
 const BRANCH_NAMES = { 1: "Branch A", 2: "Branch B", 3: "Branch C" };
 
-function ItemRow({ item, idx, products, onChange, onProductSelect, onRemove, canRemove, units }) {
+function ItemRow({
+  item,
+  idx,
+  products,
+  onChange,
+  onProductSelect,
+  onRemove,
+  canRemove,
+  units,
+}) {
   const isMatched = products.some((p) => p.product_name === item.description);
 
   const handleDropdown = (e) => {
     const id = e.target.value;
-    if (!id) { onChange(idx, "description", ""); onProductSelect(idx, null); }
-    else { onProductSelect(idx, products.find((p) => String(p.id) === id) || null); }
+    if (!id) {
+      onChange(idx, "description", "");
+      onProductSelect(idx, null);
+    } else {
+      onProductSelect(idx, products.find((p) => String(p.id) === id) || null);
+    }
   };
 
   const handleManual = (e) => {
@@ -1122,25 +2331,112 @@ function ItemRow({ item, idx, products, onChange, onProductSelect, onRemove, can
 
   return (
     <tr>
-      <td style={{ textAlign: "center", fontSize: 13 }}>{idx + 1}</td>
+      <td style={{ textAlign: "center", color: "#94a3b8" }}>{idx + 1}</td>
       <td>
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           {products.length > 0 && (
-            <select className="qt-select" value="" onChange={handleDropdown} style={{ fontSize: 12, color: isMatched ? "#0f172a" : "#8c959f" }}>
+            <select
+              className="at-select-t"
+              value=""
+              onChange={handleDropdown}
+              style={{ fontSize: 12, color: isMatched ? "#1e293b" : "#94a3b8" }}
+            >
               <option value="">— Select from catalog —</option>
-              {products.map((p) => <option key={p.id} value={p.id}>{p.product_name}{p.selling_price ? `  ₹${parseFloat(p.selling_price).toFixed(2)}` : ""}{p.stock_qty != null ? `  (Stock: ${p.stock_qty})` : ""}{p.branch_id ? `  [${BRANCH_NAMES[p.branch_id] || `Branch ${p.branch_id}`}]` : ""}</option>)}
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.product_name}
+                  {p.selling_price
+                    ? `  ₹${parseFloat(p.selling_price).toFixed(2)}`
+                    : ""}
+                  {p.stock_qty != null ? `  (Stock: ${p.stock_qty})` : ""}
+                  {p.branch_id
+                    ? `  [${BRANCH_NAMES[p.branch_id] || `Branch ${p.branch_id}`}]`
+                    : ""}
+                </option>
+              ))}
             </select>
           )}
-          <input className="qt-input" value={item.description} onChange={handleManual} placeholder={products.length > 0 ? "Or type custom description…" : "Product / Service"} style={{ fontSize: 12 }} />
+          <input
+            className="at-input-t"
+            value={item.description}
+            onChange={handleManual}
+            placeholder={
+              products.length > 0
+                ? "Or type custom description…"
+                : "Product / Service"
+            }
+          />
         </div>
       </td>
-      <td><input className="qt-input" value={item.hsn} onChange={(e) => onChange(idx, "hsn", e.target.value)} placeholder="HSN" style={{ fontSize: 12 }} /></td>
-      <td><input type="date" className="qt-input" value={item.dueOn} onChange={(e) => onChange(idx, "dueOn", e.target.value)} style={{ fontSize: 12 }} /></td>
-      <td><select className="qt-select" value={item.unit} onChange={(e) => onChange(idx, "unit", e.target.value)} style={{ fontSize: 12 }}>{units.map((u) => <option key={u}>{u}</option>)}</select></td>
-      <td><input type="number" className="qt-input" value={item.qty} min="0" step="any" onChange={(e) => onChange(idx, "qty", parseFloat(e.target.value) || 0)} style={{ fontSize: 12 }} /></td>
-      <td><input type="number" className="qt-input" value={item.rateIncl} min="0" step="any" onChange={(e) => onChange(idx, "rateIncl", parseFloat(e.target.value) || 0)} style={{ fontSize: 12 }} /></td>
-      <td style={{ fontFamily: "monospace", fontWeight: 600, textAlign: "right", fontSize: 13 }}>₹ {((parseFloat(item.qty) || 0) * (parseFloat(item.rateIncl) || 0)).toFixed(2)}</td>
-      <td>{canRemove && <button type="button" onClick={() => onRemove(idx)} style={{ background: "none", border: "none", color: "#cf222e", cursor: "pointer", fontSize: 16, lineHeight: 1 }}>🗑</button>}</td>
+      <td>
+        <input
+          className="at-input-t"
+          value={item.hsn}
+          onChange={(e) => onChange(idx, "hsn", e.target.value)}
+          placeholder="HSN"
+        />
+      </td>
+      <td>
+        <input
+          type="date"
+          className="at-input-t"
+          value={item.dueOn}
+          onChange={(e) => onChange(idx, "dueOn", e.target.value)}
+        />
+      </td>
+      <td>
+        <select
+          className="at-select-t"
+          value={item.unit}
+          onChange={(e) => onChange(idx, "unit", e.target.value)}
+        >
+          {units.map((u) => (
+            <option key={u}>{u}</option>
+          ))}
+        </select>
+      </td>
+      <td>
+        <input
+          type="number"
+          className="at-input-t"
+          value={item.qty}
+          min="0"
+          step="any"
+          onChange={(e) =>
+            onChange(idx, "qty", parseFloat(e.target.value) || 0)
+          }
+          onWheel={(e) => e.target.blur()}
+        />
+      </td>
+      <td>
+        <input
+          type="number"
+          className="at-input-t"
+          value={item.rateIncl}
+          min="0"
+          step="any"
+          onChange={(e) =>
+            onChange(idx, "rateIncl", parseFloat(e.target.value) || 0)
+          }
+          onWheel={(e) => e.target.blur()}
+        />
+      </td>
+      <td style={{ textAlign: "right", fontWeight: 700 }}>
+        ₹{" "}
+        {(
+          (parseFloat(item.qty) || 0) * (parseFloat(item.rateIncl) || 0)
+        ).toFixed(2)}
+      </td>
+      <td style={{ textAlign: "center" }}>
+        <button
+          type="button"
+          className="at-remove-btn"
+          onClick={() => onRemove(idx)}
+          disabled={!canRemove}
+        >
+          <i className="bi bi-x-lg"></i>
+        </button>
+      </td>
     </tr>
   );
 }

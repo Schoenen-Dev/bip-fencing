@@ -73,7 +73,9 @@ export default function PurchaseBill() {
       Object.entries(activeFilters).forEach(([k, v]) => {
         if (v) params.append(k, v);
       });
-      const res = await apiFetch(`/get_purchase_bills.php?${params.toString()}`);
+      const res = await apiFetch(
+        `/get_purchase_bills.php?${params.toString()}`,
+      );
       const data = await res.json();
       setBills(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -327,41 +329,57 @@ export default function PurchaseBill() {
   const inr = (v) => `₹${Number(v || 0).toLocaleString("en-IN")}`;
 
   return (
-    <div className="purchase-bill-page">
-      <div className="page-header">
-        <h1>
-          <i
-            className="bi bi-bag-check-fill me-2"
-            style={{ color: "#1a7f37" }}
-          ></i>
-          Purchase Bill
-        </h1>
-        <p>Record purchase bills with multiple products from one company</p>
-      </div>
+    <div className="at-root">
+      <style>{screenStyles}</style>
 
-      {/* ── Add Purchase button + collapsible form ─────────── */}
-      {!showForm && (
-        <div className="add-purchase-bar">
-          <button type="button" className="add-purchase-btn" onClick={openAddForm}>
+      {/* ── Header ───────────────────────────────────────────── */}
+      <div className="at-header">
+        <div className="at-header__left">
+          <div className="at-header__icon">
+            <i className="bi bi-bag-check-fill"></i>
+          </div>
+          <div>
+            <h1 className="at-header__title">Purchase Bill</h1>
+            <p className="at-header__sub">
+              Record purchase bills with multiple products from one company
+            </p>
+          </div>
+        </div>
+        {!showForm && (
+          <button
+            type="button"
+            className="at-btn at-btn--primary"
+            onClick={openAddForm}
+          >
             <i className="bi bi-plus-circle"></i> Add Purchase
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
+      {/* ── Add / Edit form ─────────────────────────────────────── */}
       {showForm && (
-        <form onSubmit={handleSubmit} className="card form-card">
-          <div className="form-title-row">
-            <h3>
+        <form onSubmit={handleSubmit} className="at-card">
+          <div
+            className="at-card__head"
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <i
                 className={
                   editingId ? "bi bi-pencil-square" : "bi bi-plus-circle"
                 }
-              ></i>{" "}
-              {editingId ? `Edit Purchase Bill #${editingId}` : "Add Purchase Bill"}
-            </h3>
+              ></i>
+              {editingId
+                ? `Edit Purchase Bill #${editingId}`
+                : "Add Purchase Bill"}
+            </span>
             <button
               type="button"
-              className="close-form-btn"
+              className="at-remove-btn"
               onClick={closeForm}
               title="Close form"
             >
@@ -369,63 +387,67 @@ export default function PurchaseBill() {
             </button>
           </div>
 
-          <div className="form-grid header-grid">
-            <div className="form-group">
-              <label>
-                Company Name <b>*</b>
+          <div className="at-form-grid">
+            <div className="at-fg">
+              <label className="at-label">
+                Company Name <span className="req">*</span>
               </label>
               <input
                 type="text"
                 name="company_name"
                 placeholder="Supplier / Company name"
+                className="at-input"
                 value={form.company_name}
                 onChange={handleHeaderChange}
                 required
               />
             </div>
-            <div className="form-group">
-              <label>
-                Invoice No. <b>*</b>
+            <div className="at-fg">
+              <label className="at-label">
+                Invoice No. <span className="req">*</span>
               </label>
               <input
                 type="text"
                 name="invoice_no"
                 placeholder="INV-001"
+                className="at-input"
                 value={form.invoice_no}
                 onChange={handleHeaderChange}
                 required
               />
             </div>
-            <div className="form-group">
-              <label>
-                Bill Date <b>*</b>
+            <div className="at-fg">
+              <label className="at-label">
+                Bill Date <span className="req">*</span>
               </label>
               <input
                 type="date"
                 name="bill_date"
+                className="at-input"
                 value={form.bill_date}
                 onChange={handleHeaderChange}
                 required
               />
             </div>
-            <div className="form-group full-width">
-              <label>Notes</label>
+            <div className="at-fg at-fg--span3">
+              <label className="at-label">Notes</label>
               <input
                 type="text"
                 name="notes"
                 placeholder="Optional notes"
+                className="at-input"
                 value={form.notes}
                 onChange={handleHeaderChange}
               />
             </div>
           </div>
 
-          <h4 className="items-title">
+          <div className="at-subhead">
             <i className="bi bi-list-ul"></i> Products
-          </h4>
+          </div>
 
-          <div className="items-table-wrap">
-            <table className="items-table responsive-table">
+          <div className="at-table-wrap">
+            <table className="at-table" style={{ minWidth: 780 }}>
               <thead>
                 <tr>
                   <th>Product ID *</th>
@@ -444,6 +466,7 @@ export default function PurchaseBill() {
                         type="text"
                         name="product_id"
                         placeholder="SKU / Code"
+                        className="at-input-t"
                         value={item.product_id}
                         onChange={(e) => handleItemChange(idx, e)}
                       />
@@ -453,6 +476,7 @@ export default function PurchaseBill() {
                         type="text"
                         name="product_name"
                         placeholder="Product name"
+                        className="at-input-t"
                         value={item.product_name}
                         onChange={(e) => handleItemChange(idx, e)}
                       />
@@ -464,8 +488,10 @@ export default function PurchaseBill() {
                         placeholder="0"
                         min="0"
                         step="any"
+                        className="at-input-t"
                         value={item.quantity}
                         onChange={(e) => handleItemChange(idx, e)}
+                        onWheel={(e) => e.target.blur()}
                       />
                     </td>
                     <td data-label="Rate (₹)">
@@ -475,8 +501,10 @@ export default function PurchaseBill() {
                         placeholder="0.00"
                         min="0"
                         step="any"
+                        className="at-input-t"
                         value={item.rate}
                         onChange={(e) => handleItemChange(idx, e)}
+                        onWheel={(e) => e.target.blur()}
                       />
                     </td>
                     <td data-label="Amount (₹)">
@@ -484,18 +512,19 @@ export default function PurchaseBill() {
                         type="text"
                         value={`₹ ${item.amount}`}
                         readOnly
-                        className="readonly-input"
+                        className="at-input-t"
+                        style={{ background: "#f1f5f9", fontWeight: 700 }}
                       />
                     </td>
-                    <td data-label="">
+                    <td data-label="" style={{ textAlign: "center" }}>
                       <button
                         type="button"
-                        className="remove-row-btn"
+                        className="at-remove-btn"
                         onClick={() => removeItemRow(idx)}
                         disabled={form.items.length === 1}
                         title="Remove row"
                       >
-                        <i className="bi bi-trash"></i> <span className="btn-txt-mobile">Remove</span>
+                        <i className="bi bi-trash"></i>
                       </button>
                     </td>
                   </tr>
@@ -504,28 +533,52 @@ export default function PurchaseBill() {
             </table>
           </div>
 
-          <div className="items-footer">
-            <button type="button" className="add-row-btn" onClick={addItemRow}>
+          <div style={{ marginBottom: 16 }}>
+            <button
+              type="button"
+              className="at-btn at-btn--ghost"
+              onClick={addItemRow}
+            >
               <i className="bi bi-plus-lg"></i> Add Product
             </button>
           </div>
 
           {/* ── GST section ─────────────────────────────────── */}
-          <div className="gst-section">
-            <label className="gst-toggle">
+          <div
+            className="at-alert"
+            style={{ alignItems: "center", flexWrap: "wrap", gap: 20 }}
+          >
+            <label
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 10,
+                fontWeight: 700,
+                fontSize: 14,
+                cursor: "pointer",
+                color: "#1e293b",
+              }}
+            >
               <input
                 type="checkbox"
                 name="gst_enabled"
                 checked={form.gst_enabled}
                 onChange={handleHeaderChange}
+                style={{
+                  width: 18,
+                  height: 18,
+                  accentColor: "#008b3e",
+                  cursor: "pointer",
+                }}
               />
-              <span>Include GST</span>
+              Include GST
             </label>
             {form.gst_enabled && (
-              <div className="form-group gst-rate-group">
-                <label>GST Rate (%)</label>
+              <div className="at-fg" style={{ minWidth: 160 }}>
+                <label className="at-label">GST Rate (%)</label>
                 <select
                   name="gst_rate"
+                  className="at-select"
                   value={form.gst_rate}
                   onChange={handleHeaderChange}
                 >
@@ -539,72 +592,100 @@ export default function PurchaseBill() {
           </div>
 
           {/* ── Payment section ─────────────────────────────── */}
-          <h4 className="items-title">
+          <div className="at-subhead">
             <i className="bi bi-cash-stack"></i> Payment Details
-          </h4>
-          <div className="form-grid payment-grid">
-            <div className="form-group">
-              <label>Opening Balance (₹)</label>
+          </div>
+          <div className="at-form-grid--2">
+            <div className="at-fg">
+              <label className="at-label">Opening Balance (₹)</label>
               <input
                 type="number"
                 name="opening_balance"
                 placeholder="Previous outstanding (0 if none)"
                 min="0"
                 step="any"
+                className="at-input"
                 value={form.opening_balance}
                 onChange={handleHeaderChange}
+                onWheel={(e) => e.target.blur()}
               />
             </div>
-            <div className="form-group">
-              <label>Paid Amount (₹)</label>
+            <div className="at-fg">
+              <label className="at-label">Paid Amount (₹)</label>
               <input
                 type="number"
                 name="paid_amount"
                 placeholder="Advance / amount paid now"
                 min="0"
                 step="any"
+                className="at-input"
                 value={form.paid_amount}
                 onChange={handleHeaderChange}
+                onWheel={(e) => e.target.blur()}
               />
             </div>
           </div>
 
           {/* ── Live summary ────────────────────────────────── */}
-          <div className="totals-summary">
-            <div className="totals-row">
-              <span>Subtotal</span>
-              <b>{inr(subtotal.toFixed(2))}</b>
-            </div>
-            {form.gst_enabled && (
-              <div className="totals-row">
-                <span>GST ({gstRate}%)</span>
-                <b>{inr(gstAmount.toFixed(2))}</b>
+          <div
+            className="at-totals-row"
+            style={{ justifyContent: "flex-end", marginTop: 16 }}
+          >
+            <div className="at-totals-box">
+              <div>
+                Subtotal: <strong>{inr(subtotal.toFixed(2))}</strong>
               </div>
-            )}
-            <div className="totals-row grand">
-              <span>Total Amount</span>
-              <b>{inr(totalAmount.toFixed(2))}</b>
-            </div>
-            <div className="totals-row">
-              <span>Opening Balance</span>
-              <b>{inr(openingBalance.toFixed(2))}</b>
-            </div>
-            <div className="totals-row">
-              <span>Paid Amount</span>
-              <b className="paid">{inr(paidAmount.toFixed(2))}</b>
-            </div>
-            <div className="totals-row grand">
-              <span>Closing Balance</span>
-              <b className={closingBalance > 0 ? "due" : "paid"}>
-                {inr(closingBalance.toFixed(2))}
-              </b>
+              {form.gst_enabled && (
+                <div className="muted">
+                  GST ({gstRate}%): {inr(gstAmount.toFixed(2))}
+                </div>
+              )}
+              <div
+                style={{ borderTop: "1px solid #e2e8f0", margin: "6px 0" }}
+              ></div>
+              <div>
+                Total Amount: <strong>{inr(totalAmount.toFixed(2))}</strong>
+              </div>
+              <div className="muted">
+                Opening Balance: {inr(openingBalance.toFixed(2))}
+              </div>
+              <div
+                className="muted"
+                style={{ color: "#008b3e", fontWeight: 700 }}
+              >
+                Paid Amount: {inr(paidAmount.toFixed(2))}
+              </div>
+              <div
+                className={closingBalance > 0 ? "net" : "net"}
+                style={{ color: closingBalance > 0 ? "#dc2626" : "#008b3e" }}
+              >
+                Closing Balance: {inr(closingBalance.toFixed(2))}
+              </div>
             </div>
           </div>
 
-          {formError && <div className="error-message">{formError}</div>}
+          {formError && <div className="at-error-banner">{formError}</div>}
 
-          <div className="action-row">
-            <button type="submit" className="save-btn" disabled={saving}>
+          <div className="at-form-actions">
+            <button
+              type="button"
+              className="at-btn at-btn--ghost"
+              onClick={closeForm}
+            >
+              <i className="bi bi-x-circle"></i> Cancel
+            </button>
+            <button
+              type="button"
+              className="at-btn at-btn--ghost"
+              onClick={resetForm}
+            >
+              <i className="bi bi-arrow-counterclockwise"></i> Reset
+            </button>
+            <button
+              type="submit"
+              className="at-btn at-btn--primary at-btn--lg"
+              disabled={saving}
+            >
               <i className="bi bi-check-circle"></i>{" "}
               {saving
                 ? "Saving..."
@@ -612,76 +693,92 @@ export default function PurchaseBill() {
                   ? "Update Purchase Bill"
                   : "Save Purchase Bill"}
             </button>
-            <button type="button" className="reset-btn" onClick={resetForm}>
-              <i className="bi bi-arrow-counterclockwise"></i> Reset
-            </button>
-            <button type="button" className="reset-btn" onClick={closeForm}>
-              <i className="bi bi-x-circle"></i> Cancel
-            </button>
           </div>
         </form>
       )}
 
-      {/* ── Search Filters (date range removed) ─────────────── */}
-      <div className="card filter-card">
-        <h3>
-          <i className="bi bi-search"></i> Search Purchase Bills
-        </h3>
-        <div className="filter-grid">
-          <div className="form-group">
-            <label>Company</label>
+      {/* ── Search Filters ───────────────────────────────────── */}
+      <div className="at-card">
+        <div className="at-card__head">
+          <i className="bi bi-search"></i>
+          <span>Search Purchase Bills</span>
+        </div>
+        <div className="at-form-grid">
+          <div className="at-fg">
+            <label className="at-label">Company</label>
             <input
               type="text"
               name="company"
               placeholder="Company name"
+              className="at-input"
               value={filters.company}
               onChange={handleFilterChange}
             />
           </div>
-          <div className="form-group">
-            <label>Product</label>
+          <div className="at-fg">
+            <label className="at-label">Product</label>
             <input
               type="text"
               name="product"
               placeholder="Product name / ID"
+              className="at-input"
               value={filters.product}
               onChange={handleFilterChange}
             />
           </div>
-          <div className="form-group">
-            <label>Invoice No.</label>
+          <div className="at-fg">
+            <label className="at-label">Invoice No.</label>
             <input
               type="text"
               name="invoice"
               placeholder="Invoice number"
+              className="at-input"
               value={filters.invoice}
               onChange={handleFilterChange}
             />
           </div>
         </div>
-        <div className="action-row">
-          <button type="button" className="save-btn" onClick={applyFilters}>
-            <i className="bi bi-search"></i> Search
-          </button>
-          <button type="button" className="reset-btn" onClick={clearFilters}>
+        <div
+          className="at-form-actions"
+          style={{ marginTop: 4, marginBottom: 0 }}
+        >
+          <button
+            type="button"
+            className="at-btn at-btn--ghost"
+            onClick={clearFilters}
+          >
             <i className="bi bi-x-circle"></i> Clear
+          </button>
+          <button
+            type="button"
+            className="at-btn at-btn--primary"
+            onClick={applyFilters}
+          >
+            <i className="bi bi-search"></i> Search
           </button>
         </div>
       </div>
 
-      {/* ── Records (collapsed by default: company + invoice only) ── */}
-      <div className="card records-card">
-        <h3>
-          <i className="bi bi-table"></i> Purchase Bill Records
-        </h3>
+      {/* ── Records ──────────────────────────────────────────── */}
+      <div className="at-card">
+        <div className="at-card__head">
+          <i className="bi bi-table"></i>
+          <span>Purchase Bill Records</span>
+        </div>
 
-        {loading && <p className="loading-text">Loading...</p>}
-        {error && !loading && <div className="error-message">{error}</div>}
+        {loading && (
+          <p style={{ textAlign: "center", padding: 20, color: "#64748b" }}>
+            Loading...
+          </p>
+        )}
+        {error && !loading && <div className="at-error-banner">{error}</div>}
 
         {!loading && !error && (
-          <div className="bills-list">
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {bills.length === 0 ? (
-              <p className="empty">No purchase bill records found</p>
+              <p style={{ textAlign: "center", padding: 28, color: "#64748b" }}>
+                No purchase bill records found
+              </p>
             ) : (
               bills.map((bill) => {
                 const balance = parseFloat(bill.closing_balance) || 0;
@@ -689,10 +786,10 @@ export default function PurchaseBill() {
                 const isOpen = expandedId === bill.id;
                 return (
                   <div
-                    className={`bill-block ${isOpen ? "open" : ""}`}
+                    className={`bill-block${isOpen ? " open" : ""}`}
                     key={bill.id}
                   >
-                    {/* ── Collapsed summary row: company + invoice only ── */}
+                    {/* ── Collapsed summary row ── */}
                     <div
                       className="bill-header"
                       onClick={() => toggleExpand(bill.id)}
@@ -707,7 +804,7 @@ export default function PurchaseBill() {
                     >
                       <div className="bill-header-left">
                         <i
-                          className={`bi bi-chevron-right expand-caret ${isOpen ? "rotated" : ""}`}
+                          className={`bi bi-chevron-right expand-caret${isOpen ? " rotated" : ""}`}
                         ></i>
                         <strong className={hasDue ? "company-due" : ""}>
                           {bill.company_name}
@@ -728,14 +825,12 @@ export default function PurchaseBill() {
                             Due {inr(bill.closing_balance)}
                           </span>
                         ) : (
-                          <span className="balance-pill settled">
-                            Settled
-                          </span>
+                          <span className="balance-pill settled">Settled</span>
                         )}
                       </div>
                     </div>
 
-                    {/* ── Expanded details ─────────────────────────── */}
+                    {/* ── Expanded details ── */}
                     {isOpen && (
                       <div
                         className="bill-details"
@@ -818,11 +913,11 @@ export default function PurchaseBill() {
                           {hasDue && (
                             <button
                               type="button"
-                              className="pay-btn"
+                              className="at-btn at-btn--primary"
+                              style={{ padding: "9px 16px", fontSize: 13 }}
                               onClick={() => openPayForm(bill.id)}
                             >
-                              <i className="bi bi-plus-circle"></i> Add
-                              Payment
+                              <i className="bi bi-plus-circle"></i> Add Payment
                             </button>
                           )}
                         </div>
@@ -835,6 +930,8 @@ export default function PurchaseBill() {
                               min="0"
                               step="any"
                               placeholder="Amount (₹)"
+                              className="at-input-t"
+                              style={{ flex: 1, minWidth: 130 }}
                               value={payForm.amount}
                               onChange={(e) =>
                                 setPayForm({
@@ -845,6 +942,8 @@ export default function PurchaseBill() {
                             />
                             <input
                               type="date"
+                              className="at-input-t"
+                              style={{ flex: 1, minWidth: 130 }}
                               value={payForm.payment_date}
                               onChange={(e) =>
                                 setPayForm({
@@ -856,24 +955,25 @@ export default function PurchaseBill() {
                             <input
                               type="text"
                               placeholder="Note (optional)"
+                              className="at-input-t"
+                              style={{ flex: 1, minWidth: 130 }}
                               value={payForm.note}
                               onChange={(e) =>
-                                setPayForm({
-                                  ...payForm,
-                                  note: e.target.value,
-                                })
+                                setPayForm({ ...payForm, note: e.target.value })
                               }
                             />
                             <button
                               type="button"
-                              className="save-btn small"
+                              className="at-btn at-btn--primary"
+                              style={{ padding: "8px 14px", fontSize: 13 }}
                               onClick={() => submitPayment(bill)}
                             >
                               <i className="bi bi-check-circle"></i> Save
                             </button>
                             <button
                               type="button"
-                              className="reset-btn small"
+                              className="at-btn at-btn--ghost"
+                              style={{ padding: "8px 14px", fontSize: 13 }}
                               onClick={() => setPayingBillId(null)}
                             >
                               Cancel
@@ -882,8 +982,8 @@ export default function PurchaseBill() {
                         )}
 
                         {/* Items */}
-                        <div className="table-wrap">
-                          <table className="responsive-table">
+                        <div className="at-table-wrap">
+                          <table className="at-table">
                             <thead>
                               <tr>
                                 <th>Product ID</th>
@@ -902,12 +1002,8 @@ export default function PurchaseBill() {
                                   <td data-label="Product Name">
                                     {it.product_name}
                                   </td>
-                                  <td data-label="Quantity">
-                                    {it.quantity}
-                                  </td>
-                                  <td data-label="Rate (₹)">
-                                    {inr(it.rate)}
-                                  </td>
+                                  <td data-label="Quantity">{it.quantity}</td>
+                                  <td data-label="Rate (₹)">{inr(it.rate)}</td>
                                   <td data-label="Amount (₹)">
                                     {inr(it.amount)}
                                   </td>
@@ -919,13 +1015,13 @@ export default function PurchaseBill() {
 
                         {/* Payment history */}
                         {(bill.payments || []).length > 0 && (
-                          <div className="payments-history">
+                          <div style={{ marginTop: 12 }}>
                             <div className="ph-title">
                               <i className="bi bi-clock-history"></i> Payment
                               History
                             </div>
-                            <div className="table-wrap">
-                              <table className="responsive-table">
+                            <div className="at-table-wrap">
+                              <table className="at-table">
                                 <thead>
                                   <tr>
                                     <th>Date</th>
@@ -942,9 +1038,7 @@ export default function PurchaseBill() {
                                       <td data-label="Amount (₹)">
                                         {inr(p.amount)}
                                       </td>
-                                      <td data-label="Note">
-                                        {p.note || "—"}
-                                      </td>
+                                      <td data-label="Note">{p.note || "—"}</td>
                                     </tr>
                                   ))}
                                 </tbody>
@@ -961,159 +1055,126 @@ export default function PurchaseBill() {
           </div>
         )}
       </div>
-
-      <style>{`
-        .purchase-bill-page { color: #0f172a; }
-        .page-header { padding-bottom: 24px; border-bottom: 1px solid #d9e1ea; margin-bottom: 28px; }
-        .page-header h1 { margin: 0 0 8px; font-size: 28px; font-weight: 800; }
-        .page-header p { margin: 0; color: #475569; font-size: 16px; }
-        .card { background: #fff; border: 1px solid #dbe3ec; border-radius: 12px; box-shadow: 0 2px 6px rgba(15,23,42,0.08); padding: 24px; margin-bottom: 28px; }
-        .card h3 { margin: 0 0 20px; display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 800; }
-        .card h3 i { color: #1a7f37; }
-
-        .add-purchase-bar { margin-bottom: 20px; }
-        .add-purchase-btn { background: #1a7f37; color: #fff; border: none; border-radius: 10px; padding: 12px 24px; font-size: 15px; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 2px 6px rgba(26,127,55,0.3); }
-        .add-purchase-btn:hover { background: #166534; }
-
-        .form-title-row { display: flex; justify-content: space-between; align-items: center; }
-        .form-title-row h3 { margin-bottom: 20px; }
-        .close-form-btn { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; width: 36px; height: 36px; cursor: pointer; color: #475569; }
-
-        .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-        .payment-grid { grid-template-columns: repeat(2, 1fr); margin-bottom: 8px; }
-        .filter-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px; }
-        .form-group { display: flex; flex-direction: column; gap: 8px; }
-        .form-group.full-width { grid-column: 1 / -1; }
-        .form-group label { font-size: 15px; font-weight: 700; }
-        .form-group label b { color: #dc2626; }
-        .form-group input, .form-group select { height: 44px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 0 12px; font-size: 15px; color: #1e293b; background: #fff; }
-        .form-group input:focus, .form-group select:focus { border-color: #1a7f37; box-shadow: 0 0 0 3px rgba(26,127,55,0.12); outline: none; }
-
-        .items-title { margin: 24px 0 12px; font-size: 16px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
-        .items-table-wrap { overflow-x: auto; }
-        .items-table { width: 100%; border-collapse: collapse; }
-        .items-table th, .items-table td { padding: 8px 10px; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
-        .items-table th { background: #f8fafc; font-weight: 800; text-align: left; }
-        .items-table input { height: 40px; width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0 10px; font-size: 14px; }
-        .readonly-input { background: #f8fafc; cursor: default; font-weight: 700; }
-        .remove-row-btn { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 6px; min-width: 36px; height: 36px; cursor: pointer; padding: 0 8px; }
-        .remove-row-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-        .btn-txt-mobile { display: none; }
-
-        .items-footer { display: flex; justify-content: flex-start; margin-top: 14px; }
-        .add-row-btn { background: #ecfdf5; border: 1px solid #a7f3d0; color: #166534; border-radius: 8px; padding: 8px 16px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
-
-        .gst-section { display: flex; align-items: flex-end; gap: 20px; margin: 18px 0 4px; flex-wrap: wrap; }
-        .gst-toggle { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; cursor: pointer; padding: 10px 0; }
-        .gst-toggle input { width: 20px; height: 20px; accent-color: #1a7f37; cursor: pointer; }
-        .gst-rate-group { min-width: 160px; }
-
-        .totals-summary { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 18px; margin-top: 18px; max-width: 420px; margin-left: auto; }
-        .totals-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 14px; }
-        .totals-row.grand { border-top: 1px solid #e2e8f0; margin-top: 4px; padding-top: 9px; font-size: 15px; }
-        .totals-row .paid { color: #1a7f37; }
-        .totals-row .due { color: #dc2626; }
-
-        .action-row { display: flex; gap: 12px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; }
-        .save-btn, .reset-btn { border: none; border-radius: 8px; padding: 10px 22px; font-size: 14px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
-        .save-btn { background: #1a7f37; color: #fff; }
-        .save-btn:hover { background: #166534; }
-        .save-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-        .reset-btn { background: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1; }
-        .save-btn.small, .reset-btn.small { padding: 8px 14px; font-size: 13px; }
-        .error-message { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 10px 16px; color: #dc2626; font-size: 14px; margin: 16px 0 0; }
-        .loading-text { text-align: center; padding: 20px; color: #64748b; }
-
-        .bills-list { display: flex; flex-direction: column; gap: 12px; }
-
-        /* ── Collapsed record row ─────────────────────────────── */
-        .bill-block { border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; background: #fff; }
-        .bill-block.open { border-color: #bcd9c6; box-shadow: 0 2px 8px rgba(26,127,55,0.08); }
-        .bill-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 16px; cursor: pointer; user-select: none; flex-wrap: wrap; }
-        .bill-header:hover { background: #f8fafc; }
-        .bill-header-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
-        .expand-caret { font-size: 13px; color: #64748b; transition: transform 0.15s ease; flex-shrink: 0; }
-        .expand-caret.rotated { transform: rotate(90deg); color: #1a7f37; }
-        .bill-header-left strong { font-size: 15px; }
-        .bill-header-left strong.company-due { color: #dc2626; display: inline-flex; align-items: center; gap: 6px; }
-        .due-dot { width: 8px; height: 8px; border-radius: 50%; background: #dc2626; display: inline-block; }
-        .bill-invoice { color: #475569; font-size: 14px; }
-        .bill-header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-        .balance-pill { border-radius: 999px; padding: 4px 12px; font-size: 12px; font-weight: 800; }
-        .balance-pill.due { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; }
-        .balance-pill.settled { background: #ecfdf5; border: 1px solid #a7f3d0; color: #166534; }
-
-        /* ── Expanded details ─────────────────────────────────── */
-        .bill-details { padding: 4px 16px 16px; border-top: 1px solid #eef2f7; cursor: default; }
-        .bill-meta-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 12px 0 4px; }
-        .bill-branch { background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 5px; }
-        .gst-badge { background: #fefce8; border: 1px solid #fde68a; color: #a16207; border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 700; }
-        .bill-date { color: #64748b; font-size: 14px; display: inline-flex; align-items: center; gap: 6px; }
-        .bill-total { font-weight: 800; color: #1a7f37; font-size: 15px; }
-        .bill-notes { color: #64748b; font-size: 13px; margin-bottom: 8px; }
-
-        .admin-actions { display: inline-flex; gap: 6px; margin-left: auto; }
-        .edit-btn, .delete-btn { border-radius: 6px; width: 34px; height: 34px; cursor: pointer; }
-        .edit-btn { background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; }
-        .delete-btn { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; }
-
-        .pay-summary { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 10px 0 12px; }
-        .pay-chip { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 12px; display: flex; flex-direction: column; min-width: 90px; }
-        .pay-chip span { font-size: 11px; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
-        .pay-chip b { font-size: 14px; }
-        .pay-chip.green { background: #ecfdf5; border-color: #a7f3d0; }
-        .pay-chip.green b { color: #166534; }
-        .pay-chip.red { background: #fef2f2; border-color: #fecaca; }
-        .pay-chip.red b { color: #dc2626; }
-        .pay-btn { background: #1a7f37; color: #fff; border: none; border-radius: 8px; padding: 9px 14px; font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
-
-        .pay-form { display: flex; gap: 10px; flex-wrap: wrap; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
-        .pay-form input { height: 40px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0 10px; font-size: 14px; flex: 1; min-width: 130px; }
-
-        .payments-history { margin-top: 12px; }
-        .ph-title { font-size: 13px; font-weight: 800; color: #475569; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
-
-        .table-wrap { overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
-        th { background: #f8fafc; font-weight: 800; color: #1e293b; }
-        .empty { text-align: center; padding: 28px; color: #64748b; }
-
-        @media (max-width: 1000px) {
-          .form-grid { grid-template-columns: repeat(2, 1fr); }
-          .filter-grid { grid-template-columns: repeat(2, 1fr); }
-        }
-
-        /* ── Mobile: same collapsed behaviour, tables stack into cards ── */
-        @media (max-width: 700px) {
-          .form-grid, .filter-grid, .payment-grid { grid-template-columns: 1fr; }
-          .card { padding: 16px; }
-
-          .responsive-table thead { display: none; }
-          .responsive-table, .responsive-table tbody, .responsive-table tr, .responsive-table td { display: block; width: 100%; }
-          .responsive-table tr { border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 12px; padding: 8px 12px; background: #fff; }
-          .responsive-table td { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-bottom: 1px dashed #eef2f7; padding: 8px 0; }
-          .responsive-table td:last-child { border-bottom: none; }
-          .responsive-table td::before { content: attr(data-label); font-weight: 800; font-size: 12px; color: #475569; flex-shrink: 0; }
-          .responsive-table td input { max-width: 60%; text-align: right; }
-          .items-table td[data-label=""]::before { display: none; }
-          .btn-txt-mobile { display: inline; font-size: 13px; font-weight: 700; }
-          .remove-row-btn { width: 100%; height: 40px; }
-
-          .totals-summary { max-width: 100%; }
-
-          .bill-header { flex-direction: row; align-items: center; justify-content: space-between; }
-          .bill-header-left { flex: 1; min-width: 0; }
-          .bill-header-left strong { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-          .bill-meta-row { flex-direction: row; flex-wrap: wrap; }
-          .admin-actions { margin-left: 0; }
-          .pay-summary .pay-chip { flex: 1 1 calc(50% - 10px); min-width: 0; }
-          .pay-btn { width: 100%; justify-content: center; }
-          .action-row { flex-direction: column; }
-          .action-row button { width: 100%; justify-content: center; }
-          .add-purchase-btn { width: 100%; justify-content: center; }
-        }
-      `}</style>
     </div>
   );
 }
+
+// ─── SCREEN STYLES (matches Tax Invoice / Quotation's at-* design system) ──
+const screenStyles = `
+  .at-root { color: #0f172a; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+
+  .at-header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 20px; margin-bottom: 20px; border-bottom: 1.5px solid #e2e8f0; flex-wrap: wrap; gap: 14px; }
+  .at-header__left { display: flex; align-items: center; gap: 14px; }
+  .at-header__icon { width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #008b3e, #00b84f); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 17px; flex-shrink: 0; box-shadow: 0 3px 10px rgba(0,139,62,.25); }
+  .at-header__title { margin: 0 0 2px; font-size: 22px; font-weight: 800; letter-spacing: -.4px; }
+  .at-header__sub { margin: 0; font-size: 13px; color: #64748b; }
+
+  .at-btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 20px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; border: none; transition: box-shadow .15s, opacity .15s; }
+  .at-btn--primary { background: linear-gradient(135deg,#008b3e,#00b84f); color: #fff; box-shadow: 0 2px 10px rgba(0,139,62,.3); }
+  .at-btn--primary:hover { box-shadow: 0 4px 16px rgba(0,139,62,.38); }
+  .at-btn--ghost { background: #f8fafc; color: #374151; border: 1.5px solid #e2e8f0; }
+  .at-btn--ghost:hover { background: #f1f5f9; }
+  .at-btn--lg { padding: 13px 32px; font-size: 15px; }
+  .at-btn:disabled { opacity: .55; cursor: not-allowed; }
+
+  .at-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 14px; padding: 24px; margin-bottom: 20px; }
+  .at-card__head { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid #f1f5f9; }
+  .at-card__head i { color: #008b3e; font-size: 17px; }
+
+  .at-subhead { font-size: 15px; font-weight: 800; color: #1e293b; margin: 22px 0 14px; display: flex; align-items: center; gap: 8px; }
+  .at-subhead i { color: #008b3e; }
+
+  .at-form-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-bottom: 4px; }
+  .at-form-grid--2 { display: grid; grid-template-columns: repeat(2,1fr); gap: 16px; margin-bottom: 4px; }
+  .at-fg { display: flex; flex-direction: column; gap: 6px; }
+  .at-fg--span3 { grid-column: span 3; }
+  .at-label { font-size: 12px; font-weight: 700; color: #374151; }
+  .at-label .req { color: #ef4444; }
+  .at-input, .at-select { height: 38px; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 0 11px; font-size: 13.5px; color: #1e293b; background: #fafbfc; width: 100%; box-sizing: border-box; outline: none; transition: border-color .15s, box-shadow .15s; font-family: inherit; }
+  .at-input:focus, .at-select:focus { border-color: #008b3e; background: #fff; box-shadow: 0 0 0 3px rgba(0,139,62,.1); }
+  .at-input[readonly] { background: #f1f5f9; color: #475569; cursor: default; }
+  .at-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px; cursor: pointer; }
+
+  .at-alert { display: flex; align-items: flex-start; gap: 10px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; border-radius: 10px; padding: 12px 16px; font-size: 13px; margin: 18px 0; }
+
+  .at-table-wrap { border-radius: 10px; border: 1.5px solid #e2e8f0; overflow-x: auto; margin-bottom: 16px; }
+  .at-table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 560px; }
+  .at-table thead tr { background: #f8fafc; }
+  .at-table th { padding: 10px 8px; text-align: left; font-size: 10.5px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .5px; border-bottom: 1.5px solid #e2e8f0; white-space: nowrap; }
+  .at-table td { padding: 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+  .at-table tbody tr:last-child td { border-bottom: none; }
+  .at-table tbody tr:hover td { background: #f9fdfb; }
+  .at-input-t { height: 34px; border: 1.5px solid #e2e8f0; border-radius: 6px; padding: 0 8px; font-size: 12.5px; color: #1e293b; background: #fafbfc; width: 100%; box-sizing: border-box; outline: none; font-family: inherit; }
+  .at-input-t:focus { border-color: #008b3e; background: #fff; box-shadow: 0 0 0 2px rgba(0,139,62,.1); }
+  .at-remove-btn { width: 32px; height: 32px; border-radius: 7px; border: 1.5px solid #fca5a5; background: #fee2e2; color: #dc2626; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+  .at-remove-btn:hover:not(:disabled) { background: #fecaca; }
+  .at-remove-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  .at-totals-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+  .at-totals-box { background: #f8fbff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 14px 18px; font-size: 13px; text-align: right; min-width: 280px; }
+  .at-totals-box .muted { color: #64748b; font-size: 12px; margin-top: 2px; }
+  .at-totals-box .net { font-size: 16px; font-weight: 800; margin-top: 6px; }
+
+  .at-form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+
+  .at-error-banner { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 10px 16px; color: #dc2626; font-size: 13px; font-weight: 600; margin-top: 16px; }
+
+  /* ── Bill records list ─────────────────────────────────── */
+  .bill-block { border: 1.5px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: #fff; }
+  .bill-block.open { border-color: #b8e3c8; box-shadow: 0 2px 10px rgba(0,139,62,.08); }
+  .bill-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 16px; cursor: pointer; user-select: none; flex-wrap: wrap; }
+  .bill-header:hover { background: #f8fafc; }
+  .bill-header-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
+  .expand-caret { font-size: 13px; color: #64748b; transition: transform 0.15s ease; flex-shrink: 0; }
+  .expand-caret.rotated { transform: rotate(90deg); color: #008b3e; }
+  .bill-header-left strong { font-size: 14.5px; }
+  .bill-header-left strong.company-due { color: #dc2626; display: inline-flex; align-items: center; gap: 6px; }
+  .due-dot { width: 8px; height: 8px; border-radius: 50%; background: #dc2626; display: inline-block; }
+  .bill-invoice { color: #64748b; font-size: 13px; }
+  .bill-header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .balance-pill { border-radius: 999px; padding: 4px 12px; font-size: 11.5px; font-weight: 800; }
+  .balance-pill.due { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; }
+  .balance-pill.settled { background: #ecfdf5; border: 1px solid #a7f3d0; color: #166534; }
+
+  .bill-details { padding: 4px 16px 16px; border-top: 1px solid #f1f5f9; cursor: default; }
+  .bill-meta-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 12px 0 4px; }
+  .bill-branch { background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; border-radius: 999px; padding: 2px 10px; font-size: 11.5px; font-weight: 700; display: inline-flex; align-items: center; gap: 5px; }
+  .gst-badge { background: #fefce8; border: 1px solid #fde68a; color: #a16207; border-radius: 999px; padding: 2px 10px; font-size: 11.5px; font-weight: 700; }
+  .bill-date { color: #64748b; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+  .bill-total { font-weight: 800; color: #008b3e; font-size: 14.5px; }
+  .bill-notes { color: #64748b; font-size: 13px; margin-bottom: 8px; }
+
+  .admin-actions { display: inline-flex; gap: 6px; margin-left: auto; }
+  .edit-btn, .delete-btn { border-radius: 6px; width: 32px; height: 32px; cursor: pointer; }
+  .edit-btn { background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; }
+  .delete-btn { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; }
+
+  .pay-summary { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 10px 0 12px; }
+  .pay-chip { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 12px; display: flex; flex-direction: column; min-width: 90px; }
+  .pay-chip span { font-size: 10.5px; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+  .pay-chip b { font-size: 13.5px; }
+  .pay-chip.green { background: #ecfdf5; border-color: #a7f3d0; }
+  .pay-chip.green b { color: #166534; }
+  .pay-chip.red { background: #fef2f2; border-color: #fecaca; }
+  .pay-chip.red b { color: #dc2626; }
+
+  .pay-form { display: flex; gap: 10px; flex-wrap: wrap; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 12px; margin-bottom: 12px; align-items: center; }
+
+  .ph-title { font-size: 12.5px; font-weight: 800; color: #475569; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+
+  @media (max-width: 900px) {
+    .at-form-grid { grid-template-columns: repeat(2,1fr); }
+    .at-fg--span3 { grid-column: span 2; }
+  }
+  @media (max-width: 600px) {
+    .at-form-grid, .at-form-grid--2 { grid-template-columns: 1fr; }
+    .at-fg--span3 { grid-column: auto; }
+    .at-header { align-items: flex-start; }
+    .at-header > .at-btn { width: 100%; justify-content: center; }
+    .at-form-actions { flex-direction: column-reverse; }
+    .at-form-actions .at-btn { width: 100%; justify-content: center; }
+    .at-totals-box { width: 100%; text-align: left; }
+    .bill-header-left strong { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pay-summary .pay-chip { flex: 1 1 calc(50% - 10px); min-width: 0; }
+  }
+`;
