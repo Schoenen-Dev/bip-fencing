@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import logo from "../assets/logo.png";
 
 // Pass onNavigate so sub-links can close the mobile sidebar
 function DropdownItem({ label, icon, children, onNavigate }) {
@@ -81,7 +82,16 @@ export default function Sidebar() {
       <div className="sb-brand">
         <div className="sb-brand__left">
           <div className="sb-brand__icon">
-            <i className="bi bi-shield-fill-check"></i>
+            <img
+              src={logo}
+              alt="Bip Fencing"
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                borderRadius: "8px",
+              }}
+            />
           </div>
           <div className="sb-brand__text">
             <div className="sb-brand__name">Bip Fencing</div>
@@ -328,6 +338,7 @@ export default function Sidebar() {
           box-shadow: 0 0 0 1px rgba(0,168,72,.3), 0 4px 14px rgba(0,139,62,.45);
           flex-shrink: 0;
           position: relative; z-index: 1;
+          overflow: hidden;
         }
         /* FIX 3: brand text block always visible, never hidden by icon */
         .sb-brand__text {
