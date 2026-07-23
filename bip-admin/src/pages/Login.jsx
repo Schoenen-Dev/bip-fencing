@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import logo from "../assets/logo.png";
 
 const LOGO_SRC = "/logo.png";
-const API_BASE = "https://backend.bipfencing.in/backend";
+const API_BASE = "http://localhost:8000";
 
 export default function Login() {
   const [username, setUsername] = useState("");
@@ -227,16 +228,16 @@ export default function Login() {
         .lg-form-wrap { width: 100%; max-width: 320px; position: relative; z-index: 1; }
 
         /* Form header */
-        .lg-fh { margin-bottom: 24px; }
+        .lg-fh { margin-bottom: 24px; display: flex; flex-direction: column; align-items: center; text-align: center; }
         .lg-fh__logobox {
-          width: 52px; height: 52px; border-radius: 14px;
+          width: 90px; height: 90px; border-radius: 14px;
           background: linear-gradient(135deg, #006e31, #00c853);
           display: flex; align-items: center; justify-content: center;
           margin-bottom: 16px;
           box-shadow: 0 4px 18px rgba(0,110,49,.3), 0 0 0 1px rgba(0,200,80,.18);
           overflow: hidden;
         }
-        .lg-fh__logoimg { width: 34px; height: 34px; object-fit: contain; }
+        .lg-fh__logoimg { width: 90px; height: 90px; object-fit: cover; }
         .lg-fh__logoimg.errored { display: none; }
         .lg-fh__logofb { font-size: 20px; color: #fff; display: none; }
         .lg-fh__logoimg.errored + .lg-fh__logofb { display: block; }
@@ -377,7 +378,17 @@ export default function Login() {
                     className="lg-logo__img"
                     onError={(e) => e.target.classList.add("errored")}
                   />
-                  <i className="bi bi-shield-fill-check lg-logo__fb" />
+                  <img
+                    src={logo}
+                    alt="Bip Fencing"
+                    className="lg-logo__fb"
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                      borderRadius: "8px",
+                    }}
+                  />
                 </div>
                 <div>
                   <div className="lg-logo__name">Bip Fencing</div>
@@ -442,7 +453,17 @@ export default function Login() {
                     className="lg-fh__logoimg"
                     onError={(e) => e.target.classList.add("errored")}
                   />
-                  <i className="bi bi-shield-fill-check lg-fh__logofb" />
+                  <img
+                    src={logo}
+                    alt="Bip Fencing"
+                    className="lg-fh__logofb"
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                      borderRadius: "8px",
+                    }}
+                  />
                 </div>
                 <div className="lg-fh__eyebrow">Welcome back</div>
                 <h2 className="lg-fh__title">Sign in to continue</h2>
@@ -521,19 +542,7 @@ export default function Login() {
 
               <div className="lg-sep">
                 <div className="lg-sep__line" />
-                <span className="lg-sep__txt">Demo credentials</span>
                 <div className="lg-sep__line" />
-              </div>
-
-              <div className="lg-creds">
-                <div className="lg-cred">
-                  <span className="lg-badge lg-badge--admin">Admin</span>
-                  <code>admin / Admin@123</code>
-                </div>
-                <div className="lg-cred">
-                  <span className="lg-badge lg-badge--branch">Branch</span>
-                  <code>branch_a / BranchA@123</code>
-                </div>
               </div>
             </div>
           </div>
