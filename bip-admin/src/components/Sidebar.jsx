@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import logo from "../assets/logo.png";
+import logo from "../assets/logo.jpeg";
 
 // Pass onNavigate so sub-links can close the mobile sidebar
 function DropdownItem({ label, icon, children, onNavigate }) {
