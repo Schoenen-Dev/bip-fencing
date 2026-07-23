@@ -205,7 +205,8 @@ const mapInvoiceToForm = (inv) => ({
   consigneeName: inv.consignee_name || "",
   consigneeAddress: inv.consignee_address || "",
   consigneeState: inv.consignee_state || DEFAULT_FORM.consigneeState,
-  consigneeStateCode: inv.consignee_state_code || DEFAULT_FORM.consigneeStateCode,
+  consigneeStateCode:
+    inv.consignee_state_code || DEFAULT_FORM.consigneeStateCode,
   buyerName: inv.buyer_name || "",
   buyerAddress: inv.buyer_address || "",
   buyerPhone: inv.buyer_phone || "",
@@ -215,8 +216,12 @@ const mapInvoiceToForm = (inv) => ({
   // Balance columns default to '0.00' in the DB even when the user never set
   // one — treat zero the same as blank so the printed balance banner doesn't
   // reappear for invoices that never had a real balance.
-  openBalance: inv.open_balance && Number(inv.open_balance) !== 0 ? inv.open_balance : "",
-  closingBalance: inv.closing_balance && Number(inv.closing_balance) !== 0 ? inv.closing_balance : "",
+  openBalance:
+    inv.open_balance && Number(inv.open_balance) !== 0 ? inv.open_balance : "",
+  closingBalance:
+    inv.closing_balance && Number(inv.closing_balance) !== 0
+      ? inv.closing_balance
+      : "",
   gstRate: inv.gst_rate ? Number(inv.gst_rate) : DEFAULT_FORM.gstRate,
   bankHolderName: inv.bank_holder_name || DEFAULT_BANK.holderName,
   bankName: inv.bank_name || DEFAULT_BANK.bankName,
@@ -319,6 +324,90 @@ const printStyles = `
   .inv-thead { display: table-header-group !important; }
   @page { size: A4 portrait; margin: 5mm; }
 }
+`;
+
+// ─── SCREEN STYLES (form / loading / error states) ───────────────────────────
+const screenStyles = `
+  .at-root { color: #0f172a; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .at-toast { position: fixed; top: 24px; right: 24px; z-index: 1200; display: flex; align-items: center; gap: 10px; padding: 13px 20px; border-radius: 10px; font-size: 14px; font-weight: 600; box-shadow: 0 8px 24px rgba(0,0,0,0.18); color: #fff; min-width: 240px; background: #008b3e; }
+
+  .at-header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 20px; margin-bottom: 20px; border-bottom: 1.5px solid #e2e8f0; flex-wrap: wrap; gap: 14px; }
+  .at-header__left { display: flex; align-items: center; gap: 14px; }
+  .at-header__icon { width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #008b3e, #00b84f); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 17px; flex-shrink: 0; box-shadow: 0 3px 10px rgba(0,139,62,.25); }
+  .at-header__title { margin: 0 0 2px; font-size: 22px; font-weight: 800; letter-spacing: -.4px; }
+  .at-header__sub { margin: 0; font-size: 13px; color: #64748b; }
+
+  .at-btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 20px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; border: none; transition: box-shadow .15s, opacity .15s; }
+  .at-btn--primary { background: linear-gradient(135deg,#008b3e,#00b84f); color: #fff; box-shadow: 0 2px 10px rgba(0,139,62,.3); }
+  .at-btn--primary:hover { box-shadow: 0 4px 16px rgba(0,139,62,.38); }
+  .at-btn--ghost { background: #f8fafc; color: #374151; border: 1.5px solid #e2e8f0; }
+  .at-btn--ghost:hover { background: #f1f5f9; }
+  .at-btn--lg { padding: 13px 32px; font-size: 15px; }
+  .at-btn:disabled { opacity: .55; cursor: not-allowed; }
+
+  .at-card { background: #fff; border: 1.5px solid #e2e8f0; border-radius: 14px; padding: 24px; margin-bottom: 20px; }
+  .at-card__head { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid #f1f5f9; }
+  .at-card__head i { color: #008b3e; font-size: 17px; }
+
+  .at-form-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+  .at-form-grid--2 { grid-template-columns: repeat(2,1fr); }
+  .at-form-grid--5 { grid-template-columns: repeat(5,1fr); }
+  .at-fg { display: flex; flex-direction: column; gap: 6px; }
+  .at-fg--span2 { grid-column: span 2; }
+  .at-label { font-size: 12px; font-weight: 700; color: #374151; }
+  .at-label .req { color: #ef4444; }
+  .at-input, .at-select { height: 38px; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 0 11px; font-size: 13.5px; color: #1e293b; background: #fafbfc; width: 100%; box-sizing: border-box; outline: none; transition: border-color .15s, box-shadow .15s; font-family: inherit; }
+  .at-input:focus, .at-select:focus { border-color: #008b3e; background: #fff; box-shadow: 0 0 0 3px rgba(0,139,62,.1); }
+  .at-input[readonly], .at-input:disabled { background: #f1f5f9; color: #475569; font-weight: 600; cursor: not-allowed; }
+  .at-input.error-field, .at-select.error-field { border-color: #ef4444; background: #fef2f2; }
+  .at-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px; cursor: pointer; }
+  .at-hint { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+  .at-error-text { font-size: 11px; color: #ef4444; font-weight: 600; margin-top: 2px; }
+
+  .at-alert { display: flex; align-items: flex-start; gap: 10px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; border-radius: 10px; padding: 12px 16px; font-size: 13px; margin-bottom: 18px; }
+  .at-alert i { margin-top: 2px; flex-shrink: 0; }
+
+  .at-table-wrap { border-radius: 10px; border: 1.5px solid #e2e8f0; overflow-x: auto; margin-bottom: 16px; }
+  .at-table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 980px; }
+  .at-table thead tr { background: #f8fafc; }
+  .at-table th { padding: 10px 8px; text-align: left; font-size: 10.5px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .5px; border-bottom: 1.5px solid #e2e8f0; white-space: nowrap; }
+  .at-table td { padding: 8px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+  .at-table tbody tr:last-child td { border-bottom: none; }
+  .at-table tbody tr:hover td { background: #f9fdfb; }
+  .at-input-t, .at-select-t { height: 34px; border: 1.5px solid #e2e8f0; border-radius: 6px; padding: 0 8px; font-size: 12.5px; color: #1e293b; background: #fafbfc; width: 100%; box-sizing: border-box; outline: none; font-family: inherit; }
+  .at-input-t:focus, .at-select-t:focus { border-color: #008b3e; background: #fff; box-shadow: 0 0 0 2px rgba(0,139,62,.1); }
+  .at-input-t.error-field, .at-select-t.error-field { border-color: #ef4444; background: #fef2f2; }
+  .at-input-t:disabled { background: #f1f5f9; color: #94a3b8; }
+  .at-select-t { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='3'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; padding-right: 24px; cursor: pointer; }
+  .at-remove-btn { width: 30px; height: 30px; border-radius: 7px; border: 1.5px solid #fca5a5; background: #fee2e2; color: #dc2626; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
+  .at-remove-btn:hover:not(:disabled) { background: #fecaca; }
+  .at-remove-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  .at-totals-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+  .at-totals-box { background: #f8fbff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 14px 18px; font-size: 13px; text-align: right; min-width: 260px; }
+  .at-totals-box .muted { color: #64748b; font-size: 12px; margin-top: 2px; }
+  .at-totals-box .net { font-size: 17px; font-weight: 800; color: #008b3e; margin-top: 6px; }
+
+  .at-form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+
+  .at-spinner { width: 30px; height: 30px; border: 3px solid #e2e8f0; border-top-color: #008b3e; border-radius: 50%; animation: at-spin .7s linear infinite; margin: 0 auto 16px; }
+  @keyframes at-spin { to { transform: rotate(360deg); } }
+  .at-center-card { max-width: 460px; margin: 80px auto; text-align: center; }
+  .at-center-card .icon { font-size: 44px; margin-bottom: 14px; }
+
+  @media (max-width: 900px) {
+    .at-form-grid, .at-form-grid--5 { grid-template-columns: 1fr 1fr; }
+    .at-fg--span2 { grid-column: span 2; }
+  }
+  @media (max-width: 600px) {
+    .at-form-grid, .at-form-grid--2, .at-form-grid--5 { grid-template-columns: 1fr; }
+    .at-fg--span2 { grid-column: auto; }
+    .at-header { align-items: flex-start; }
+    .at-header > .at-btn { width: 100%; justify-content: center; }
+    .at-form-actions { flex-direction: column-reverse; }
+    .at-form-actions .at-btn { width: 100%; justify-content: center; }
+    .at-totals-box { width: 100%; text-align: left; }
+  }
 `;
 
 const B = "1px solid #000";
@@ -601,47 +690,47 @@ export default function TaxInvoice() {
   };
 
   const handleProductSelect = (idx, productId) => {
-  if (!productId) {
-    handleProduct(idx, "desc", "");
-    return;
-  }
-  const branchId = products[idx]?.branchId;
-  const found = (productsByBranch[branchId] || []).find(
-    (p) => String(p.id) === String(productId),
-  );
-  if (!found) return;
-  const unitMap = {
-    "Pcs": "PCS",
-    "Pieces": "PCS",
-    "Kg": "KGS",
-    "Kgs": "KGS",
-    "Kilogram": "KGS",
-    "Kilograms": "KGS",
-    "Meter": "MTR",
-    "Meters": "MTR",
-    "Roll": "RFT",
-    "Box": "SET",
-    "Set": "SET",
-    "Sets": "SET",
-    "Liter": "LTR",
-    "Litre": "LTR",
-    "Nos": "NOS",
-    "Number": "NOS",
-    "No": "NOS"
-  };
-  setProducts((prev) => {
-    const updated = [...prev];
-    updated[idx] = {
-      ...updated[idx],
-      productId: found.id,
-      desc: found.productName,
-      rateIncl: found.sellingPrice || "",
-      per: unitMap[found.unit] || found.unit || "NOS",
-      hsn: found.hsn || "",
+    if (!productId) {
+      handleProduct(idx, "desc", "");
+      return;
+    }
+    const branchId = products[idx]?.branchId;
+    const found = (productsByBranch[branchId] || []).find(
+      (p) => String(p.id) === String(productId),
+    );
+    if (!found) return;
+    const unitMap = {
+      Pcs: "PCS",
+      Pieces: "PCS",
+      Kg: "KGS",
+      Kgs: "KGS",
+      Kilogram: "KGS",
+      Kilograms: "KGS",
+      Meter: "MTR",
+      Meters: "MTR",
+      Roll: "RFT",
+      Box: "SET",
+      Set: "SET",
+      Sets: "SET",
+      Liter: "LTR",
+      Litre: "LTR",
+      Nos: "NOS",
+      Number: "NOS",
+      No: "NOS",
     };
-    return updated;
-  });
-};
+    setProducts((prev) => {
+      const updated = [...prev];
+      updated[idx] = {
+        ...updated[idx],
+        productId: found.id,
+        desc: found.productName,
+        rateIncl: found.sellingPrice || "",
+        per: unitMap[found.unit] || found.unit || "NOS",
+        hsn: found.hsn || "",
+      };
+      return updated;
+    });
+  };
 
   const addProduct = () => setProducts((p) => [...p, emptyProduct()]);
   const removeProduct = (idx) => {
@@ -805,11 +894,11 @@ export default function TaxInvoice() {
     let invoiceNoToUse = form.invoiceNo;
     if (!form.invoiceNoLocked) {
       try {
-      const res = await apiFetch("/get_invoice_number.php", {
-        method: "POST",
-      });
+        const res = await apiFetch("/get_invoice_number.php", {
+          method: "POST",
+        });
 
-      const data = await res.json();
+        const data = await res.json();
         if (!data.success) {
           alert(
             data.message === "no_branch_selected"
@@ -885,12 +974,12 @@ export default function TaxInvoice() {
           taxableAmt: r.taxableAmt,
         })),
       };
-     const res = await apiFetch("/save_invoice.php", {
-       method: "POST",
-       body: JSON.stringify(payload),
-     });
+      const res = await apiFetch("/save_invoice.php", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
 
-     const result = await res.json();
+      const result = await res.json();
       if (!result.success)
         console.error("Invoice save failed:", result.message);
     } catch (err) {
@@ -935,83 +1024,95 @@ export default function TaxInvoice() {
     fetchInvoiceNoPeek();
   };
 
-  const errStyle = (name) => ({
-    borderColor: errors[name] ? "#dc3545" : undefined,
-  });
-
   // ── Show loading state ──────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "60vh" }}>
-        <div className="text-center">
-          <div className="spinner-border text-primary" role="status">
-            <span className="visually-hidden">Loading...</span>
+      <>
+        <style>{screenStyles}</style>
+        <div className="at-root">
+          <div className="at-card at-center-card">
+            <div className="at-spinner"></div>
+            <p style={{ margin: 0, color: "#64748b" }}>Checking permissions…</p>
           </div>
-          <p className="mt-2">Checking permissions...</p>
         </div>
-      </div>
+      </>
     );
   }
 
   // ── Show access denied for non-admin users ────────────────────────────────
   if (!isAdmin) {
     return (
-      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "60vh" }}>
-        <div className="text-center">
-          <div style={{ fontSize: 48, marginBottom: 16 }}>🚫</div>
-          <h2 className="text-danger">Access Denied</h2>
-          <p className="text-muted" style={{ fontSize: 16 }}>
-            You do not have permission to access the Tax Invoice page.
-          </p>
-          <p className="text-muted" style={{ fontSize: 14 }}>
-            This page is only accessible to Admin users.
-          </p>
-          <button
-            className="btn btn-primary mt-3"
-            onClick={() => window.location.href = "/dashboard"}
-          >
-            Go to Dashboard
-          </button>
+      <>
+        <style>{screenStyles}</style>
+        <div className="at-root">
+          <div className="at-card at-center-card">
+            <div className="icon" style={{ color: "#dc2626" }}>
+              <i className="bi bi-shield-lock-fill"></i>
+            </div>
+            <h2 style={{ color: "#dc2626", fontSize: 20, fontWeight: 800 }}>
+              Access Denied
+            </h2>
+            <p style={{ color: "#64748b", fontSize: 14 }}>
+              You do not have permission to access the Tax Invoice page. This
+              page is only accessible to Admin users.
+            </p>
+            <button
+              className="at-btn at-btn--primary"
+              style={{ margin: "8px auto 0" }}
+              onClick={() => (window.location.href = "/dashboard")}
+            >
+              Go to Dashboard
+            </button>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   // ── Show loading state while pulling in a "Continue" invoice ───────────────
   if (loadingExistingInvoice) {
     return (
-      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "60vh" }}>
-        <div className="text-center">
-          <div className="spinner-border text-primary" role="status">
-            <span className="visually-hidden">Loading...</span>
+      <>
+        <style>{screenStyles}</style>
+        <div className="at-root">
+          <div className="at-card at-center-card">
+            <div className="at-spinner"></div>
+            <p style={{ margin: 0, color: "#64748b" }}>
+              {fromQuotationId
+                ? "Loading quotation details…"
+                : `Loading invoice ${continueInvoiceNo}…`}
+            </p>
           </div>
-          <p className="mt-2">
-            {fromQuotationId
-              ? "Loading quotation details…"
-              : `Loading invoice ${continueInvoiceNo}…`}
-          </p>
         </div>
-      </div>
+      </>
     );
   }
 
   if (existingInvoiceError) {
     return (
-      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "60vh" }}>
-        <div className="text-center">
-          <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
-          <h2 className="text-danger">Couldn't load invoice</h2>
-          <p className="text-muted" style={{ fontSize: 14 }}>
-            {existingInvoiceError}
-          </p>
-          <button
-            className="btn btn-primary mt-3"
-            onClick={() => setExistingInvoiceError(null)}
-          >
-            Start a New Invoice Instead
-          </button>
+      <>
+        <style>{screenStyles}</style>
+        <div className="at-root">
+          <div className="at-card at-center-card">
+            <div className="icon" style={{ color: "#dc2626" }}>
+              <i className="bi bi-exclamation-triangle-fill"></i>
+            </div>
+            <h2 style={{ color: "#dc2626", fontSize: 20, fontWeight: 800 }}>
+              Couldn't load invoice
+            </h2>
+            <p style={{ color: "#64748b", fontSize: 14 }}>
+              {existingInvoiceError}
+            </p>
+            <button
+              className="at-btn at-btn--primary"
+              style={{ margin: "8px auto 0" }}
+              onClick={() => setExistingInvoiceError(null)}
+            >
+              Start a New Invoice Instead
+            </button>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
@@ -1022,716 +1123,585 @@ export default function TaxInvoice() {
     return (
       <>
         <style>{printStyles}</style>
-        <div
-          className="container-fluid py-4 no-print"
-          style={{ maxWidth: 1100 }}
-        >
-          <div className="card shadow-sm border-0">
-            <div
-              className="card-header text-white d-flex justify-content-between align-items-center"
-              style={{ background: "#1a1a2e" }}
-            >
-              <h5 className="mb-0">🧾 BIP Fencing – Tax Invoice Generator</h5>
-              <button
-                type="button"
-                className="btn btn-sm btn-outline-light"
-                title="Clear all fields and start a fresh invoice"
-                onClick={handleNewInvoice}
-              >
-                🔄 Refresh
-              </button>
-            </div>
-            <div className="card-body">
-              {/* Copy / GST / Payment */}
-              <div className="row g-3 mb-3">
-                <div className="col-md-4">
-                  <label
-                    className="form-label fw-semibold"
-                    style={{ fontSize: 12 }}
-                  >
-                    Copy Type
-                  </label>
-                  <select
-                    className="form-select form-select-sm"
-                    name="copyType"
-                    value={form.copyType}
-                    onChange={handleForm}
-                  >
-                    {COPY_TYPES.map((t) => (
-                      <option key={t}>{t}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="col-md-4">
-                  <label
-                    className="form-label fw-semibold"
-                    style={{ fontSize: 12 }}
-                  >
-                    GST Rate (%)
-                  </label>
-                  <select
-                    className="form-select form-select-sm"
-                    name="gstRate"
-                    value={form.gstRate}
-                    onChange={handleForm}
-                  >
-                    <option value={18}>18% (CGST 9% + SGST 9%)</option>
-                    <option value={12}>12% (CGST 6% + SGST 6%)</option>
-                    <option value={5}>5% (CGST 2.5% + SGST 2.5%)</option>
-                    <option value={28}>28% (CGST 14% + SGST 14%)</option>
-                  </select>
-                </div>
-                <div className="col-md-4">
-                  <label
-                    className="form-label fw-semibold"
-                    style={{ fontSize: 12 }}
-                  >
-                    Payment Mode
-                  </label>
-                  <select
-                    className="form-select form-select-sm"
-                    name="paymentMode"
-                    value={form.paymentMode}
-                    onChange={handleForm}
-                  >
-                    {["Cash", "Credit", "UPI", "Bank Transfer", "Cheque"].map(
-                      (m) => (
-                        <option key={m}>{m}</option>
-                      ),
-                    )}
-                  </select>
-                </div>
+        <style>{screenStyles}</style>
+        <div className="at-root no-print">
+          <div className="at-header">
+            <div className="at-header__left">
+              <div className="at-header__icon">
+                <i className="bi bi-receipt-cutoff"></i>
               </div>
+              <div>
+                <h1 className="at-header__title">Tax Invoice</h1>
+                <p className="at-header__sub">
+                  BIP Fencing – GST Tax Invoice Generator
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="at-btn at-btn--ghost"
+              title="Clear all fields and start a fresh invoice"
+              onClick={handleNewInvoice}
+            >
+              <i className="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+          </div>
 
-              {/* Invoice Details */}
-              <h6
-                className="fw-bold border-bottom pb-1 mb-3 text-secondary text-uppercase"
-                style={{ fontSize: 11 }}
-              >
-                Invoice Details
-              </h6>
-              <div className="row g-3 mb-4">
-                <div className="col-md-4">
-                  <label
-                    className="form-label fw-semibold"
-                    style={{ fontSize: 12 }}
-                  >
-                    Invoice No *
-                  </label>
-                  <input
-                    type="text"
-                    className="form-control form-control-sm"
-                    value={
-                      branchInfo.loading ? "Loading…" : form.invoiceNo || "—"
-                    }
-                    readOnly
-                    disabled
-                    style={{
-                      background: "#f1f3f5",
-                      color: form.invoiceNo ? "#495057" : "#adb5bd",
-                      fontWeight: 600,
-                      fontStyle: form.invoiceNo ? "normal" : "italic",
-                      cursor: "not-allowed",
-                      borderColor: branchInfo.error ? "#dc3545" : undefined,
-                    }}
-                  />
-                  <div style={{ fontSize: 10, color: "#888", marginTop: 2 }}>
-                    {form.invoiceNoLocked
-                      ? "Reserved for this invoice."
-                      : "Auto-generated per branch — finalized when you click Preview."}
-                  </div>
-                  {branchInfo.error && (
-                    <div className="text-danger" style={{ fontSize: 11 }}>
-                      {branchInfo.error}
-                    </div>
+          {/* Copy / GST / Payment */}
+          <div className="at-card">
+            <div className="at-card__head">
+              <i className="bi bi-sliders"></i>
+              <span>Invoice Settings</span>
+            </div>
+            <div className="at-form-grid">
+              <div className="at-fg">
+                <label className="at-label">Copy Type</label>
+                <select
+                  className="at-select"
+                  name="copyType"
+                  value={form.copyType}
+                  onChange={handleForm}
+                >
+                  {COPY_TYPES.map((t) => (
+                    <option key={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="at-fg">
+                <label className="at-label">GST Rate (%)</label>
+                <select
+                  className="at-select"
+                  name="gstRate"
+                  value={form.gstRate}
+                  onChange={handleForm}
+                >
+                  <option value={18}>18% (CGST 9% + SGST 9%)</option>
+                  <option value={12}>12% (CGST 6% + SGST 6%)</option>
+                  <option value={5}>5% (CGST 2.5% + SGST 2.5%)</option>
+                  <option value={28}>28% (CGST 14% + SGST 14%)</option>
+                </select>
+              </div>
+              <div className="at-fg">
+                <label className="at-label">Payment Mode</label>
+                <select
+                  className="at-select"
+                  name="paymentMode"
+                  value={form.paymentMode}
+                  onChange={handleForm}
+                >
+                  {["Cash", "Credit", "UPI", "Bank Transfer", "Cheque"].map(
+                    (m) => (
+                      <option key={m}>{m}</option>
+                    ),
                   )}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Invoice Details */}
+          <div className="at-card">
+            <div className="at-card__head">
+              <i className="bi bi-file-earmark-text"></i>
+              <span>Invoice Details</span>
+            </div>
+            <div className="at-form-grid">
+              <div className="at-fg">
+                <label className="at-label">
+                  Invoice No <span className="req">*</span>
+                </label>
+                <input
+                  type="text"
+                  className="at-input"
+                  value={
+                    branchInfo.loading ? "Loading…" : form.invoiceNo || "—"
+                  }
+                  readOnly
+                  disabled
+                  style={{
+                    borderColor: branchInfo.error ? "#ef4444" : undefined,
+                  }}
+                />
+                <div className="at-hint">
+                  {form.invoiceNoLocked
+                    ? "Reserved for this invoice."
+                    : "Auto-generated per branch — finalized when you click Preview."}
                 </div>
-                {[
-                  ["invoiceDate", "Invoice Date *", "", "date"],
-                  ["referenceNo", "Reference No & Date", ""],
-                  ["buyersOrderNo", "Buyer's Order No", ""],
-                  ["dated", "Dated", "", "date"],
-                  ["dispatchDocNo", "Dispatch Doc No", ""],
-                  ["deliveryNoteDate", "Delivery Note Date", "", "date"],
-                  ["dispatchedThrough", "Dispatched Through", ""],
-                  ["destination", "Destination", ""],
-                  ["billOfLading", "Bill of Lading / LR-RR No.", ""],
-                  ["motorVehicleNo", "Motor Vehicle No.", "TN XX XX XXXX"],
-                ].map(([name, label, placeholder, type]) => (
-                  <div className="col-md-4" key={name}>
-                    <label
-                      className="form-label fw-semibold"
-                      style={{ fontSize: 12 }}
-                    >
-                      {label}
-                    </label>
-                    <input
-                      type={type || "text"}
-                      className="form-control form-control-sm"
-                      name={name}
-                      value={form[name]}
-                      onChange={handleForm}
-                      placeholder={placeholder || ""}
-                      style={errStyle(name)}
-                    />
-                    {errors[name] && (
-                      <div className="text-danger" style={{ fontSize: 11 }}>
-                        {errors[name]}
-                      </div>
-                    )}
-                  </div>
-                ))}
-                <div className="col-md-4">
-                  <label
-                    className="form-label fw-semibold"
-                    style={{ fontSize: 12 }}
-                  >
-                    E-Way Required?
-                  </label>
-                  <select
-                    className="form-select form-select-sm"
-                    name="ewayRequired"
-                    value={form.ewayRequired}
-                    onChange={handleForm}
-                  >
-                    <option value="">Select</option>
-                    <option value="Yes">Yes</option>
-                    <option value="No">No</option>
-                  </select>
-                </div>
-                {form.ewayRequired === "Yes" && (
-                  <div className="col-md-4">
-                    <label
-                      className="form-label fw-semibold"
-                      style={{ fontSize: 12 }}
-                    >
-                      E-Way Number
-                    </label>
-                    <input
-                      type="text"
-                      className="form-control form-control-sm"
-                      name="ewayNumber"
-                      value={form.ewayNumber}
-                      onChange={handleForm}
-                      placeholder="Enter E-Way Bill Number"
-                    />
-                  </div>
+                {branchInfo.error && (
+                  <div className="at-error-text">{branchInfo.error}</div>
                 )}
               </div>
-
-              {/* Consignee */}
-              <h6
-                className="fw-bold border-bottom pb-1 mb-3 text-secondary text-uppercase"
-                style={{ fontSize: 11 }}
-              >
-                Consignee (Ship To)
-              </h6>
-              <div className="row g-3 mb-4">
-                <div className="col-md-5">
-                  <label
-                    className="form-label fw-semibold"
-                    style={{ fontSize: 12 }}
-                  >
-                    Name
-                  </label>
+              {[
+                ["invoiceDate", "Invoice Date *", "", "date"],
+                ["referenceNo", "Reference No & Date", ""],
+                ["buyersOrderNo", "Buyer's Order No", ""],
+                ["dated", "Dated", "", "date"],
+                ["dispatchDocNo", "Dispatch Doc No", ""],
+                ["deliveryNoteDate", "Delivery Note Date", "", "date"],
+                ["dispatchedThrough", "Dispatched Through", ""],
+                ["destination", "Destination", ""],
+                ["billOfLading", "Bill of Lading / LR-RR No.", ""],
+                ["motorVehicleNo", "Motor Vehicle No.", "TN XX XX XXXX"],
+              ].map(([name, label, placeholder, type]) => (
+                <div className="at-fg" key={name}>
+                  <label className="at-label">{label}</label>
                   <input
-                    className="form-control form-control-sm"
-                    name="consigneeName"
-                    value={form.consigneeName}
+                    type={type || "text"}
+                    className={`at-input${errors[name] ? " error-field" : ""}`}
+                    name={name}
+                    value={form[name]}
                     onChange={handleForm}
-                    placeholder="Leave blank to copy from Buyer"
+                    placeholder={placeholder || ""}
                   />
-                </div>
-                <div className="col-md-5">
-                  <label
-                    className="form-label fw-semibold"
-                    style={{ fontSize: 12 }}
-                  >
-                    Address
-                  </label>
-                  <input
-                    className="form-control form-control-sm"
-                    name="consigneeAddress"
-                    value={form.consigneeAddress}
-                    onChange={handleForm}
-                  />
-                </div>
-                <div className="col-md-3">
-                  <label
-                    className="form-label fw-semibold"
-                    style={{ fontSize: 12 }}
-                  >
-                    State
-                  </label>
-                  <input
-                    className="form-control form-control-sm"
-                    name="consigneeState"
-                    value={form.consigneeState}
-                    onChange={handleForm}
-                  />
-                </div>
-                <div className="col-md-2">
-                  <label
-                    className="form-label fw-semibold"
-                    style={{ fontSize: 12 }}
-                  >
-                    State Code
-                  </label>
-                  <input
-                    className="form-control form-control-sm"
-                    name="consigneeStateCode"
-                    value={form.consigneeStateCode}
-                    onChange={handleForm}
-                  />
-                </div>
-              </div>
-
-              {/* Buyer */}
-              <h6
-                className="fw-bold border-bottom pb-1 mb-3 text-secondary text-uppercase"
-                style={{ fontSize: 11 }}
-              >
-                Buyer (Bill To) *
-              </h6>
-              <div className="row g-3 mb-4">
-                <div className="col-md-5">
-                  <label
-                    className="form-label fw-semibold"
-                    style={{ fontSize: 12 }}
-                  >
-                    Name *
-                  </label>
-                  <input
-                    className="form-control form-control-sm"
-                    name="buyerName"
-                    value={form.buyerName}
-                    onChange={handleForm}
-                    style={errStyle("buyerName")}
-                  />
-                  {errors.buyerName && (
-                    <div className="text-danger" style={{ fontSize: 11 }}>
-                      {errors.buyerName}
-                    </div>
+                  {errors[name] && (
+                    <div className="at-error-text">{errors[name]}</div>
                   )}
                 </div>
-                <div className="col-md-5">
-                  <label
-                    className="form-label fw-semibold"
-                    style={{ fontSize: 12 }}
-                  >
-                    Address
-                  </label>
-                  <input
-                    className="form-control form-control-sm"
-                    name="buyerAddress"
-                    value={form.buyerAddress}
-                    onChange={handleForm}
-                  />
-                </div>
-                <div className="col-md-3">
-                  <label
-                    className="form-label fw-semibold"
-                    style={{ fontSize: 12 }}
-                  >
-                    Phone
-                  </label>
-                  <input
-                    className="form-control form-control-sm"
-                    name="buyerPhone"
-                    value={form.buyerPhone}
-                    onChange={(e) => {
-                      const val = e.target.value
-                        .replace(/\D/g, "")
-                        .slice(0, 10);
-                      setForm((prev) => ({ ...prev, buyerPhone: val }));
-                      if (val.length > 0 && val.length < 10)
-                        setErrors((p) => ({
-                          ...p,
-                          buyerPhone: "Phone must be 10 digits",
-                        }));
-                      else setErrors((p) => ({ ...p, buyerPhone: "" }));
-                    }}
-                    style={{
-                      borderColor: errors.buyerPhone ? "#dc3545" : undefined,
-                    }}
-                    maxLength={10}
-                  />
-                  {errors.buyerPhone && (
-                    <div className="text-danger" style={{ fontSize: 11 }}>
-                      {errors.buyerPhone}
-                    </div>
-                  )}
-                </div>
-                <div className="col-md-3">
-                  <label
-                    className="form-label fw-semibold"
-                    style={{ fontSize: 12 }}
-                  >
-                    GST No
-                  </label>
-                  <input
-                    className="form-control form-control-sm"
-                    name="buyerGst"
-                    value={form.buyerGst}
-                    onChange={handleForm}
-                  />
-                </div>
-                <div className="col-md-3">
-                  <label
-                    className="form-label fw-semibold"
-                    style={{ fontSize: 12 }}
-                  >
-                    State
-                  </label>
-                  <input
-                    className="form-control form-control-sm"
-                    name="buyerState"
-                    value={form.buyerState}
-                    onChange={handleForm}
-                  />
-                </div>
-                <div className="col-md-2">
-                  <label
-                    className="form-label fw-semibold"
-                    style={{ fontSize: 12 }}
-                  >
-                    State Code
-                  </label>
-                  <input
-                    className="form-control form-control-sm"
-                    name="buyerStateCode"
-                    value={form.buyerStateCode}
-                    onChange={handleForm}
-                  />
-                </div>
-              </div>
-
-              {/* Products */}
-              <h6
-                className="fw-bold border-bottom pb-1 mb-3 text-secondary text-uppercase"
-                style={{ fontSize: 11 }}
-              >
-                Products — Enter Rate Inclusive of Tax
-              </h6>
-              <div
-                className="alert alert-info py-2 px-3 mb-2"
-                style={{ fontSize: 12 }}
-              >
-                💡 Pick a <strong>Branch</strong> for each row first — items
-                can come from Branch A, B and C on the same invoice. Once a
-                branch is chosen, its product list appears in Description.
-              </div>
-              <div className="table-responsive mb-2">
-                <table
-                  className="table table-bordered table-sm align-middle mb-0"
-                  style={{ fontSize: 12 }}
+              ))}
+              <div className="at-fg">
+                <label className="at-label">E-Way Required?</label>
+                <select
+                  className="at-select"
+                  name="ewayRequired"
+                  value={form.ewayRequired}
+                  onChange={handleForm}
                 >
-                  <thead className="table-dark">
-                    <tr>
-                      <th style={{ width: 32 }}>#</th>
-                      <th style={{ width: 110 }}>Branch</th>
-                      <th>Description</th>
-                      <th style={{ width: 85 }}>HSN/SAC</th>
-                      <th style={{ width: 75 }}>Qty</th>
-                      <th style={{ width: 90 }}>Per</th>
-                      <th style={{ width: 115 }}>Rate (Incl. Tax)</th>
-                      <th style={{ width: 100 }}>Rate (Excl. Tax)</th>
-                      <th style={{ width: 105 }}>Taxable Value</th>
-                      <th style={{ width: 38 }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {products.map((p, i) => {
-                      const q = parseFloat(p.qty) || 0;
-                      const ri = parseFloat(p.rateIncl) || 0;
-                      const re = ri / (1 + gstRate / 100);
-                      const ta = re * q;
-                      const branchProducts = productsByBranch[p.branchId] || [];
-                      return (
-                        <tr key={i}>
-                          <td className="text-center">{i + 1}</td>
-                          <td>
+                  <option value="">Select</option>
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                </select>
+              </div>
+              {form.ewayRequired === "Yes" && (
+                <div className="at-fg">
+                  <label className="at-label">E-Way Number</label>
+                  <input
+                    type="text"
+                    className="at-input"
+                    name="ewayNumber"
+                    value={form.ewayNumber}
+                    onChange={handleForm}
+                    placeholder="Enter E-Way Bill Number"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Consignee */}
+          <div className="at-card">
+            <div className="at-card__head">
+              <i className="bi bi-truck"></i>
+              <span>Consignee (Ship To)</span>
+            </div>
+            <div className="at-form-grid">
+              <div className="at-fg at-fg--span2">
+                <label className="at-label">Name</label>
+                <input
+                  className="at-input"
+                  name="consigneeName"
+                  value={form.consigneeName}
+                  onChange={handleForm}
+                  placeholder="Leave blank to copy from Buyer"
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">Address</label>
+                <input
+                  className="at-input"
+                  name="consigneeAddress"
+                  value={form.consigneeAddress}
+                  onChange={handleForm}
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">State</label>
+                <input
+                  className="at-input"
+                  name="consigneeState"
+                  value={form.consigneeState}
+                  onChange={handleForm}
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">State Code</label>
+                <input
+                  className="at-input"
+                  name="consigneeStateCode"
+                  value={form.consigneeStateCode}
+                  onChange={handleForm}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Buyer */}
+          <div className="at-card">
+            <div className="at-card__head">
+              <i className="bi bi-person-badge"></i>
+              <span>Buyer (Bill To) *</span>
+            </div>
+            <div className="at-form-grid">
+              <div className="at-fg at-fg--span2">
+                <label className="at-label">
+                  Name <span className="req">*</span>
+                </label>
+                <input
+                  className={`at-input${errors.buyerName ? " error-field" : ""}`}
+                  name="buyerName"
+                  value={form.buyerName}
+                  onChange={handleForm}
+                />
+                {errors.buyerName && (
+                  <div className="at-error-text">{errors.buyerName}</div>
+                )}
+              </div>
+              <div className="at-fg">
+                <label className="at-label">Address</label>
+                <input
+                  className="at-input"
+                  name="buyerAddress"
+                  value={form.buyerAddress}
+                  onChange={handleForm}
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">Phone</label>
+                <input
+                  className={`at-input${errors.buyerPhone ? " error-field" : ""}`}
+                  name="buyerPhone"
+                  value={form.buyerPhone}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, "").slice(0, 10);
+                    setForm((prev) => ({ ...prev, buyerPhone: val }));
+                    if (val.length > 0 && val.length < 10)
+                      setErrors((p) => ({
+                        ...p,
+                        buyerPhone: "Phone must be 10 digits",
+                      }));
+                    else setErrors((p) => ({ ...p, buyerPhone: "" }));
+                  }}
+                  maxLength={10}
+                />
+                {errors.buyerPhone && (
+                  <div className="at-error-text">{errors.buyerPhone}</div>
+                )}
+              </div>
+              <div className="at-fg">
+                <label className="at-label">GST No</label>
+                <input
+                  className="at-input"
+                  name="buyerGst"
+                  value={form.buyerGst}
+                  onChange={handleForm}
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">State</label>
+                <input
+                  className="at-input"
+                  name="buyerState"
+                  value={form.buyerState}
+                  onChange={handleForm}
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">State Code</label>
+                <input
+                  className="at-input"
+                  name="buyerStateCode"
+                  value={form.buyerStateCode}
+                  onChange={handleForm}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Products */}
+          <div className="at-card">
+            <div className="at-card__head">
+              <i className="bi bi-box-seam"></i>
+              <span>Products — Enter Rate Inclusive of Tax</span>
+            </div>
+            <div className="at-alert">
+              <i className="bi bi-info-circle-fill"></i>
+              <div>
+                Pick a <strong>Branch</strong> for each row first — items can
+                come from Branch A, B and C on the same invoice. Once a branch
+                is chosen, its product list appears in Description.
+              </div>
+            </div>
+            <div className="at-table-wrap">
+              <table className="at-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 32 }}>#</th>
+                    <th style={{ width: 110 }}>Branch</th>
+                    <th style={{ minWidth: 220 }}>Description</th>
+                    <th style={{ width: 90 }}>HSN/SAC</th>
+                    <th style={{ width: 75 }}>Qty</th>
+                    <th style={{ width: 80 }}>Per</th>
+                    <th style={{ width: 110 }}>Rate (Incl. Tax)</th>
+                    <th style={{ width: 100 }}>Rate (Excl. Tax)</th>
+                    <th style={{ width: 105 }}>Taxable Value</th>
+                    <th style={{ width: 40 }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {products.map((p, i) => {
+                    const q = parseFloat(p.qty) || 0;
+                    const ri = parseFloat(p.rateIncl) || 0;
+                    const re = ri / (1 + gstRate / 100);
+                    const ta = re * q;
+                    const branchProducts = productsByBranch[p.branchId] || [];
+                    return (
+                      <tr key={i}>
+                        <td style={{ textAlign: "center", color: "#94a3b8" }}>
+                          {i + 1}
+                        </td>
+                        <td>
+                          <select
+                            className={`at-select-t${errors[`branch_${i}`] ? " error-field" : ""}`}
+                            value={p.branchId || ""}
+                            onChange={(e) =>
+                              handleBranchSelect(i, e.target.value)
+                            }
+                          >
+                            <option value="">— Branch —</option>
+                            {BRANCHES.map((b) => (
+                              <option key={b.id} value={b.id}>
+                                {b.name}
+                              </option>
+                            ))}
+                          </select>
+                          {errors[`branch_${i}`] && (
+                            <div className="at-error-text">
+                              {errors[`branch_${i}`]}
+                            </div>
+                          )}
+                        </td>
+                        <td>
+                          {p.branchId ? (
                             <select
-                              className="form-select form-select-sm"
-                              style={{
-                                borderColor: errors[`branch_${i}`]
-                                  ? "#dc3545"
-                                  : undefined,
-                                cursor: "pointer",
-                              }}
-                              value={p.branchId || ""}
+                              className={`at-select-t${errors[`desc_${i}`] ? " error-field" : ""}`}
+                              value={p.productId || ""}
                               onChange={(e) =>
-                                handleBranchSelect(i, e.target.value)
+                                handleProductSelect(i, e.target.value)
                               }
                             >
-                              <option value="">— Branch —</option>
-                              {BRANCHES.map((b) => (
-                                <option key={b.id} value={b.id}>
-                                  {b.name}
+                              <option value="">
+                                {!p.productId && p.desc
+                                  ? p.desc
+                                  : "— Select Product —"}
+                              </option>
+                              {branchProducts.map((sp) => (
+                                <option key={sp.id} value={sp.id}>
+                                  {sp.productName}
                                 </option>
                               ))}
                             </select>
-                            {errors[`branch_${i}`] && (
-                              <div
-                                className="text-danger"
-                                style={{ fontSize: 11 }}
-                              >
-                                {errors[`branch_${i}`]}
-                              </div>
-                            )}
-                          </td>
-                          <td>
-  <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-    {p.branchId ? (
-      <select
-        className="form-select form-select-sm"
-        style={{
-          width: 320,
-          flexShrink: 0,
-          borderColor: errors[`desc_${i}`] ? "#dc3545" : undefined,
-          minHeight: "31px",
-          cursor: "pointer",
-        }}
-        value={p.productId || ""}
-        onChange={(e) => handleProductSelect(i, e.target.value)}
-      >
-        <option value="">
-          {!p.productId && p.desc ? p.desc : "— Select Product —"}
-        </option>
-        {branchProducts.map((sp) => (
-          <option key={sp.id} value={sp.id}>
-            {sp.productName}
-          </option>
-        ))}
-      </select>
-    ) : (
-      <input
-        className="form-control form-control-sm"
-        value=""
-        placeholder="Select a branch first"
-        disabled
-        style={{
-          borderColor: errors[`desc_${i}`] ? "#dc3545" : undefined,
-        }}
-      />
-    )}
-  </div>
-  {errors[`desc_${i}`] && (
-    <div className="text-danger" style={{ fontSize: 11 }}>
-      {errors[`desc_${i}`]}
-    </div>
-  )}
-</td>
-                          <td>
+                          ) : (
                             <input
-                              className="form-control form-control-sm"
-                              value={p.hsn}
-                              placeholder="e.g. 73269099"
-                              onChange={(e) =>
-                                handleProduct(i, "hsn", e.target.value)
-                              }
+                              className="at-input-t"
+                              value=""
+                              placeholder="Select a branch first"
+                              disabled
                             />
-                          </td>
-                          <td>
-                            <input
-                              type="number"
-                              min="0"
-                              className="form-control form-control-sm"
-                              value={p.qty}
-                              onChange={(e) =>
-                                handleProduct(i, "qty", e.target.value)
-                              }
-                              style={{
-                                borderColor: errors[`qty_${i}`]
-                                  ? "#dc3545"
-                                  : undefined,
-                              }}
-                            />
-                          </td>
-<td>
-  <select
-    className="form-select form-select-sm"
-    value={p.per || "NOS"}
-    onChange={(e) => handleProduct(i, "per", e.target.value)}
-    style={{ width: "100%" }}
-  >
-    {["NOS","KGS","MTR","SQM","RFT","SET","PCS","LTR"].map((u) => (
-      <option key={u} value={u}>{u}</option>
-    ))}
-  </select>
-</td>
-                          <td>
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              className="form-control form-control-sm"
-                              value={p.rateIncl}
-                              onChange={(e) =>
-                                handleProduct(i, "rateIncl", e.target.value)
-                              }
-                              style={{
-                                borderColor: errors[`rateIncl_${i}`]
-                                  ? "#dc3545"
-                                  : undefined,
-                              }}
-                            />
-                          </td>
-                          <td className="text-end text-muted">{fmt2(re)}</td>
-                          <td className="text-end fw-semibold">{fmt2(ta)}</td>
-                          <td className="text-center">
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-outline-danger"
-                              onClick={() => removeProduct(i)}
-                              disabled={products.length === 1}
-                            >
-                              ✕
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <div className="d-flex justify-content-between align-items-start mb-4">
-                <button
-                  type="button"
-                  className="btn btn-outline-secondary btn-sm"
-                  onClick={addProduct}
-                >
-                  + Add Row
-                </button>
-                <div className="text-end" style={{ fontSize: 13 }}>
-                  <div>
-                    Subtotal (Taxable): <strong>₹ {fmt2(subtotal)}</strong>
-                  </div>
-                  <div className="text-muted">
-                    CGST {cgstRate}%: ₹ {fmt2(cgstAmt)} | SGST {sgstRate}%: ₹{" "}
-                    {fmt2(sgstAmt)}
-                  </div>
-                  <div className="text-muted">
-                    Round Off: ₹ {fmt2(roundOff)}
-                  </div>
-                  <div className="fs-6 fw-bold">
-                    Net Amount: ₹ {fmt2(netAmount)}
-                  </div>
-                </div>
-              </div>
-
-              {/* Balance */}
-              <h6
-                className="fw-bold border-bottom pb-1 mb-3 text-secondary text-uppercase"
-                style={{ fontSize: 11 }}
+                          )}
+                          {errors[`desc_${i}`] && (
+                            <div className="at-error-text">
+                              {errors[`desc_${i}`]}
+                            </div>
+                          )}
+                        </td>
+                        <td>
+                          <input
+                            className="at-input-t"
+                            value={p.hsn}
+                            placeholder="e.g. 73269099"
+                            onChange={(e) =>
+                              handleProduct(i, "hsn", e.target.value)
+                            }
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            min="0"
+                            className={`at-input-t${errors[`qty_${i}`] ? " error-field" : ""}`}
+                            value={p.qty}
+                            onChange={(e) =>
+                              handleProduct(i, "qty", e.target.value)
+                            }
+                            onWheel={(e) => e.target.blur()}
+                          />
+                        </td>
+                        <td>
+                          <select
+                            className="at-select-t"
+                            value={p.per || "NOS"}
+                            onChange={(e) =>
+                              handleProduct(i, "per", e.target.value)
+                            }
+                          >
+                            {[
+                              "NOS",
+                              "KGS",
+                              "MTR",
+                              "SQM",
+                              "RFT",
+                              "SET",
+                              "PCS",
+                              "LTR",
+                            ].map((u) => (
+                              <option key={u} value={u}>
+                                {u}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            className={`at-input-t${errors[`rateIncl_${i}`] ? " error-field" : ""}`}
+                            value={p.rateIncl}
+                            onChange={(e) =>
+                              handleProduct(i, "rateIncl", e.target.value)
+                            }
+                            onWheel={(e) => e.target.blur()}
+                          />
+                        </td>
+                        <td style={{ textAlign: "right", color: "#64748b" }}>
+                          {fmt2(re)}
+                        </td>
+                        <td style={{ textAlign: "right", fontWeight: 700 }}>
+                          {fmt2(ta)}
+                        </td>
+                        <td style={{ textAlign: "center" }}>
+                          <button
+                            type="button"
+                            className="at-remove-btn"
+                            onClick={() => removeProduct(i)}
+                            disabled={products.length === 1}
+                          >
+                            <i className="bi bi-x-lg"></i>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="at-totals-row">
+              <button
+                type="button"
+                className="at-btn at-btn--ghost"
+                onClick={addProduct}
               >
-                Balance Tracking
-              </h6>
-              <div className="row g-3 mb-4">
-                <div className="col-md-3">
-                  <label
-                    className="form-label fw-semibold"
-                    style={{ fontSize: 12 }}
-                  >
-                    Open Balance (₹)
-                  </label>
-                  <input
-                    type="number"
-                    className="form-control form-control-sm"
-                    name="openBalance"
-                    value={form.openBalance}
-                    onChange={handleForm}
-                    placeholder="0.00"
-                  />
+                <i className="bi bi-plus-lg"></i> Add Row
+              </button>
+              <div className="at-totals-box">
+                <div>
+                  Subtotal (Taxable): <strong>₹ {fmt2(subtotal)}</strong>
                 </div>
-                <div className="col-md-3">
-                  <label
-                    className="form-label fw-semibold"
-                    style={{ fontSize: 12 }}
-                  >
-                    Closing Balance (₹)
-                  </label>
-                  <input
-                    type="number"
-                    className="form-control form-control-sm"
-                    name="closingBalance"
-                    value={form.closingBalance}
-                    onChange={handleForm}
-                    placeholder="0.00"
-                  />
+                <div className="muted">
+                  CGST {cgstRate}%: ₹ {fmt2(cgstAmt)} | SGST {sgstRate}%: ₹{" "}
+                  {fmt2(sgstAmt)}
                 </div>
-              </div>
-
-              {/* Bank */}
-              <h6
-                className="fw-bold border-bottom pb-1 mb-3 text-secondary text-uppercase"
-                style={{ fontSize: 11 }}
-              >
-                Company Bank Details
-              </h6>
-              <div className="row g-3 mb-4">
-                {[
-                  ["bankHolderName", "A/c Holder Name"],
-                  ["bankName", "Bank Name"],
-                  ["bankAccountNo", "A/c No."],
-                  ["bankIfsc", "IFS Code"],
-                  ["bankBranch", "Branch"],
-                ].map(([name, label]) => (
-                  <div className="col-md-4" key={name}>
-                    <label
-                      className="form-label fw-semibold"
-                      style={{ fontSize: 12 }}
-                    >
-                      {label}
-                    </label>
-                    <input
-                      className="form-control form-control-sm"
-                      name={name}
-                      value={form[name]}
-                      onChange={handleForm}
-                    />
-                  </div>
-                ))}
-              </div>
-
-              <div className="d-grid d-md-flex justify-content-md-end gap-2">
-                <button
-                  className="btn btn-outline-secondary"
-                  onClick={handleNewInvoice}
-                >
-                  🗑️ Clear Form
-                </button>
-                <button
-                  className="btn btn-lg px-5 text-white"
-                  style={{
-                    background:
-                      stockReducing ||
-                      (!form.invoiceNoLocked &&
-                        (branchInfo.loading || branchInfo.error))
-                        ? "#6b7280"
-                        : "#1a1a2e",
-                    cursor:
-                      stockReducing ||
-                      (!form.invoiceNoLocked &&
-                        (branchInfo.loading || branchInfo.error))
-                        ? "not-allowed"
-                        : "pointer",
-                  }}
-                  onClick={handlePreview}
-                  disabled={
-                    stockReducing ||
-                    (!form.invoiceNoLocked &&
-                      (branchInfo.loading || !!branchInfo.error))
-                  }
-                >
-                  {stockReducing
-                    ? "⏳ Updating Stock…"
-                    : !form.invoiceNoLocked && branchInfo.loading
-                      ? "⏳ Loading Invoice No…"
-                      : "Preview Invoice →"}
-                </button>
+                <div className="muted">Round Off: ₹ {fmt2(roundOff)}</div>
+                <div className="net">Net Amount: ₹ {fmt2(netAmount)}</div>
               </div>
             </div>
+          </div>
+
+          {/* Balance */}
+          <div className="at-card">
+            <div className="at-card__head">
+              <i className="bi bi-wallet2"></i>
+              <span>Balance Tracking</span>
+            </div>
+            <div className="at-form-grid--2">
+              <div className="at-fg">
+                <label className="at-label">Open Balance (₹)</label>
+                <input
+                  type="number"
+                  className="at-input"
+                  name="openBalance"
+                  value={form.openBalance}
+                  onChange={handleForm}
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">Closing Balance (₹)</label>
+                <input
+                  type="number"
+                  className="at-input"
+                  name="closingBalance"
+                  value={form.closingBalance}
+                  onChange={handleForm}
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Bank */}
+          <div className="at-card">
+            <div className="at-card__head">
+              <i className="bi bi-bank"></i>
+              <span>Company Bank Details</span>
+            </div>
+            <div className="at-form-grid">
+              {[
+                ["bankHolderName", "A/c Holder Name"],
+                ["bankName", "Bank Name"],
+                ["bankAccountNo", "A/c No."],
+                ["bankIfsc", "IFS Code"],
+                ["bankBranch", "Branch"],
+              ].map(([name, label]) => (
+                <div className="at-fg" key={name}>
+                  <label className="at-label">{label}</label>
+                  <input
+                    className="at-input"
+                    name={name}
+                    value={form[name]}
+                    onChange={handleForm}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="at-form-actions">
+            <button className="at-btn at-btn--ghost" onClick={handleNewInvoice}>
+              <i className="bi bi-trash"></i> Clear Form
+            </button>
+            <button
+              className="at-btn at-btn--primary at-btn--lg"
+              onClick={handlePreview}
+              disabled={
+                stockReducing ||
+                (!form.invoiceNoLocked &&
+                  (branchInfo.loading || !!branchInfo.error))
+              }
+            >
+              {stockReducing ? (
+                <>
+                  <i className="bi bi-hourglass-split"></i> Updating Stock…
+                </>
+              ) : !form.invoiceNoLocked && branchInfo.loading ? (
+                <>
+                  <i className="bi bi-hourglass-split"></i> Loading Invoice No…
+                </>
+              ) : (
+                <>
+                  Preview Invoice <i className="bi bi-arrow-right"></i>
+                </>
+              )}
+            </button>
           </div>
         </div>
       </>
@@ -1742,11 +1712,11 @@ export default function TaxInvoice() {
   // STEP 2 — INVOICE PREVIEW
   // ═══════════════════════════════════════════════════════════════════════════
 
-const itemCount = rows.length;
-const dynFont =
-  itemCount <= 10 ? 11 : itemCount <= 20 ? 12 : itemCount <= 30 ? 11 : 10;
-const dynPad =
-  itemCount <= 10 ? "3px 6px" : itemCount <= 20 ? "3px 6px" : "2px 5px";
+  const itemCount = rows.length;
+  const dynFont =
+    itemCount <= 10 ? 11 : itemCount <= 20 ? 12 : itemCount <= 30 ? 11 : 10;
+  const dynPad =
+    itemCount <= 10 ? "3px 6px" : itemCount <= 20 ? "3px 6px" : "2px 5px";
 
   const dc = (extra = {}) => ({
     border: "none",
@@ -1774,7 +1744,7 @@ const dynPad =
   // RIGHT column: Dispatch Doc No, Dispatched Through, Destination
   // Each only shows if value is non-empty
   const leftMetaFields = [
-   { label: "Invoice No.", value: form.invoiceNo },
+    { label: "Invoice No.", value: form.invoiceNo },
     form.referenceNo
       ? { label: "Reference No. & Date", value: form.referenceNo }
       : null,
@@ -1794,12 +1764,12 @@ const dynPad =
           value: formatDate(form.deliveryNoteDate),
         }
       : null,
-].filter(Boolean);
+  ].filter(Boolean);
 
   // Buyer panel right-side details (only non-empty)
 
   // Buyer panel right-side details (only non-empty)
-const buyerRightDetails = [
+  const buyerRightDetails = [
     { label: "Payment", value: form.paymentMode },
     form.dispatchedThrough
       ? { label: "Transport", value: form.dispatchedThrough }
@@ -1819,23 +1789,20 @@ const buyerRightDetails = [
   return (
     <>
       <style>{printStyles}</style>
+      <style>{screenStyles}</style>
 
       <div className="no-print py-3 d-flex justify-content-center gap-3">
-        <button className="btn btn-outline-secondary px-4" onClick={handleEdit}>
-          ✏️ Edit
+        <button className="at-btn at-btn--ghost" onClick={handleEdit}>
+          <i className="bi bi-pencil"></i> Edit
         </button>
         <button
-          className="btn text-white px-4"
-          style={{ background: "#1a1a2e" }}
+          className="at-btn at-btn--primary"
           onClick={() => window.print()}
         >
-          🖨️ Confirm &amp; Print
+          <i className="bi bi-printer"></i> Confirm &amp; Print
         </button>
-        <button
-          className="btn btn-outline-success px-4"
-          onClick={handleNewInvoice}
-        >
-          🆕 New Invoice
+        <button className="at-btn at-btn--ghost" onClick={handleNewInvoice}>
+          <i className="bi bi-file-earmark-plus"></i> New Invoice
         </button>
       </div>
 
@@ -1859,23 +1826,23 @@ const buyerRightDetails = [
       )}
 
       {/* ── INVOICE ── */}
-<div
-  id="bip-invoice-print"
-  style={{
-    width: "210mm",
-    minHeight: "297mm",
-    margin: "0 auto 30px",
-    padding: "8mm",
-    fontFamily: "'Times New Roman', Times, serif",
-    color: "#000",
-    background: "#fff",
-    border: "2px solid #000",
-    fontSize: dynFont + 2,
-    boxSizing: "border-box",
-    display: "flex",
-    flexDirection: "column",
-  }}
->
+      <div
+        id="bip-invoice-print"
+        style={{
+          width: "210mm",
+          minHeight: "297mm",
+          margin: "0 auto 30px",
+          padding: "8mm",
+          fontFamily: "'Times New Roman', Times, serif",
+          color: "#000",
+          background: "#fff",
+          border: "2px solid #000",
+          fontSize: dynFont + 2,
+          boxSizing: "border-box",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
         {/* Copy label */}
         <div
           style={{
@@ -1925,16 +1892,16 @@ const buyerRightDetails = [
                   verticalAlign: "middle",
                 }}
               >
-<div
-  style={{
-    fontSize: 24,  // ← Changed from 17 to 20
-    fontWeight: "bold",
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
-  }}
->
-  {COMPANY.name}
-</div>
+                <div
+                  style={{
+                    fontSize: 24, // ← Changed from 17 to 20
+                    fontWeight: "bold",
+                    letterSpacing: 1.5,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {COMPANY.name}
+                </div>
                 <div style={{ fontSize: 10, marginTop: 1 }}>
                   {COMPANY.address}
                 </div>
@@ -1950,7 +1917,7 @@ const buyerRightDetails = [
                     gap: 24,
                   }}
                 >
-              <span>Ph: {COMPANY.phone}</span>
+                  <span>Ph: {COMPANY.phone}</span>
                 </div>
               </td>
             </tr>
@@ -1959,333 +1926,372 @@ const buyerRightDetails = [
 
         {/* ── CONSIGNEE + META (2-column split) ── */}
 
-{/* ── CONSIGNEE + META (2-column split) ── */}
-<table
-  style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}
-  className="meta-table"
->
-  <tbody>
-    <tr>
-      {/* Consignee - Left Column */}
-      <td
-        style={{
-          width: "50%",
-          borderRight: B,
-          padding: "6px 7px",
-          verticalAlign: "top",
-        }}
-      >
-        <div style={sectionHead}>Consignee (Ship to)</div>
-        <div style={{ fontWeight: "bold", fontSize: 16 }}>
-          {form.consigneeName || form.buyerName}
-        </div>
-        <div style={{ fontSize: 14 }}>{form.consigneeAddress || form.buyerAddress}</div>
-        <div style={{ fontSize: 14 }}>
-          State Name: {form.consigneeState || form.buyerState}, Code:{" "}
-          {form.consigneeStateCode || form.buyerStateCode}
-        </div>
-      </td>
-      
-      {/* Meta - Right Column */}
-      <td
-        style={{
-          width: "50%",
-          padding: "6px 7px",
-          verticalAlign: "top",
-        }}
-      >
-        <div>
-          {[...leftMetaFields, ...rightMetaFields].map(({ label, value }, idx) => (
-            <div key={label + idx} style={{ display: "flex", marginBottom: 2 }}>
-              <span style={{ fontWeight: "normal", minWidth: 130, whiteSpace: "nowrap", fontSize: 13 }}>
-                {label}
-              </span>
-              <span style={{ fontWeight: "bold", fontSize: 13 }}> : {value}</span>
-            </div>
-          ))}
-        </div>
-      </td>
-    </tr>
-  </tbody>
-</table>
-{/* ── BUYER + PAYMENT (2-column split) ── */}
-<table style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}>
-  <tbody>
-    <tr>
-      {/* Buyer - Left Column */}
-      <td
-        style={{
-          width: "50%",
-          borderRight: B,
-          padding: "6px 7px",
-          verticalAlign: "top",
-        }}
-      >
-        <div style={sectionHead}>Buyer (Bill to)</div>
-        <div style={{ fontWeight: "bold", fontSize: 16 }}>
-          {form.buyerName}
-        </div>
-        <div style={{ fontSize: 14 }}>{form.buyerAddress}</div>
-        {form.buyerPhone && <div style={{ fontSize: 14 }}>Ph: {form.buyerPhone}</div>}
-        {form.buyerGst && <div style={{ fontSize: 14 }}>GSTIN/UIN: {form.buyerGst}</div>}
-        <div style={{ fontSize: 14 }}>
-          State Name: {form.buyerState}, Code: {form.buyerStateCode}
-        </div>
-      </td>
-      
-      {/* Payment - Right Column */}
-      <td
-        style={{
-          padding: "6px 7px",
-          verticalAlign: "top",
-          width: "50%",
-        }}
-      >
-{buyerRightDetails.map(({ label, value }) => (
-          <div
-            key={label}
-            style={{ display: "flex", marginBottom: 2 }}
-          >
-            <span
-              style={{
-                fontWeight: "normal",
-                minWidth: 95,
-                whiteSpace: "nowrap",
-                fontSize: 14,
-              }}
-            >
-              {label}
-            </span>
-            <span style={{ fontWeight: "bold", fontSize: 14 }}>
-              {" "}
-              : {value}
-            </span>
-          </div>
-        ))}
-        {buyerRightDetails.length === 0 && (
-          <div
-            style={{
-              color: "#999",
-              fontSize: 12,
-              fontStyle: "italic",
-            }}
-          >
-            No additional details
-          </div>
-        )}
-      </td>
-    </tr>
-  </tbody>
-</table>
-     {/* ── BUYER + PAYMENT ── */}
-
-
-{/* ── PRODUCT TABLE ── */}
-        <div style={{ flex: 1 }}>
-       <table
-  style={{
-    width: "100%",
-    borderCollapse: "collapse",
-    tableLayout: "fixed",
-    borderTop: B,
-    borderBottom: B,
-  }}
->
-          <colgroup>
-            <col style={{ width: "4%" }} />
-            <col style={{ width: "48%" }} />
-            <col style={{ width: "8%" }} />
-            <col style={{ width: "9%" }} />
-            <col style={{ width: "11%" }} />
-            <col style={{ width: "11%" }} />
-            <col style={{ width: "5%" }} />
-            <col style={{ width: "14%" }} />
-          </colgroup>
-          <thead className="inv-thead">
-            <tr>
-              {[
-                ["Sl\nNo.", "center"],
-                ["Description of Goods", "left"],
-                ["HSN/\nSAC", "center"],
-                ["Quantity", "center"],
-                ["Rate\n(Incl. Tax)", "right"],
-                ["Rate\n(Excl. Tax)", "right"],
-                ["Per", "center"],
-                ["Taxable\nAmount", "right"],
-              ].map(([label, align], i) => (
-                <th
-                  key={i}
-                  style={dhc({
-                    textAlign: align,
-                    whiteSpace: "pre-line",
-                    padding: dynPad,
-                  })}
-                >
-                  {label}
-                </th>
-              ))}
-            </tr>
-          </thead>
+        {/* ── CONSIGNEE + META (2-column split) ── */}
+        <table
+          style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}
+          className="meta-table"
+        >
           <tbody>
-            {rows.map((r, i) => (
-              <tr key={i} className="inv-product-row">
-                <td style={dc({ textAlign: "center" })}>{i + 1}</td>
-              <td style={dc({ 
-  fontWeight: "bold",
-  fontSize: 18
-})}>{r.desc}</td>
-                <td style={dc({ textAlign: "center", fontWeight: "bold" })}>{r.hsn || "–"}</td>
-               <td style={dc({ textAlign: "center", fontWeight: "bold" })}>{fmt2(r.qty)}</td>
-                <td style={dc({ textAlign: "right" })}>{fmt2(r.rateIncl)}</td>
-                <td style={dc({ textAlign: "right" })}>{fmt2(r.rateExcl)}</td>
-                <td style={dc({ textAlign: "center" })}>{r.per}</td>
-                <td style={dc({ textAlign: "right" })}>{fmt2(r.taxableAmt)}</td>
-              </tr>
-            ))}
-{Array.from({ length: MIN_ROWS }).map((_, i) => (
-              <tr key={`blank_${i}`} style={{ height: 18 }}>
-                {Array(8)
-                  .fill(null)
-                  .map((__, j) => (
-                    <td key={j} style={dc()}>
-                      &nbsp;
-                    </td>
-                  ))}
-              </tr>
-            ))}
-            
-            {(form.openBalance || form.closingBalance) && (
-              <tr>
-                <td colSpan={8} style={dc({ borderTop: "1px dashed #999", padding: "3px 7px" })}>
-                  {form.openBalance && (
-                    <div style={{ fontWeight: "bold", fontSize: dynFont + 2 }}>
-                      Open Balance: ₹ {fmt2(form.openBalance)}
-                    </div>
+            <tr>
+              {/* Consignee - Left Column */}
+              <td
+                style={{
+                  width: "50%",
+                  borderRight: B,
+                  padding: "6px 7px",
+                  verticalAlign: "top",
+                }}
+              >
+                <div style={sectionHead}>Consignee (Ship to)</div>
+                <div style={{ fontWeight: "bold", fontSize: 16 }}>
+                  {form.consigneeName || form.buyerName}
+                </div>
+                <div style={{ fontSize: 14 }}>
+                  {form.consigneeAddress || form.buyerAddress}
+                </div>
+                <div style={{ fontSize: 14 }}>
+                  State Name: {form.consigneeState || form.buyerState}, Code:{" "}
+                  {form.consigneeStateCode || form.buyerStateCode}
+                </div>
+              </td>
+
+              {/* Meta - Right Column */}
+              <td
+                style={{
+                  width: "50%",
+                  padding: "6px 7px",
+                  verticalAlign: "top",
+                }}
+              >
+                <div>
+                  {[...leftMetaFields, ...rightMetaFields].map(
+                    ({ label, value }, idx) => (
+                      <div
+                        key={label + idx}
+                        style={{ display: "flex", marginBottom: 2 }}
+                      >
+                        <span
+                          style={{
+                            fontWeight: "normal",
+                            minWidth: 130,
+                            whiteSpace: "nowrap",
+                            fontSize: 13,
+                          }}
+                        >
+                          {label}
+                        </span>
+                        <span style={{ fontWeight: "bold", fontSize: 13 }}>
+                          {" "}
+                          : {value}
+                        </span>
+                      </div>
+                    ),
                   )}
-                  {form.closingBalance && (
-                    <div style={{ fontWeight: "bold", fontSize: dynFont + 2 }}>
-                      Closing Balance: ₹ {fmt2(form.closingBalance)}
-                    </div>
-                  )}
-                </td>
-              </tr>
-            )}
-            <tr>
-  <td
-    colSpan={7}
-    style={dc({
-      textAlign: "right",
-      fontWeight: "bold",
-      borderTop: B,
-    })}
-  >
-    Total Taxable Amount
-  </td>
-  <td
-    style={dc({
-      textAlign: "right",
-      fontWeight: "bold",
-      borderTop: B,
-    })}
-  >
-    {fmt2(subtotal)}
-  </td>
-</tr>
-            <tr>
-              <td
-                colSpan={7}
-                style={dc({
-                  textAlign: "right",
-                  fontStyle: "italic",
-                  fontWeight: "bold",
-                  borderTop: B,
-                })}
-              >
-                CGST TAX
-              </td>
-              <td
-                style={dc({
-                  textAlign: "right",
-                  fontWeight: "bold",
-                  borderTop: B,
-                })}
-              >
-                {fmt2(cgstAmt)}
+                </div>
               </td>
             </tr>
-            <tr>
-              <td
-                colSpan={7}
-                style={dc({
-                  textAlign: "right",
-                  fontStyle: "italic",
-                  fontWeight: "bold",
-                })}
-              >
-                SGST TAX 
-              </td>
-              <td style={dc({ textAlign: "right", fontWeight: "bold" })}>
-                {fmt2(sgstAmt)}
-              </td>
-            </tr>
-            <tr>
-              <td
-                colSpan={7}
-                style={dc({
-                  textAlign: "right",
-                  fontStyle: "italic",
-                  fontWeight: "bold",
-                })}
-              >
-                ROUNDING OFF
-              </td>
-              <td style={dc({ textAlign: "right", fontWeight: "bold" })}>
-                {roundOff >= 0
-                  ? `(+) ${fmt2(Math.abs(roundOff))}`
-                  : `(-) ${fmt2(Math.abs(roundOff))}`}
-              </td>
-            </tr>
-            <tr style={{ background: "#f0f0f0" }}>
-  <td style={dc({ borderTop: B, borderBottom: B })}></td>
-  <td
-    style={dc({
-      fontWeight: "bold",
-      borderTop: B,
-      borderBottom: B,
-      fontSize: dynFont + 1,
-    })}
-  >
-    Total
-  </td>
-  <td style={dc({ borderTop: B, borderBottom: B })}></td>
-  <td
-    style={dc({
-      textAlign: "center",
-      fontWeight: "bold",
-      borderTop: B,
-      borderBottom: B,
-      fontSize: dynFont + 1,
-    })}
-  >
-    {totalQty.toFixed(2)}
-  </td>
-  <td style={dc({ borderTop: B, borderBottom: B })}></td>
-  <td style={dc({ borderTop: B, borderBottom: B })}></td>
-  <td style={dc({ borderTop: B, borderBottom: B })}></td>
-  <td
-    style={dc({
-      textAlign: "right",
-      fontWeight: "bold",
-      borderTop: B,
-      borderBottom: B,
-      fontSize: dynFont + 3,
-    })}
-  >
-    ₹ {fmt2(netAmount)}
-  </td>
-</tr>
           </tbody>
         </table>
+        {/* ── BUYER + PAYMENT (2-column split) ── */}
+        <table
+          style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}
+        >
+          <tbody>
+            <tr>
+              {/* Buyer - Left Column */}
+              <td
+                style={{
+                  width: "50%",
+                  borderRight: B,
+                  padding: "6px 7px",
+                  verticalAlign: "top",
+                }}
+              >
+                <div style={sectionHead}>Buyer (Bill to)</div>
+                <div style={{ fontWeight: "bold", fontSize: 16 }}>
+                  {form.buyerName}
+                </div>
+                <div style={{ fontSize: 14 }}>{form.buyerAddress}</div>
+                {form.buyerPhone && (
+                  <div style={{ fontSize: 14 }}>Ph: {form.buyerPhone}</div>
+                )}
+                {form.buyerGst && (
+                  <div style={{ fontSize: 14 }}>GSTIN/UIN: {form.buyerGst}</div>
+                )}
+                <div style={{ fontSize: 14 }}>
+                  State Name: {form.buyerState}, Code: {form.buyerStateCode}
+                </div>
+              </td>
+
+              {/* Payment - Right Column */}
+              <td
+                style={{
+                  padding: "6px 7px",
+                  verticalAlign: "top",
+                  width: "50%",
+                }}
+              >
+                {buyerRightDetails.map(({ label, value }) => (
+                  <div key={label} style={{ display: "flex", marginBottom: 2 }}>
+                    <span
+                      style={{
+                        fontWeight: "normal",
+                        minWidth: 95,
+                        whiteSpace: "nowrap",
+                        fontSize: 14,
+                      }}
+                    >
+                      {label}
+                    </span>
+                    <span style={{ fontWeight: "bold", fontSize: 14 }}>
+                      {" "}
+                      : {value}
+                    </span>
+                  </div>
+                ))}
+                {buyerRightDetails.length === 0 && (
+                  <div
+                    style={{
+                      color: "#999",
+                      fontSize: 12,
+                      fontStyle: "italic",
+                    }}
+                  >
+                    No additional details
+                  </div>
+                )}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        {/* ── BUYER + PAYMENT ── */}
+
+        {/* ── PRODUCT TABLE ── */}
+        <div style={{ flex: 1 }}>
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              tableLayout: "fixed",
+              borderTop: B,
+              borderBottom: B,
+            }}
+          >
+            <colgroup>
+              <col style={{ width: "4%" }} />
+              <col style={{ width: "48%" }} />
+              <col style={{ width: "8%" }} />
+              <col style={{ width: "9%" }} />
+              <col style={{ width: "11%" }} />
+              <col style={{ width: "11%" }} />
+              <col style={{ width: "5%" }} />
+              <col style={{ width: "14%" }} />
+            </colgroup>
+            <thead className="inv-thead">
+              <tr>
+                {[
+                  ["Sl\nNo.", "center"],
+                  ["Description of Goods", "left"],
+                  ["HSN/\nSAC", "center"],
+                  ["Quantity", "center"],
+                  ["Rate\n(Incl. Tax)", "right"],
+                  ["Rate\n(Excl. Tax)", "right"],
+                  ["Per", "center"],
+                  ["Taxable\nAmount", "right"],
+                ].map(([label, align], i) => (
+                  <th
+                    key={i}
+                    style={dhc({
+                      textAlign: align,
+                      whiteSpace: "pre-line",
+                      padding: dynPad,
+                    })}
+                  >
+                    {label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => (
+                <tr key={i} className="inv-product-row">
+                  <td style={dc({ textAlign: "center" })}>{i + 1}</td>
+                  <td
+                    style={dc({
+                      fontWeight: "bold",
+                      fontSize: 18,
+                    })}
+                  >
+                    {r.desc}
+                  </td>
+                  <td style={dc({ textAlign: "center", fontWeight: "bold" })}>
+                    {r.hsn || "–"}
+                  </td>
+                  <td style={dc({ textAlign: "center", fontWeight: "bold" })}>
+                    {fmt2(r.qty)}
+                  </td>
+                  <td style={dc({ textAlign: "right" })}>{fmt2(r.rateIncl)}</td>
+                  <td style={dc({ textAlign: "right" })}>{fmt2(r.rateExcl)}</td>
+                  <td style={dc({ textAlign: "center" })}>{r.per}</td>
+                  <td style={dc({ textAlign: "right" })}>
+                    {fmt2(r.taxableAmt)}
+                  </td>
+                </tr>
+              ))}
+              {Array.from({ length: MIN_ROWS }).map((_, i) => (
+                <tr key={`blank_${i}`} style={{ height: 18 }}>
+                  {Array(8)
+                    .fill(null)
+                    .map((__, j) => (
+                      <td key={j} style={dc()}>
+                        &nbsp;
+                      </td>
+                    ))}
+                </tr>
+              ))}
+
+              {(form.openBalance || form.closingBalance) && (
+                <tr>
+                  <td
+                    colSpan={8}
+                    style={dc({
+                      borderTop: "1px dashed #999",
+                      padding: "3px 7px",
+                    })}
+                  >
+                    {form.openBalance && (
+                      <div
+                        style={{ fontWeight: "bold", fontSize: dynFont + 2 }}
+                      >
+                        Open Balance: ₹ {fmt2(form.openBalance)}
+                      </div>
+                    )}
+                    {form.closingBalance && (
+                      <div
+                        style={{ fontWeight: "bold", fontSize: dynFont + 2 }}
+                      >
+                        Closing Balance: ₹ {fmt2(form.closingBalance)}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              )}
+              <tr>
+                <td
+                  colSpan={7}
+                  style={dc({
+                    textAlign: "right",
+                    fontWeight: "bold",
+                    borderTop: B,
+                  })}
+                >
+                  Total Taxable Amount
+                </td>
+                <td
+                  style={dc({
+                    textAlign: "right",
+                    fontWeight: "bold",
+                    borderTop: B,
+                  })}
+                >
+                  {fmt2(subtotal)}
+                </td>
+              </tr>
+              <tr>
+                <td
+                  colSpan={7}
+                  style={dc({
+                    textAlign: "right",
+                    fontStyle: "italic",
+                    fontWeight: "bold",
+                    borderTop: B,
+                  })}
+                >
+                  CGST TAX
+                </td>
+                <td
+                  style={dc({
+                    textAlign: "right",
+                    fontWeight: "bold",
+                    borderTop: B,
+                  })}
+                >
+                  {fmt2(cgstAmt)}
+                </td>
+              </tr>
+              <tr>
+                <td
+                  colSpan={7}
+                  style={dc({
+                    textAlign: "right",
+                    fontStyle: "italic",
+                    fontWeight: "bold",
+                  })}
+                >
+                  SGST TAX
+                </td>
+                <td style={dc({ textAlign: "right", fontWeight: "bold" })}>
+                  {fmt2(sgstAmt)}
+                </td>
+              </tr>
+              <tr>
+                <td
+                  colSpan={7}
+                  style={dc({
+                    textAlign: "right",
+                    fontStyle: "italic",
+                    fontWeight: "bold",
+                  })}
+                >
+                  ROUNDING OFF
+                </td>
+                <td style={dc({ textAlign: "right", fontWeight: "bold" })}>
+                  {roundOff >= 0
+                    ? `(+) ${fmt2(Math.abs(roundOff))}`
+                    : `(-) ${fmt2(Math.abs(roundOff))}`}
+                </td>
+              </tr>
+              <tr style={{ background: "#f0f0f0" }}>
+                <td style={dc({ borderTop: B, borderBottom: B })}></td>
+                <td
+                  style={dc({
+                    fontWeight: "bold",
+                    borderTop: B,
+                    borderBottom: B,
+                    fontSize: dynFont + 1,
+                  })}
+                >
+                  Total
+                </td>
+                <td style={dc({ borderTop: B, borderBottom: B })}></td>
+                <td
+                  style={dc({
+                    textAlign: "center",
+                    fontWeight: "bold",
+                    borderTop: B,
+                    borderBottom: B,
+                    fontSize: dynFont + 1,
+                  })}
+                >
+                  {totalQty.toFixed(2)}
+                </td>
+                <td style={dc({ borderTop: B, borderBottom: B })}></td>
+                <td style={dc({ borderTop: B, borderBottom: B })}></td>
+                <td style={dc({ borderTop: B, borderBottom: B })}></td>
+                <td
+                  style={dc({
+                    textAlign: "right",
+                    fontWeight: "bold",
+                    borderTop: B,
+                    borderBottom: B,
+                    fontSize: dynFont + 3,
+                  })}
+                >
+                  ₹ {fmt2(netAmount)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
         {/* ── AMOUNT IN WORDS ── */}
@@ -2306,20 +2312,24 @@ const buyerRightDetails = [
                 <span style={{ fontWeight: "bold" }}>
                   Amount Chargeable (in words):{" "}
                 </span>
-               <em style={{ fontWeight: "bold" }}>{amountInWords(netAmount)}</em>
+                <em style={{ fontWeight: "bold" }}>
+                  {amountInWords(netAmount)}
+                </em>
               </td>
-<td
-  style={{
-    padding: "3px 7px",
-    verticalAlign: "middle",
-    textAlign: "right",
-  }}
->
-  <div style={{ fontSize: 2, fontWeight: "bold" }}>  {/* ← Changed from 17 to 20 */}
-    ₹ {fmt2(netAmount)}
-  </div>
-  <div style={{ fontSize: 10 }}>E. &amp; O.E</div>  {/* ← Changed from 9 to 10 */}
-</td>
+              <td
+                style={{
+                  padding: "3px 7px",
+                  verticalAlign: "middle",
+                  textAlign: "right",
+                }}
+              >
+                <div style={{ fontSize: 2, fontWeight: "bold" }}>
+                  {" "}
+                  {/* ← Changed from 17 to 20 */}₹ {fmt2(netAmount)}
+                </div>
+                <div style={{ fontSize: 10 }}>E. &amp; O.E</div>{" "}
+                {/* ← Changed from 9 to 10 */}
+              </td>
             </tr>
           </tbody>
         </table>
@@ -2359,8 +2369,8 @@ const buyerRightDetails = [
                   style={dhc({
                     textAlign: align,
                     whiteSpace: "pre-line",
-                     padding: "2px 6px",
-                     fontSize: 10,  
+                    padding: "2px 6px",
+                    fontSize: 10,
                   })}
                 >
                   {label}
@@ -2445,109 +2455,115 @@ const buyerRightDetails = [
         {/* ── TAX IN WORDS ── */}
         <div style={{ padding: "2px 7px", borderBottom: B, fontSize: 10 }}>
           <strong>Tax Amount (in words):</strong>&nbsp;
-         <em style={{ fontWeight: "bold" }}>{amountInWords(totalTax)}</em>
+          <em style={{ fontWeight: "bold" }}>{amountInWords(totalTax)}</em>
         </div>
 
         {/* ── FOOTER ── */}
         <div style={{ marginTop: "auto" }}>
-        <table
-          style={{ width: "100%", borderCollapse: "collapse" }}
-          className="inv-footer"
-        >
-          <tbody>
-            <tr>
-              <td
-                style={{
-                  width: "44%",
-                  borderRight: B,
-                  padding: "4px 7px",
-                  verticalAlign: "top",
-                  fontSize: 10,
-                }}
-              >
-<div style={{ fontWeight: "bold", marginBottom: 2, fontSize: 15 }}>
-  Company's Bank Details
-</div>
-{[
-  ["A/c Holder's Name", form.bankHolderName],
-  ["Bank Name", form.bankName],
-  ["A/c No.", form.bankAccountNo],
-  [
-    "Branch & IFS Code",
-    `${form.bankBranch} & ${form.bankIfsc}`,
-  ],
-].map(([k, v]) => (
-  <div key={k} style={{ marginBottom: 2, fontSize: 12 }}>
-    <strong>{k}</strong>: {v}
-  </div>
-))}
-              </td>
-              <td style={{ padding: "4px 7px", verticalAlign: "top" }}>
-                <div style={{ fontSize: 9, marginBottom: 4 }}>
-                  <strong>Declaration:</strong> {DECLARATION}
-                </div>
-                <div
+          <table
+            style={{ width: "100%", borderCollapse: "collapse" }}
+            className="inv-footer"
+          >
+            <tbody>
+              <tr>
+                <td
                   style={{
-                    textAlign: "right",
-                    fontWeight: "bold",
+                    width: "44%",
+                    borderRight: B,
+                    padding: "4px 7px",
+                    verticalAlign: "top",
                     fontSize: 10,
-                    marginBottom: 2,
                   }}
                 >
-                  for {COMPANY.name}
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    marginTop: 28,
-                  }}
-                >
-                  <div style={{ textAlign: "center", width: "42%" }}>
-                    <div style={{ borderTop: B, paddingTop: 2, fontSize: 10 }}>
-                      Receiver's Signature
+                  <div
+                    style={{
+                      fontWeight: "bold",
+                      marginBottom: 2,
+                      fontSize: 15,
+                    }}
+                  >
+                    Company's Bank Details
+                  </div>
+                  {[
+                    ["A/c Holder's Name", form.bankHolderName],
+                    ["Bank Name", form.bankName],
+                    ["A/c No.", form.bankAccountNo],
+                    [
+                      "Branch & IFS Code",
+                      `${form.bankBranch} & ${form.bankIfsc}`,
+                    ],
+                  ].map(([k, v]) => (
+                    <div key={k} style={{ marginBottom: 2, fontSize: 12 }}>
+                      <strong>{k}</strong>: {v}
+                    </div>
+                  ))}
+                </td>
+                <td style={{ padding: "4px 7px", verticalAlign: "top" }}>
+                  <div style={{ fontSize: 9, marginBottom: 4 }}>
+                    <strong>Declaration:</strong> {DECLARATION}
+                  </div>
+                  <div
+                    style={{
+                      textAlign: "right",
+                      fontWeight: "bold",
+                      fontSize: 10,
+                      marginBottom: 2,
+                    }}
+                  >
+                    for {COMPANY.name}
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginTop: 28,
+                    }}
+                  >
+                    <div style={{ textAlign: "center", width: "42%" }}>
+                      <div
+                        style={{ borderTop: B, paddingTop: 2, fontSize: 10 }}
+                      >
+                        Receiver's Signature
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "center", width: "42%" }}>
+                      <div
+                        style={{ borderTop: B, paddingTop: 2, fontSize: 10 }}
+                      >
+                        Authorised Signatory
+                      </div>
                     </div>
                   </div>
-                  <div style={{ textAlign: "center", width: "42%" }}>
-                    <div style={{ borderTop: B, paddingTop: 2, fontSize: 10 }}>
-                      Authorised Signatory
-                    </div>
+                  <div
+                    style={{
+                      textAlign: "center",
+                      marginTop: 4,
+                      fontSize: 9,
+                      color: "#666",
+                    }}
+                  >
+                    This is a Computer Generated Invoice
                   </div>
-                </div>
-                <div
-                  style={{
-                    textAlign: "center",
-                    marginTop: 4,
-                    fontSize: 9,
-                    color: "#666",
-                  }}
-                >
-                  This is a Computer Generated Invoice
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
       {/* end invoice */}
 
       <div className="no-print d-flex justify-content-center gap-3 pb-4">
-        <button className="btn btn-outline-secondary px-4" onClick={handleEdit}>
-          ✏️ Edit
+        <button className="at-btn at-btn--ghost" onClick={handleEdit}>
+          <i className="bi bi-pencil"></i> Edit
         </button>
         <button
-          className="btn text-white px-4"
-          style={{ background: "#1a1a2e" }}
+          className="at-btn at-btn--primary"
           onClick={() => window.print()}
         >
-          🖨️ Confirm &amp; Print
+          <i className="bi bi-printer"></i> Confirm &amp; Print
         </button>
-        <button
-          className="btn btn-outline-success px-4"
-          onClick={handleNewInvoice}
-        >
-          🆕 New Invoice
+        <button className="at-btn at-btn--ghost" onClick={handleNewInvoice}>
+          <i className="bi bi-file-earmark-plus"></i> New Invoice
         </button>
       </div>
     </>
