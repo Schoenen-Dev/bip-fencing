@@ -230,6 +230,7 @@ export default function Salary() {
     note: "",
   });
   const [syShowManageOt, setSyShowManageOt] = useState(false);
+  const [syOtLoading, setSyOtLoading] = useState(false);
   const [syManageOtForm, setSyManageOtForm] = useState({
     name: "",
     amount: "",
@@ -973,10 +974,15 @@ export default function Salary() {
     openWhatsApp(number, message);
   };
 
-  const syOpenManageOt = () => {
-    fetchOtTypes(true);
+  const syOpenManageOt = async () => {
     setSyManageOtForm({ name: "", amount: "" });
+    // Show the modal immediately with a spinner, then swap in the full
+    // (active + inactive) list once it arrives. Without this, the modal
+    // briefly renders the stale active-only list and then pops in the rest.
+    setSyOtLoading(true);
     setSyShowManageOt(true);
+    await fetchOtTypes(true);
+    setSyOtLoading(false);
   };
 
   const syCloseManageOt = () => {
@@ -2961,7 +2967,12 @@ export default function Salary() {
                 </form>
 
                 <div className="sy-ot-type-list">
-                  {syOtTypes.length === 0 ? (
+                  {syOtLoading ? (
+                    <div className="at-loading">
+                      <div className="at-spinner"></div>
+                      <span>Loading OT types…</span>
+                    </div>
+                  ) : syOtTypes.length === 0 ? (
                     <div className="at-empty" style={{ padding: "28px 12px" }}>
                       <i className="bi bi-clock-history"></i>
                       <p>No OT work types yet</p>
