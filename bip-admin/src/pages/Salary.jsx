@@ -513,7 +513,11 @@ export default function Salary() {
       const query = includeInactive ? `all=1&${cacheBust}` : cacheBust;
       const res = await apiFetch(`/salary/ot_work_types.php?${query}`);
       const data = await res.json();
-      setSyOtTypes(Array.isArray(data) ? data : []);
+      setSyOtTypes(
+        Array.isArray(data)
+          ? data.map((t) => ({ ...t, is_active: Number(t.is_active) }))
+          : [],
+      );
     } catch {
       setSyOtTypes([]);
     }
