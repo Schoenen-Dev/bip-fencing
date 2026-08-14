@@ -1003,6 +1003,19 @@ export default function Salary() {
     }
   };
 
+  // ---------------------------------------------------------------------
+  // FIX: previously this function did an optimistic flip AND THEN, even
+  // on a successful PUT, immediately re-fetched from the server
+  // ("always re-verify"). If the backend's read (GET) ran against a
+  // stale replica/cache or just hadn't committed the write yet, that
+  // re-fetch pulled back the OLD is_active value and silently overwrote
+  // the optimistic flip a moment later — which is exactly the
+  // "Deactivate -> Activate -> flips back to Deactivate" bug.
+  //
+  // Fix: trust a successful response and only resync with the server
+  // when something actually goes wrong (network/error), which is the
+  // only time we truly need to detect a silent no-op update.
+  // ---------------------------------------------------------------------
   const handleToggleOtType = async (type) => {
     const newActive = type.is_active ? 0 : 1;
     // Flip instantly so the Activate/Deactivate button always reflects
@@ -1022,10 +1035,8 @@ export default function Salary() {
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      // Always re-verify against the server (not just on error) — this
-      // catches a silent no-op update (e.g. a mismatched id) that would
-      // otherwise report success while changing nothing in the database.
-      fetchOtTypes(true);
+      // Success — trust the optimistic update. Do NOT re-fetch here;
+      // doing so risks overwriting the correct state with a stale read.
     } catch (err) {
       showToast(err.message, "error");
       fetchOtTypes(true); // resync since the optimistic flip may be wrong
