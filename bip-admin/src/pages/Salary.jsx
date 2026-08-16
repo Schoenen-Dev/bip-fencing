@@ -52,6 +52,12 @@ const STATUS_META = {
   },
 };
 
+// Backend JSON may return ids as numbers or strings ("3" vs 3) and dates as
+// "2026-08-16" or "2026-08-16 00:00:00". Compare them tolerantly so records
+// always match up with their employee/date.
+const sameId = (a, b) => String(a) === String(b);
+const dateOnly = (d) => String(d || "").slice(0, 10);
+
 const formatTime12 = (t) => {
   if (!t) return "";
   let [h, m] = t.split(":");
@@ -179,6 +185,7 @@ export default function Salary() {
     all_time: {},
   });
   const [atDeleteConfirm, setAtDeleteConfirm] = useState(null);
+  const [atBranchWarn, setAtBranchWarn] = useState(false);
   const [atSearch, setAtSearch] = useState("");
   const [atFilterStatus, setAtFilterStatus] = useState("");
   const [atFilterDate, setAtFilterDate] = useState("");
@@ -192,9 +199,7 @@ export default function Salary() {
   const [atEmpError, setAtEmpError] = useState("");
   const [atBranchesMap, setAtBranchesMap] = useState({});
   const [atSelectedEmployeeId, setAtSelectedEmployeeId] = useState(null);
-  const [atQuickMarkDate, setAtQuickMarkDate] = useState(
-    new Date().toISOString().split("T")[0],
-  );
+  const [atQuickMarkDate, setAtQuickMarkDate] = useState(toYMD(new Date()));
 
   /* =========================================================
      SALARY v2 state (prefixed "sy" — daily wage + OT + payments)
@@ -361,13 +366,16 @@ export default function Salary() {
 
   const handleQuickMark = async (emp, status) => {
     if (!canMarkAttendance) {
-      showToast("Please select a specific branch to mark attendance.", "error");
+      // Admin is viewing "All Branches" — we don't know which branch to save
+      // the record against, so ask them to pick one first.
+      setAtBranchWarn(true);
       return;
     }
     const empId = emp.emp_id;
     const empName = emp.employee_name || emp.emp_name;
     const existing = atRecords.find(
-      (r) => r.employee_id === empId && r.date === atQuickMarkDate,
+      (r) =>
+        sameId(r.employee_id, empId) && dateOnly(r.date) === atQuickMarkDate,
     );
     const payload = {
       employee_id: empId,
@@ -399,8 +407,10 @@ export default function Salary() {
     }
   };
 
-  const atTodayStr = new Date().toISOString().split("T")[0];
-  const atTodayRecords = atRecords.filter((r) => r.date === atTodayStr);
+  const atTodayStr = toYMD(new Date());
+  const atTodayRecords = atRecords.filter(
+    (r) => dateOnly(r.date) === atTodayStr,
+  );
   const atTodayPresent = atTodayRecords.filter(
     (r) => r.status === "Present",
   ).length;
@@ -426,7 +436,7 @@ export default function Salary() {
     })
     .map((emp) => {
       const empRecords = atRecords
-        .filter((r) => r.employee_id === emp.emp_id)
+        .filter((r) => sameId(r.employee_id, emp.emp_id))
         .sort((a, b) =>
           `${b.date}${b.created_at || ""}`.localeCompare(
             `${a.date}${a.created_at || ""}`,
@@ -453,7 +463,7 @@ export default function Salary() {
     : null;
   const atSelectedRecords = atSelectedEmployeeId
     ? atRecords
-        .filter((r) => r.employee_id === atSelectedEmployeeId)
+        .filter((r) => sameId(r.employee_id, atSelectedEmployeeId))
         .sort((a, b) =>
           `${b.date}${b.created_at || ""}`.localeCompare(
             `${a.date}${a.created_at || ""}`,
@@ -1647,8 +1657,8 @@ export default function Salary() {
                                 : null;
                               const dateRecord = atRecords.find(
                                 (r) =>
-                                  r.employee_id === emp.emp_id &&
-                                  r.date === atQuickMarkDate,
+                                  sameId(r.employee_id, emp.emp_id) &&
+                                  dateOnly(r.date) === atQuickMarkDate,
                               );
                               return (
                                 <div className="at-chat-item" key={emp.emp_id}>
@@ -1692,7 +1702,6 @@ export default function Salary() {
                                   <div className="at-quick-mark">
                                     <button
                                       className={`at-quick-btn at-quick-btn--present${dateRecord?.status === "Present" ? " active" : ""}`}
-                                      disabled={!canMarkAttendance}
                                       onClick={() =>
                                         handleQuickMark(emp, "Present")
                                       }
@@ -1702,7 +1711,6 @@ export default function Salary() {
                                     </button>
                                     <button
                                       className={`at-quick-btn at-quick-btn--absent${dateRecord?.status === "Absent" ? " active" : ""}`}
-                                      disabled={!canMarkAttendance}
                                       onClick={() =>
                                         handleQuickMark(emp, "Absent")
                                       }
@@ -1829,7 +1837,7 @@ export default function Salary() {
                           : ""}
                       </div>
                     </div>
-                    {canMarkAttendance && atSelectedEmployee && (
+                    {atSelectedEmployee && (
                       <div className="at-quick-mark">
                         <input
                           className="at-input"
@@ -1841,7 +1849,7 @@ export default function Salary() {
                         <button
                           className={`at-quick-btn at-quick-btn--present${
                             atSelectedRecords.find(
-                              (r) => r.date === atQuickMarkDate,
+                              (r) => dateOnly(r.date) === atQuickMarkDate,
                             )?.status === "Present"
                               ? " active"
                               : ""
@@ -1855,7 +1863,7 @@ export default function Salary() {
                         <button
                           className={`at-quick-btn at-quick-btn--absent${
                             atSelectedRecords.find(
-                              (r) => r.date === atQuickMarkDate,
+                              (r) => dateOnly(r.date) === atQuickMarkDate,
                             )?.status === "Absent"
                               ? " active"
                               : ""
@@ -2670,6 +2678,58 @@ export default function Salary() {
                   )}
                 </>
               )}
+            </div>
+          </div>
+        )}
+
+        {atBranchWarn && (
+          <div className="at-overlay" onClick={() => setAtBranchWarn(false)}>
+            <div className="at-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="at-modal__hd">
+                <div className="at-modal__title" style={{ color: "#b45309" }}>
+                  <i className="bi bi-building"></i> Select a Branch
+                </div>
+                <button
+                  className="at-modal__close"
+                  onClick={() => setAtBranchWarn(false)}
+                >
+                  <i className="bi bi-x-lg"></i>
+                </button>
+              </div>
+              <div className="at-modal__body">
+                <div
+                  style={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: "50%",
+                    background: "#fffbeb",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    margin: "0 auto 14px",
+                    fontSize: 22,
+                    color: "#b45309",
+                  }}
+                >
+                  <i className="bi bi-exclamation-triangle-fill"></i>
+                </div>
+                <p style={{ margin: "0 0 6px", fontWeight: 700, fontSize: 15 }}>
+                  Please select a branch first
+                </p>
+                <p style={{ margin: 0, fontSize: 13, color: "#64748b" }}>
+                  You are currently viewing <strong>All Branches</strong>.
+                  Attendance has to be saved against one specific branch, so
+                  pick a branch at the top and try again.
+                </p>
+              </div>
+              <div className="at-modal__ft">
+                <button
+                  className="at-btn at-btn--primary"
+                  onClick={() => setAtBranchWarn(false)}
+                >
+                  <i className="bi bi-check-lg"></i> Got it
+                </button>
+              </div>
             </div>
           </div>
         )}

@@ -68,6 +68,7 @@ const Employee_details = () => {
   const [formData, setFormData] = useState(emptyForm);
   const [editId, setEditId] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   const showToast = (message, type = "success") => {
     setToast({ show: true, message, type });
@@ -233,12 +234,16 @@ const Employee_details = () => {
     setShowModal(true);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this employee?"))
-      return;
+  // Opens the styled confirmation modal instead of the browser's
+  // native window.confirm() dialog.
+  const handleDelete = (emp) => setDeleteTarget(emp);
+
+  const confirmDelete = async () => {
+    const emp = deleteTarget;
+    if (!emp) return;
     try {
       const response = await apiFetch(
-        `/employees/delete_employee.php?id=${id}`,
+        `/employees/delete_employee.php?id=${emp.id}`,
         {
           method: "DELETE",
         },
@@ -252,6 +257,8 @@ const Employee_details = () => {
       }
     } catch (err) {
       showToast("Server error", "error");
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -663,7 +670,7 @@ const Employee_details = () => {
                                 </button>
                                 <button
                                   className="ep-action-btn ep-action-btn--delete"
-                                  onClick={() => handleDelete(emp.id)}
+                                  onClick={() => handleDelete(emp)}
                                   title="Delete"
                                 >
                                   <i className="bi bi-trash-fill"></i>
@@ -732,6 +739,54 @@ const Employee_details = () => {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteTarget && (
+        <div className="ep-modal-overlay" onClick={() => setDeleteTarget(null)}>
+          <div
+            className="ep-modal ep-modal--confirm"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="ep-modal__header">
+              <div className="ep-modal__title ep-modal__title--danger">
+                <i className="bi bi-trash"></i>
+                Delete Employee
+              </div>
+              <button
+                className="ep-modal__close"
+                onClick={() => setDeleteTarget(null)}
+              >
+                <i className="bi bi-x-lg"></i>
+              </button>
+            </div>
+
+            <div className="ep-modal__body ep-modal__body--confirm">
+              <div className="ep-confirm-icon">
+                <i className="bi bi-exclamation-triangle-fill"></i>
+              </div>
+              <p className="ep-confirm-title">
+                Delete <strong>{deleteTarget.employee_name}</strong>?
+              </p>
+              <p className="ep-confirm-sub">
+                This will permanently remove the employee record. This action
+                cannot be undone.
+              </p>
+            </div>
+
+            <div className="ep-modal__footer">
+              <button
+                className="ep-btn ep-btn--ghost"
+                onClick={() => setDeleteTarget(null)}
+              >
+                Cancel
+              </button>
+              <button className="ep-btn ep-btn--danger" onClick={confirmDelete}>
+                <i className="bi bi-trash"></i> Delete
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1371,6 +1426,46 @@ const Employee_details = () => {
           justify-content: flex-end;
           gap: 10px;
         }
+
+        /* ── Confirm dialog variant ── */
+        .ep-modal--confirm { width: 430px; }
+        .ep-modal__title--danger { color: #dc2626; }
+        .ep-modal__title--danger i { color: #dc2626; }
+        .ep-modal__body--confirm {
+          display: block;
+          text-align: center;
+          padding: 28px 24px;
+        }
+        .ep-confirm-icon {
+          width: 56px;
+          height: 56px;
+          border-radius: 50%;
+          background: #fef2f2;
+          color: #dc2626;
+          font-size: 24px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0 auto 16px;
+        }
+        .ep-confirm-title {
+          margin: 0 0 6px;
+          font-size: 15.5px;
+          font-weight: 700;
+          color: #0f172a;
+        }
+        .ep-confirm-sub {
+          margin: 0;
+          font-size: 13px;
+          color: #64748b;
+          line-height: 1.5;
+        }
+        .ep-btn--danger {
+          background: #dc2626;
+          color: #fff;
+          box-shadow: 0 2px 8px rgba(220,38,38,0.3);
+        }
+        .ep-btn--danger:hover { box-shadow: 0 4px 16px rgba(220,38,38,0.38); }
 
         /* ── Responsive ── */
         @media (max-width: 1100px) {
