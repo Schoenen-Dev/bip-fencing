@@ -165,7 +165,6 @@ export default function Salary() {
   /* =========================================================
      Shared / page-level state
      ========================================================= */
-  const [view, setView] = useState("attendance"); // "attendance" | "salary"
   const [toast, setToast] = useState({
     show: false,
     message: "",
@@ -402,6 +401,9 @@ export default function Salary() {
       if (data.error) throw new Error(data.error);
       showToast(`${empName} marked ${status} for ${atQuickMarkDate}`);
       fetchAttendanceRecords();
+      // Marking Present creates the day's earnings row, so keep the
+      // salary figures on this same screen in sync.
+      refreshSalaryData();
     } catch (err) {
       showToast(err.message, "error");
     }
@@ -425,70 +427,17 @@ export default function Salary() {
   ).length;
   const atShowBranchColumn = isAdmin && !selectedBranch;
 
-  /* ---- WhatsApp-style employee list for Attendance ---- */
-  const atEmployeeList = atDbEmployees
-    .filter((emp) => {
-      if (!atSearch) return true;
-      const s = atSearch.toLowerCase();
-      const name = (emp.employee_name || emp.emp_name || "").toLowerCase();
-      const id = (emp.emp_id || "").toString().toLowerCase();
-      return name.includes(s) || id.includes(s);
-    })
-    .map((emp) => {
-      const empRecords = atRecords
-        .filter((r) => sameId(r.employee_id, emp.emp_id))
-        .sort((a, b) =>
-          `${b.date}${b.created_at || ""}`.localeCompare(
-            `${a.date}${a.created_at || ""}`,
-          ),
-        );
-      return {
-        emp,
-        lastRecord: empRecords[0] || null,
-        recordCount: empRecords.length,
-      };
-    })
-    .sort((a, b) => {
-      if (a.lastRecord && b.lastRecord)
-        return b.lastRecord.date.localeCompare(a.lastRecord.date);
-      if (a.lastRecord) return -1;
-      if (b.lastRecord) return 1;
-      return (a.emp.employee_name || a.emp.emp_name || "").localeCompare(
-        b.emp.employee_name || b.emp.emp_name || "",
-      );
-    });
-
-  const atSelectedEmployee = atSelectedEmployeeId
-    ? atDbEmployees.find((e) => e.emp_id === atSelectedEmployeeId) || null
-    : null;
-  const atSelectedRecords = atSelectedEmployeeId
+  // Attendance records for the employee currently opened in the combined
+  // detail view (the same selection drives attendance and salary).
+  const atSelectedRecords = sySelectedEmployeeId
     ? atRecords
-        .filter((r) => sameId(r.employee_id, atSelectedEmployeeId))
+        .filter((r) => sameId(r.employee_id, sySelectedEmployeeId))
         .sort((a, b) =>
-          `${b.date}${b.created_at || ""}`.localeCompare(
-            `${a.date}${a.created_at || ""}`,
+          `${dateOnly(b.date)}${b.created_at || ""}`.localeCompare(
+            `${dateOnly(a.date)}${a.created_at || ""}`,
           ),
         )
     : [];
-
-  const atOpenEmployeeDetail = (empId) => {
-    setAtSelectedEmployeeId(empId);
-    setAtCurrentPage(1);
-  };
-  const atBackToEmployeeList = () => setAtSelectedEmployeeId(null);
-
-  const atEmployeeTotal = atEmployeeList.length;
-  const atEmployeeTotalPages =
-    atRowsPerPage === -1 ? 1 : Math.ceil(atEmployeeTotal / atRowsPerPage);
-  const atEmployeeStartIndex =
-    atRowsPerPage === -1 ? 0 : (atCurrentPage - 1) * atRowsPerPage;
-  const atPaginatedEmployeeList =
-    atRowsPerPage === -1
-      ? atEmployeeList
-      : atEmployeeList.slice(
-          atEmployeeStartIndex,
-          atEmployeeStartIndex + atRowsPerPage,
-        );
 
   /* =========================================================
      SALARY v2 — data fetching
@@ -556,17 +505,6 @@ export default function Salary() {
     fetchBranchBudget();
   }, [fetchSalaryDays, fetchSalaryPayments, fetchOtTypes, fetchBranchBudget]);
 
-  // Attendance is marked on a different tab of this same page. Since that
-  // doesn't automatically refresh the Salary tab's data, refetch quietly
-  // every time the user switches into the Salary tab so newly marked
-  // attendance always shows up here immediately.
-  useEffect(() => {
-    if (view === "salary") {
-      fetchSalaryDays(true);
-      fetchSalaryPayments();
-    }
-  }, [view, fetchSalaryDays, fetchSalaryPayments]);
-
   const refreshSalaryData = () => {
     // Silent — keeps the current list/timeline visible instead of
     // flashing a loading spinner over it after every action.
@@ -574,67 +512,6 @@ export default function Salary() {
     fetchSalaryPayments();
     fetchBranchBudget(true);
   };
-
-  /* ---- WhatsApp-style employee list for Salary ---- */
-  const syEmployeeList = atDbEmployees
-    .filter((emp) => {
-      if (!sySearch) return true;
-      const s = sySearch.toLowerCase();
-      const name = (emp.employee_name || emp.emp_name || "").toLowerCase();
-      const id = (emp.emp_id || "").toString().toLowerCase();
-      return name.includes(s) || id.includes(s);
-    })
-    .map((emp) => {
-      const empDays = syDays.filter((d) => d.employee_id === emp.emp_id);
-      const empPayments = syPayments.filter(
-        (p) => p.employee_id === emp.emp_id,
-      );
-      const totalEarned = empDays.reduce(
-        (s, d) => s + (Number(d.total_amount) || 0),
-        0,
-      );
-      const totalPaid = empPayments.reduce(
-        (s, p) => s + (Number(p.amount) || 0),
-        0,
-      );
-      const pending = totalEarned - totalPaid;
-      const lastDay = [...empDays].sort((a, b) =>
-        b.date.localeCompare(a.date),
-      )[0];
-      return { emp, totalEarned, totalPaid, pending, lastDay };
-    })
-    .sort((a, b) => {
-      if (a.lastDay && b.lastDay)
-        return b.lastDay.date.localeCompare(a.lastDay.date);
-      if (a.lastDay) return -1;
-      if (b.lastDay) return 1;
-      return (a.emp.employee_name || a.emp.emp_name || "").localeCompare(
-        b.emp.employee_name || b.emp.emp_name || "",
-      );
-    });
-
-  const syEmployeeTotal = syEmployeeList.length;
-  const syEmployeeTotalPages =
-    syRowsPerPage === -1 ? 1 : Math.ceil(syEmployeeTotal / syRowsPerPage);
-  const syEmployeeStartIndex =
-    syRowsPerPage === -1 ? 0 : (syCurrentPage - 1) * syRowsPerPage;
-  const syPaginatedEmployeeList =
-    syRowsPerPage === -1
-      ? syEmployeeList
-      : syEmployeeList.slice(
-          syEmployeeStartIndex,
-          syEmployeeStartIndex + syRowsPerPage,
-        );
-
-  const syOverallTotals = syEmployeeList.reduce(
-    (acc, row) => {
-      acc.earned += row.totalEarned;
-      acc.paid += row.totalPaid;
-      acc.pending += row.pending;
-      return acc;
-    },
-    { earned: 0, paid: 0, pending: 0 },
-  );
 
   const sySelectedEmployee = sySelectedEmployeeId
     ? atDbEmployees.find((e) => e.emp_id === sySelectedEmployeeId) || null
@@ -686,19 +563,141 @@ export default function Salary() {
   );
   const syPendingBalance = syAllTimeEarned - syAllTimePaid;
 
-  // Merge the period's earning-days and payments into one chronological timeline
-  const syEarningsTimeline = [...sySelectedPeriodDays].sort((a, b) =>
-    b.date.localeCompare(a.date),
-  );
-  const syPaymentsTimeline = [...sySelectedPeriodPayments].sort((a, b) =>
-    b.payment_date.localeCompare(a.payment_date),
+  /* =========================================================
+     COMBINED VIEW (prefix "cb") — Attendance + Salary in one
+     employee list and one per-employee timeline.
+     ========================================================= */
+  const cbOpenEmployee = (empId) => {
+    setSySelectedEmployeeId(empId);
+    setAtSelectedEmployeeId(empId);
+    setSyPeriod("all");
+    setSySearchDateFrom("");
+    setSySearchDateTo("");
+    setSyShowPaymentHistory(false);
+  };
+
+  const cbBackToList = () => {
+    setSySelectedEmployeeId(null);
+    setAtSelectedEmployeeId(null);
+    setSyEditingDayId(null);
+  };
+
+  // One row per employee carrying BOTH their latest attendance and their
+  // running salary balance, so the list works for either job.
+  const cbEmployeeList = atDbEmployees
+    .filter((emp) => {
+      if (!atSearch) return true;
+      const q = atSearch.toLowerCase();
+      const name = (emp.employee_name || emp.emp_name || "").toLowerCase();
+      const id = (emp.emp_id || "").toString().toLowerCase();
+      return name.includes(q) || id.includes(q);
+    })
+    .map((emp) => {
+      const empRecords = atRecords
+        .filter((r) => sameId(r.employee_id, emp.emp_id))
+        .sort((a, b) => dateOnly(b.date).localeCompare(dateOnly(a.date)));
+      const empDays = syDays.filter((d) => sameId(d.employee_id, emp.emp_id));
+      const empPayments = syPayments.filter((p) =>
+        sameId(p.employee_id, emp.emp_id),
+      );
+      const totalEarned = empDays.reduce(
+        (sum, d) => sum + (Number(d.total_amount) || 0),
+        0,
+      );
+      const totalPaid = empPayments.reduce(
+        (sum, p) => sum + (Number(p.amount) || 0),
+        0,
+      );
+      const lastDay = [...empDays].sort((a, b) =>
+        dateOnly(b.date).localeCompare(dateOnly(a.date)),
+      )[0];
+      return {
+        emp,
+        lastRecord: empRecords[0] || null,
+        markedRecord:
+          empRecords.find((r) => dateOnly(r.date) === atQuickMarkDate) || null,
+        totalEarned,
+        totalPaid,
+        pending: totalEarned - totalPaid,
+        lastDay,
+        lastActivity: [
+          empRecords[0] ? dateOnly(empRecords[0].date) : "",
+          lastDay ? dateOnly(lastDay.date) : "",
+        ].sort()[1],
+      };
+    })
+    .sort((a, b) => {
+      if (a.lastActivity && b.lastActivity)
+        return b.lastActivity.localeCompare(a.lastActivity);
+      if (a.lastActivity) return -1;
+      if (b.lastActivity) return 1;
+      return (a.emp.employee_name || a.emp.emp_name || "").localeCompare(
+        b.emp.employee_name || b.emp.emp_name || "",
+      );
+    });
+
+  const cbTotal = cbEmployeeList.length;
+  const cbTotalPages =
+    atRowsPerPage === -1 ? 1 : Math.max(1, Math.ceil(cbTotal / atRowsPerPage));
+  const cbStartIndex =
+    atRowsPerPage === -1 ? 0 : (atCurrentPage - 1) * atRowsPerPage;
+  const cbPaginatedList =
+    atRowsPerPage === -1
+      ? cbEmployeeList
+      : cbEmployeeList.slice(cbStartIndex, cbStartIndex + atRowsPerPage);
+
+  const cbOverallTotals = cbEmployeeList.reduce(
+    (acc, row) => {
+      acc.earned += row.totalEarned;
+      acc.paid += row.totalPaid;
+      acc.pending += row.pending;
+      return acc;
+    },
+    { earned: 0, paid: 0, pending: 0 },
   );
 
-  const syOpenEmployeeDetail = (empId) => {
-    setSySelectedEmployeeId(empId);
-    setSyPeriod("all");
-  };
-  const syBackToEmployeeList = () => setSySelectedEmployeeId(null);
+  // One chronological feed: an earnings day, an attendance-only day (e.g.
+  // Absent, which has no wage row), or a payment — newest first.
+  const cbTimelineItems = (() => {
+    if (!sySelectedEmployeeId) return [];
+    const items = [];
+    const seenDates = new Set();
+    sySelectedPeriodDays.forEach((d) => {
+      const dt = dateOnly(d.date);
+      seenDates.add(dt);
+      items.push({ key: `d-${d.id}`, type: "day", date: dt, day: d });
+    });
+    atSelectedRecords.forEach((r) => {
+      const dt = dateOnly(r.date);
+      if (dt < syRangeStart || dt > syRangeEnd) return;
+      if (seenDates.has(dt)) return; // already shown on the earnings bubble
+      items.push({ key: `a-${r.id}`, type: "att", date: dt, rec: r });
+    });
+    sySelectedPeriodPayments.forEach((p) => {
+      items.push({
+        key: `p-${p.id}`,
+        type: "pay",
+        date: dateOnly(p.payment_date),
+        pay: p,
+      });
+    });
+    const rank = { pay: 0, day: 1, att: 2 };
+    return items.sort(
+      (a, b) => b.date.localeCompare(a.date) || rank[a.type] - rank[b.type],
+    );
+  })();
+
+  // Attendance & Earnings shows work days only; payouts are their own view.
+  const cbVisibleItems = cbTimelineItems.filter((it) =>
+    syShowPaymentHistory ? it.type === "pay" : it.type !== "pay",
+  );
+
+  const cbPeriodPresent = atSelectedRecords.filter(
+    (r) =>
+      r.status === "Present" &&
+      dateOnly(r.date) >= syRangeStart &&
+      dateOnly(r.date) <= syRangeEnd,
+  ).length;
 
   const syOpenOtModal = () => {
     setSyOtForm({ date: toYMD(new Date()), ot_work_type_id: "", amount: "" });
@@ -1255,6 +1254,19 @@ export default function Salary() {
         .at-status-summary { display: flex; gap: 14px; flex-wrap: wrap; }
         .at-ss-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #64748b; }
 
+        /* ── Combined Attendance + Salary ── */
+        .cb-stats { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; margin-bottom: 24px; }
+        .cb-markbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 10px 14px; margin-top: 14px; }
+        .cb-markbar > i { color: #008b3e; font-size: 15px; }
+        .cb-markbar__label { font-size: 13px; font-weight: 600; color: #374151; }
+        .cb-markbar__warn { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #b45309; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 5px 10px; }
+        .cb-chat-pending { flex-direction: row; align-items: center; margin-right: 4px; }
+        .cb-chat-money { font-size: 12px; color: #15803d; font-weight: 600; display: flex; align-items: center; gap: 5px; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sy-summary.cb-summary { grid-template-columns: repeat(4, minmax(0,1fr)); }
+        .cb-range-tag { margin-left: auto; font-size: 11px; font-weight: 700; color: #64748b; background: #f1f5f9; border-radius: 20px; padding: 3px 10px; text-transform: none; letter-spacing: 0; }
+        @media (max-width: 1100px) { .cb-stats { grid-template-columns: repeat(2, minmax(0,1fr)); } .sy-summary.cb-summary { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+        @media (max-width: 640px) { .cb-stats { grid-template-columns: minmax(0,1fr); } .sy-summary.cb-summary { grid-template-columns: minmax(0,1fr); } .cb-markbar { align-items: stretch; } .cb-markbar .at-quick-mark { width: 100%; } .cb-markbar .at-quick-btn { flex: 1; justify-content: center; } .cb-range-tag { margin-left: 0; } }
+
         /* ── Salary v2 ── */
         .sy-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
         .sy-summary__item { background: #f8fbff; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 12px 14px; }
@@ -1403,532 +1415,738 @@ export default function Salary() {
             <i className="bi bi-cash-stack"></i>
           </div>
           <div>
-            <h1 className="sl-header__title">Salary &amp; Attendance</h1>
+            <h1 className="sl-header__title">Attendance &amp; Salary</h1>
             <p className="sl-header__sub">
-              Employee Salary and Attendance Management
+              Mark attendance and track wages for every employee in one place
             </p>
           </div>
         </div>
 
-        {view === "attendance" ? (
-          <div className="at-stats">
-            {[
-              {
-                label: "Total Employees",
-                value: atStats.total_employees || 0,
-                sub: `${atTodayRecords.length} marked today`,
-                c: "#008b3e",
-                bg: "#dcfce7",
-                bd: "#86efac",
-                icon: "bi-people-fill",
-              },
-              {
-                label: "Present Today",
-                value: atTodayPresent,
-                sub:
-                  atTodayPresent > 0 && atStats.total_employees
-                    ? `${Math.round((atTodayPresent / atStats.total_employees) * 100)}% attendance`
-                    : "No records yet",
-                c: "#15803d",
-                bg: "#dcfce7",
-                bd: "#86efac",
-                icon: "bi-check-circle-fill",
-              },
-              {
-                label: "Absent Today",
-                value: atTodayAbsent,
-                sub: `${atTodayHalf} half day`,
-                c: "#dc2626",
-                bg: "#fee2e2",
-                bd: "#fca5a5",
-                icon: "bi-x-circle-fill",
-              },
-              {
-                label: "Work From Site",
-                value: atTodayWFS,
-                sub:
-                  atTodayWFS > 0
-                    ? `${atTodayWFS} working from site`
-                    : "No WFS today",
-                c: "#7c3aed",
-                bg: "#ede9fe",
-                bd: "#c4b5fd",
-                icon: "bi-geo-alt-fill",
-              },
-            ].map((card) => (
-              <div
-                className="at-stat"
-                key={card.label}
-                style={{ "--c": card.c, "--bg": card.bg, "--bd": card.bd }}
-              >
-                <div className="at-stat__icon">
-                  <i className={`bi ${card.icon}`}></i>
-                </div>
-                <div>
-                  <div className="at-stat__label">{card.label}</div>
-                  <div className="at-stat__value">{card.value}</div>
-                  <div className="at-stat__sub">{card.sub}</div>
-                </div>
+        {/* ── Combined stats: headcount + today's attendance + money ── */}
+        <div className="cb-stats">
+          {[
+            {
+              label: "Total Employees",
+              value: atStats.total_employees || atDbEmployees.length || 0,
+              sub: `${atTodayRecords.length} marked today`,
+              c: "#008b3e",
+              bg: "#dcfce7",
+              bd: "#86efac",
+              icon: "bi-people-fill",
+            },
+            {
+              label: "Present Today",
+              value: atTodayPresent,
+              sub:
+                atTodayPresent > 0 && atStats.total_employees
+                  ? `${Math.round((atTodayPresent / atStats.total_employees) * 100)}% attendance`
+                  : "No records yet",
+              c: "#15803d",
+              bg: "#dcfce7",
+              bd: "#86efac",
+              icon: "bi-check-circle-fill",
+            },
+            {
+              label: "Absent Today",
+              value: atTodayAbsent,
+              sub: `${atTodayHalf} half day · ${atTodayWFS} from site`,
+              c: "#dc2626",
+              bg: "#fee2e2",
+              bd: "#fca5a5",
+              icon: "bi-x-circle-fill",
+            },
+            {
+              label: "Total Branch Budget",
+              value: syBudgetLoading ? "…" : inr(syBranchBudget),
+              sub: "Allocated to this branch",
+              c: "#1e293b",
+              bg: "#f1f5f9",
+              bd: "#e2e8f0",
+              icon: "bi-bank",
+              money: true,
+            },
+            {
+              label: "Total Paid",
+              value: syBudgetLoading ? "…" : inr(cbOverallTotals.paid),
+              sub: `${inr(cbOverallTotals.pending)} still pending`,
+              c: "#15803d",
+              bg: "#dcfce7",
+              bd: "#86efac",
+              icon: "bi-cash-stack",
+              money: true,
+            },
+            {
+              label: "Available Balance",
+              value: syBudgetLoading
+                ? "…"
+                : inr(syBranchBudget - cbOverallTotals.paid),
+              sub: "Budget minus payouts",
+              c:
+                syBranchBudget - cbOverallTotals.paid < 0
+                  ? "#dc2626"
+                  : "#15803d",
+              bg:
+                syBranchBudget - cbOverallTotals.paid < 0
+                  ? "#fee2e2"
+                  : "#dcfce7",
+              bd:
+                syBranchBudget - cbOverallTotals.paid < 0
+                  ? "#fca5a5"
+                  : "#86efac",
+              icon: "bi-wallet2",
+              money: true,
+            },
+          ].map((card) => (
+            <div
+              className="at-stat"
+              key={card.label}
+              style={{ "--c": card.c, "--bg": card.bg, "--bd": card.bd }}
+            >
+              <div className="at-stat__icon">
+                <i className={`bi ${card.icon}`}></i>
               </div>
-            ))}
-          </div>
-        ) : (
-          <div className="sl-stats">
-            {[
-              {
-                label: "Total Branch Budget",
-                value: syBudgetLoading ? null : inr(syBranchBudget),
-                key: "budget",
-                c: "#1e293b",
-                bd: "#e2e8f0",
-              },
-              {
-                label: "Total Paid",
-                value: syBudgetLoading ? null : inr(syOverallTotals.paid),
-                key: "paid",
-                c: "#15803d",
-                bd: "#86efac",
-              },
-              {
-                label: "Available Balance",
-                value: syBudgetLoading
-                  ? null
-                  : inr(syBranchBudget - syOverallTotals.paid),
-                key: "available",
-                c:
-                  syBranchBudget - syOverallTotals.paid < 0
-                    ? "#dc2626"
-                    : "#15803d",
-                bd:
-                  syBranchBudget - syOverallTotals.paid < 0
-                    ? "#fecaca"
-                    : "#86efac",
-              },
-            ].map(({ label, value, key, c, bd }) => (
-              <div
-                className="sl-stat"
-                key={key}
-                style={{ "--c": c, "--bd": bd }}
-              >
-                <div className="sl-stat__label">{label}</div>
-                {value === null ? (
-                  <span className="sl-skeleton" />
-                ) : (
-                  <div className="sl-stat__value">{value}</div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className="sl-tabs">
-          <button
-            className={`sl-tab${view === "attendance" ? " active" : ""}`}
-            onClick={() => setView("attendance")}
-          >
-            <i className="bi bi-calendar-check"></i> Attendance
-          </button>
-          <button
-            className={`sl-tab${view === "salary" ? " active" : ""}`}
-            onClick={() => setView("salary")}
-          >
-            <i className="bi bi-cash-stack"></i> Salary
-          </button>
-        </div>
-
-        {view === "attendance" && (
-          <div className="at-root">
-            <div className="at-header" style={{ justifyContent: "flex-end" }}>
-              <div className="at-quick-date">
-                <label className="at-label" style={{ marginBottom: 0 }}>
-                  Marking attendance for
-                </label>
-                <input
-                  className="at-input"
-                  style={{ width: 170, height: 38 }}
-                  type="date"
-                  value={atQuickMarkDate}
-                  onChange={(e) => setAtQuickMarkDate(e.target.value)}
-                />
+              <div style={{ minWidth: 0 }}>
+                <div className="at-stat__label">{card.label}</div>
+                <div
+                  className="at-stat__value"
+                  style={card.money ? { fontSize: 18 } : undefined}
+                >
+                  {card.value}
+                </div>
+                <div className="at-stat__sub">{card.sub}</div>
               </div>
             </div>
+          ))}
+        </div>
 
-            <div className="at-card">
-              {!atSelectedEmployeeId ? (
-                <>
-                  <div className="at-tabs-row">
-                    <div>
-                      <div
-                        style={{
-                          fontWeight: 700,
-                          fontSize: 15,
-                          color: "#1e293b",
-                        }}
-                      >
-                        Employee Attendance
-                      </div>
-                      <div style={{ fontSize: 12, color: "#64748b" }}>
-                        {atLoading
-                          ? "Loading…"
-                          : `${atEmployeeList.length} employee${atEmployeeList.length !== 1 ? "s" : ""}`}
-                      </div>
+        <div className="at-root">
+          <div className="at-card">
+            {!sySelectedEmployeeId ? (
+              /* ─────────────── EMPLOYEE LIST ─────────────── */
+              <>
+                <div className="at-tabs-row">
+                  <div>
+                    <div
+                      style={{
+                        fontWeight: 700,
+                        fontSize: 15,
+                        color: "#1e293b",
+                      }}
+                    >
+                      Employees
                     </div>
-                    <div className="at-filters">
-                      <input
-                        className="at-finput"
-                        style={{ width: 180 }}
-                        type="text"
-                        placeholder="Search name / ID…"
-                        value={atSearch}
-                        onChange={(e) => setAtSearch(e.target.value)}
-                      />
-                      <input
-                        className="at-finput"
-                        style={{ width: 140 }}
-                        type="date"
-                        value={atFilterDate}
-                        onChange={(e) => setAtFilterDate(e.target.value)}
-                      />
-                      <select
-                        className="at-finput"
-                        style={{ width: 140 }}
-                        value={atFilterStatus}
-                        onChange={(e) => setAtFilterStatus(e.target.value)}
-                      >
-                        <option value="">All Status</option>
-                        {STATUSES.map((s) => (
-                          <option key={s}>{s}</option>
-                        ))}
-                      </select>
-                      <button
-                        className="at-pg-btn"
-                        onClick={fetchAttendanceRecords}
-                        title="Refresh"
-                      >
-                        <i className="bi bi-arrow-clockwise"></i>
-                      </button>
+                    <div style={{ fontSize: 12, color: "#64748b" }}>
+                      {atLoading
+                        ? "Loading…"
+                        : `${cbEmployeeList.length} employee${cbEmployeeList.length !== 1 ? "s" : ""} · mark attendance and track pay in one place`}
                     </div>
                   </div>
-                  <div className="at-tabs">
-                    {[
-                      ["all", "All Records"],
-                      ["today", "Today"],
-                      ["week", "This Week"],
-                      ["month", "This Month"],
-                    ].map(([val, label]) => (
+                  <div className="at-filters">
+                    <input
+                      className="at-finput"
+                      style={{ width: 190 }}
+                      type="text"
+                      placeholder="Search name / ID…"
+                      value={atSearch}
+                      onChange={(e) => setAtSearch(e.target.value)}
+                    />
+                    <select
+                      className="at-finput"
+                      style={{ width: 140 }}
+                      value={atFilterStatus}
+                      onChange={(e) => setAtFilterStatus(e.target.value)}
+                    >
+                      <option value="">All Status</option>
+                      {STATUSES.map((st) => (
+                        <option key={st}>{st}</option>
+                      ))}
+                    </select>
+                    {isAdmin && (
                       <button
-                        key={val}
-                        className={`at-tab${atActiveTab === val ? " active" : ""}`}
-                        onClick={() => setAtActiveTab(val)}
+                        className="at-btn at-btn--ghost"
+                        style={{ padding: "7px 14px", fontSize: 13 }}
+                        onClick={syOpenManageOt}
                       >
-                        {label}
+                        <i className="bi bi-gear"></i> OT Types
                       </button>
-                    ))}
+                    )}
+                    <button
+                      className="at-pg-btn"
+                      onClick={() => {
+                        fetchAttendanceRecords();
+                        refreshSalaryData();
+                      }}
+                      title="Refresh"
+                    >
+                      <i className="bi bi-arrow-clockwise"></i>
+                    </button>
                   </div>
-                  <div style={{ marginTop: 16 }}>
-                    {atLoading ? (
-                      <div className="at-loading">
-                        <div className="at-spinner"></div>
-                        <span>Loading employees…</span>
-                      </div>
-                    ) : atEmployeeList.length === 0 ? (
-                      <div className="at-empty">
-                        <i className="bi bi-people"></i>
-                        <p>No employees found</p>
-                        <span>
-                          {atApiError
-                            ? "Check backend console."
-                            : "Try adjusting your search."}
-                        </span>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="at-chat-list">
-                          {atPaginatedEmployeeList.map(
-                            ({ emp, lastRecord, recordCount }) => {
-                              const name =
-                                emp.employee_name || emp.emp_name || "—";
-                              const hue = (name.charCodeAt(0) * 7) % 360;
-                              const meta = lastRecord
-                                ? STATUS_META[lastRecord.status] || {
-                                    color: "#475569",
-                                    icon: "bi-dash-circle",
-                                  }
-                                : null;
-                              const dateRecord = atRecords.find(
-                                (r) =>
-                                  sameId(r.employee_id, emp.emp_id) &&
-                                  dateOnly(r.date) === atQuickMarkDate,
-                              );
-                              return (
-                                <div className="at-chat-item" key={emp.emp_id}>
-                                  <div
-                                    className="at-chat-avatar"
-                                    style={{
-                                      background: `hsl(${hue},60%,90%)`,
-                                      color: `hsl(${hue},50%,35%)`,
-                                    }}
-                                  >
-                                    {name
-                                      .split(" ")
-                                      .slice(0, 2)
-                                      .map((w) => w[0])
-                                      .join("")
-                                      .toUpperCase()}
-                                  </div>
-                                  <div
-                                    className="at-chat-body"
-                                    style={{ cursor: "pointer" }}
-                                    onClick={() =>
-                                      atOpenEmployeeDetail(emp.emp_id)
-                                    }
-                                  >
-                                    <div className="at-chat-name">{name}</div>
-                                    <div className="at-chat-preview">
-                                      {lastRecord ? (
-                                        <>
-                                          <i
-                                            className={`bi ${meta.icon}`}
-                                            style={{ color: meta.color }}
-                                          ></i>{" "}
-                                          {lastRecord.status} on{" "}
-                                          {lastRecord.date}
-                                        </>
-                                      ) : (
-                                        "No attendance records yet"
-                                      )}
-                                    </div>
-                                  </div>
-                                  <div className="at-quick-mark">
-                                    <button
-                                      className={`at-quick-btn at-quick-btn--present${dateRecord?.status === "Present" ? " active" : ""}`}
-                                      onClick={() =>
-                                        handleQuickMark(emp, "Present")
-                                      }
-                                      title={`Mark Present for ${atQuickMarkDate}`}
-                                    >
-                                      <i className="bi bi-check-lg"></i> Present
-                                    </button>
-                                    <button
-                                      className={`at-quick-btn at-quick-btn--absent${dateRecord?.status === "Absent" ? " active" : ""}`}
-                                      onClick={() =>
-                                        handleQuickMark(emp, "Absent")
-                                      }
-                                      title={`Mark Absent for ${atQuickMarkDate}`}
-                                    >
-                                      <i className="bi bi-x-lg"></i> Absent
-                                    </button>
-                                  </div>
-                                  <i
-                                    className="bi bi-chevron-right"
-                                    style={{
-                                      color: "#cbd5e1",
-                                      fontSize: 13,
-                                      cursor: "pointer",
-                                      flexShrink: 0,
-                                    }}
-                                    onClick={() =>
-                                      atOpenEmployeeDetail(emp.emp_id)
-                                    }
-                                  ></i>
+                </div>
+
+                <div className="cb-markbar">
+                  <i className="bi bi-calendar-check"></i>
+                  <span className="cb-markbar__label">
+                    Marking attendance for
+                  </span>
+                  <input
+                    className="at-input"
+                    style={{ width: 165, height: 36 }}
+                    type="date"
+                    value={atQuickMarkDate}
+                    onChange={(e) => setAtQuickMarkDate(e.target.value)}
+                  />
+                  {!canMarkAttendance && (
+                    <span className="cb-markbar__warn">
+                      <i className="bi bi-exclamation-triangle-fill"></i> Select
+                      a branch to mark attendance
+                    </span>
+                  )}
+                </div>
+
+                {syApiError && <div className="sl-error">{syApiError}</div>}
+
+                <div style={{ marginTop: 16 }}>
+                  {atLoading ? (
+                    <div className="at-loading">
+                      <div className="at-spinner"></div>
+                      <span>Loading employees…</span>
+                    </div>
+                  ) : cbEmployeeList.length === 0 ? (
+                    <div className="at-empty">
+                      <i className="bi bi-people"></i>
+                      <p>No employees found</p>
+                      <span>
+                        {atApiError
+                          ? "Check backend console."
+                          : "Try adjusting your search."}
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="at-chat-list">
+                        {cbPaginatedList.map(
+                          ({
+                            emp,
+                            lastRecord,
+                            markedRecord,
+                            pending,
+                            lastDay,
+                          }) => {
+                            const name =
+                              emp.employee_name || emp.emp_name || "—";
+                            const hue = (name.charCodeAt(0) * 7) % 360;
+                            const meta = lastRecord
+                              ? STATUS_META[lastRecord.status] || {
+                                  color: "#475569",
+                                  icon: "bi-dash-circle",
+                                }
+                              : null;
+                            return (
+                              <div className="at-chat-item" key={emp.emp_id}>
+                                <div
+                                  className="at-chat-avatar"
+                                  style={{
+                                    background: `hsl(${hue},60%,90%)`,
+                                    color: `hsl(${hue},50%,35%)`,
+                                  }}
+                                >
+                                  {name
+                                    .split(" ")
+                                    .slice(0, 2)
+                                    .map((w) => w[0])
+                                    .join("")
+                                    .toUpperCase()}
                                 </div>
-                              );
-                            },
+                                <div
+                                  className="at-chat-body"
+                                  style={{ cursor: "pointer" }}
+                                  onClick={() => cbOpenEmployee(emp.emp_id)}
+                                >
+                                  <div className="at-chat-name">{name}</div>
+                                  <div className="at-chat-preview">
+                                    {lastRecord ? (
+                                      <>
+                                        <i
+                                          className={`bi ${meta.icon}`}
+                                          style={{ color: meta.color }}
+                                        ></i>{" "}
+                                        {lastRecord.status} on{" "}
+                                        {dateOnly(lastRecord.date)}
+                                      </>
+                                    ) : (
+                                      <>
+                                        <i className="bi bi-dash-circle"></i> No
+                                        attendance yet
+                                      </>
+                                    )}
+                                  </div>
+                                  <div className="cb-chat-money">
+                                    <i className="bi bi-cash-coin"></i>
+                                    {lastDay
+                                      ? `Last earning ${dateOnly(lastDay.date)} · ${inr(lastDay.total_amount)}`
+                                      : "No earnings recorded yet"}
+                                  </div>
+                                </div>
+                                <div
+                                  className="at-chat-meta cb-chat-pending"
+                                  style={{ cursor: "pointer" }}
+                                  onClick={() => cbOpenEmployee(emp.emp_id)}
+                                >
+                                  <div
+                                    className="at-chat-badge"
+                                    style={{
+                                      background:
+                                        pending > 0 ? "#dc2626" : "#008b3e",
+                                    }}
+                                    title="Pending balance"
+                                  >
+                                    {inr(pending)}
+                                  </div>
+                                </div>
+                                <div className="at-quick-mark">
+                                  <button
+                                    className={`at-quick-btn at-quick-btn--present${markedRecord?.status === "Present" ? " active" : ""}`}
+                                    onClick={() =>
+                                      handleQuickMark(emp, "Present")
+                                    }
+                                    title={`Mark Present for ${atQuickMarkDate}`}
+                                  >
+                                    <i className="bi bi-check-lg"></i> Present
+                                  </button>
+                                  <button
+                                    className={`at-quick-btn at-quick-btn--absent${markedRecord?.status === "Absent" ? " active" : ""}`}
+                                    onClick={() =>
+                                      handleQuickMark(emp, "Absent")
+                                    }
+                                    title={`Mark Absent for ${atQuickMarkDate}`}
+                                  >
+                                    <i className="bi bi-x-lg"></i> Absent
+                                  </button>
+                                </div>
+                                <i
+                                  className="bi bi-chevron-right"
+                                  style={{
+                                    color: "#cbd5e1",
+                                    fontSize: 13,
+                                    cursor: "pointer",
+                                    flexShrink: 0,
+                                  }}
+                                  onClick={() => cbOpenEmployee(emp.emp_id)}
+                                ></i>
+                              </div>
+                            );
+                          },
+                        )}
+                      </div>
+
+                      {cbTotal > 0 && (
+                        <div className="at-pagination">
+                          <div className="at-pg-left">
+                            Show
+                            <select
+                              className="at-pg-select"
+                              value={atRowsPerPage}
+                              onChange={(e) => {
+                                setAtRowsPerPage(parseInt(e.target.value));
+                                setAtCurrentPage(1);
+                              }}
+                            >
+                              <option value={10}>10</option>
+                              <option value={25}>25</option>
+                              <option value={50}>50</option>
+                              <option value={100}>100</option>
+                              <option value={-1}>All</option>
+                            </select>
+                            entries per page
+                          </div>
+                          {atRowsPerPage !== -1 && (
+                            <div className="at-pg-right">
+                              <span className="at-pg-info">
+                                Page {atCurrentPage} of {cbTotalPages}
+                              </span>
+                              <button
+                                className="at-pg-btn"
+                                disabled={atCurrentPage === 1}
+                                onClick={() =>
+                                  setAtCurrentPage((p) => Math.max(1, p - 1))
+                                }
+                              >
+                                <i className="bi bi-chevron-left"></i> Previous
+                              </button>
+                              <button
+                                className="at-pg-btn"
+                                disabled={atCurrentPage >= cbTotalPages}
+                                onClick={() =>
+                                  setAtCurrentPage((p) =>
+                                    Math.min(cbTotalPages, p + 1),
+                                  )
+                                }
+                              >
+                                Next <i className="bi bi-chevron-right"></i>
+                              </button>
+                            </div>
                           )}
                         </div>
-                        {atEmployeeTotal > 0 && (
-                          <div className="at-pagination">
-                            <div className="at-pg-left">
-                              Show
-                              <select
-                                className="at-pg-select"
-                                value={atRowsPerPage}
-                                onChange={(e) => {
-                                  setAtRowsPerPage(parseInt(e.target.value));
-                                  setAtCurrentPage(1);
+                      )}
+                    </>
+                  )}
+                </div>
+              </>
+            ) : (
+              /* ─────────────── EMPLOYEE DETAIL ─────────────── */
+              <>
+                <div className="at-detail-header">
+                  <button
+                    className="at-back-btn"
+                    onClick={cbBackToList}
+                    title="Back to employee list"
+                  >
+                    <i className="bi bi-arrow-left"></i>
+                  </button>
+                  {sySelectedEmployee && (
+                    <div
+                      className="at-detail-avatar"
+                      style={{
+                        background: `hsl(${((sySelectedEmployee.employee_name || sySelectedEmployee.emp_name || "?").charCodeAt(0) * 7) % 360},60%,90%)`,
+                        color: `hsl(${((sySelectedEmployee.employee_name || sySelectedEmployee.emp_name || "?").charCodeAt(0) * 7) % 360},50%,35%)`,
+                      }}
+                    >
+                      {(
+                        sySelectedEmployee.employee_name ||
+                        sySelectedEmployee.emp_name ||
+                        "?"
+                      )
+                        .split(" ")
+                        .slice(0, 2)
+                        .map((w) => w[0])
+                        .join("")
+                        .toUpperCase()}
+                    </div>
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="at-detail-name">
+                      {sySelectedEmployee
+                        ? sySelectedEmployee.employee_name ||
+                          sySelectedEmployee.emp_name
+                        : "Employee"}
+                    </div>
+                    <div className="at-detail-sub">
+                      {atSelectedRecords.length} attendance record
+                      {atSelectedRecords.length !== 1 ? "s" : ""}
+                      {sySelectedEmployee?.whatsapp_number
+                        ? ` · ${sySelectedEmployee.whatsapp_number}`
+                        : " · no WhatsApp number"}
+                    </div>
+                  </div>
+                  <button
+                    className="at-btn at-btn--primary"
+                    style={{ padding: "7px 14px", fontSize: 13 }}
+                    onClick={handleSendWhatsApp}
+                  >
+                    <i className="bi bi-whatsapp"></i> Send
+                  </button>
+                </div>
+
+                {/* quick mark, right where the timeline is */}
+                {sySelectedEmployee && (
+                  <div className="cb-markbar">
+                    <i className="bi bi-calendar-check"></i>
+                    <span className="cb-markbar__label">
+                      Marking attendance for
+                    </span>
+                    <input
+                      className="at-input"
+                      style={{ width: 150, height: 34, fontSize: 12.5 }}
+                      type="date"
+                      value={atQuickMarkDate}
+                      onChange={(e) => setAtQuickMarkDate(e.target.value)}
+                    />
+                    <div className="at-quick-mark">
+                      <button
+                        className={`at-quick-btn at-quick-btn--present${
+                          atSelectedRecords.find(
+                            (r) => dateOnly(r.date) === atQuickMarkDate,
+                          )?.status === "Present"
+                            ? " active"
+                            : ""
+                        }`}
+                        onClick={() =>
+                          handleQuickMark(sySelectedEmployee, "Present")
+                        }
+                      >
+                        <i className="bi bi-check-lg"></i> Present
+                      </button>
+                      <button
+                        className={`at-quick-btn at-quick-btn--absent${
+                          atSelectedRecords.find(
+                            (r) => dateOnly(r.date) === atQuickMarkDate,
+                          )?.status === "Absent"
+                            ? " active"
+                            : ""
+                        }`}
+                        onClick={() =>
+                          handleQuickMark(sySelectedEmployee, "Absent")
+                        }
+                      >
+                        <i className="bi bi-x-lg"></i> Absent
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div
+                  className="at-tabs"
+                  style={{ marginTop: 20, marginBottom: 20 }}
+                >
+                  {[
+                    ["day", "Today"],
+                    ["week", "This Week"],
+                    ["month", "This Month"],
+                    ["all", "All Records"],
+                  ].map(([val, label]) => (
+                    <button
+                      key={val}
+                      className={`at-tab${syPeriod === val && !syUsingDateFilter ? " active" : ""}`}
+                      onClick={() => {
+                        setSyPeriod(val);
+                        setSySearchDateFrom("");
+                        setSySearchDateTo("");
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="sy-summary cb-summary">
+                  <div className="sy-summary__item">
+                    <div className="sy-summary__label">
+                      Days Present ({syUsingDateFilter ? "filtered" : syPeriod})
+                    </div>
+                    <div
+                      className="sy-summary__value"
+                      style={{ color: "#15803d" }}
+                    >
+                      {cbPeriodPresent}
+                    </div>
+                  </div>
+                  <div className="sy-summary__item">
+                    <div className="sy-summary__label">
+                      Earned ({syUsingDateFilter ? "filtered" : syPeriod})
+                    </div>
+                    <div
+                      className="sy-summary__value"
+                      style={{ color: "#1e293b" }}
+                    >
+                      {inr(syPeriodEarned)}
+                    </div>
+                  </div>
+                  <div className="sy-summary__item">
+                    <div className="sy-summary__label">
+                      Paid ({syUsingDateFilter ? "filtered" : syPeriod})
+                    </div>
+                    <div
+                      className="sy-summary__value"
+                      style={{ color: "#15803d" }}
+                    >
+                      {inr(syPeriodPaid)}
+                    </div>
+                  </div>
+                  <div className="sy-summary__item">
+                    <div className="sy-summary__label">
+                      Pending Balance (all time)
+                    </div>
+                    <div
+                      className="sy-summary__value"
+                      style={{
+                        color: syPendingBalance > 0 ? "#dc2626" : "#15803d",
+                      }}
+                    >
+                      {inr(syPendingBalance)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="sy-actions">
+                  <button
+                    className="at-btn at-btn--primary"
+                    onClick={syOpenOtModal}
+                  >
+                    <i className="bi bi-plus-lg"></i> Add OT
+                  </button>
+                  {isAdmin && (
+                    <button
+                      className="at-btn at-btn--ghost"
+                      onClick={syOpenPaymentModal}
+                    >
+                      <i className="bi bi-cash"></i> Add Payment
+                    </button>
+                  )}
+                  <button
+                    className={`at-btn ${syShowPaymentHistory ? "at-btn--primary" : "at-btn--ghost"}`}
+                    onClick={() => setSyShowPaymentHistory((v) => !v)}
+                    title="Show only payments"
+                  >
+                    <i className="bi bi-wallet2"></i> Payments Only
+                  </button>
+                  <div className="sy-date-filter">
+                    <input
+                      className="at-finput"
+                      type="date"
+                      value={sySearchDateFrom}
+                      onChange={(e) => setSySearchDateFrom(e.target.value)}
+                      title="From date"
+                    />
+                    <span className="sy-date-filter__sep">to</span>
+                    <input
+                      className="at-finput"
+                      type="date"
+                      value={sySearchDateTo}
+                      onChange={(e) => setSySearchDateTo(e.target.value)}
+                      title="To date"
+                    />
+                    {syUsingDateFilter && (
+                      <button
+                        className="at-pg-btn"
+                        onClick={() => {
+                          setSySearchDateFrom("");
+                          setSySearchDateTo("");
+                        }}
+                        title="Clear date filter"
+                      >
+                        <i className="bi bi-x-lg"></i>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="sy-section-head">
+                  <i className="bi bi-clock-history"></i>
+                  <span>
+                    {syShowPaymentHistory
+                      ? "Payment History"
+                      : "Attendance & Earnings"}
+                  </span>
+                  <span className="cb-range-tag">{syRangeLabel}</span>
+                </div>
+
+                <div className="at-timeline">
+                  {syLoading || atLoading ? (
+                    <div className="at-loading">
+                      <div className="at-spinner"></div>
+                      <span>Loading…</span>
+                    </div>
+                  ) : cbVisibleItems.length === 0 ? (
+                    <div className="at-empty">
+                      <i className="bi bi-calendar-x"></i>
+                      <p>Nothing in this period</p>
+                      <span>
+                        {syShowPaymentHistory
+                          ? "Use Add Payment above to record one."
+                          : "Mark attendance or add OT to log a day."}
+                      </span>
+                    </div>
+                  ) : (
+                    cbVisibleItems.map((item) => {
+                      /* ---- payment ---- */
+                      if (item.type === "pay") {
+                        const p = item.pay;
+                        return (
+                          <div
+                            className="at-bubble at-bubble--payment"
+                            key={item.key}
+                          >
+                            <div className="at-bubble-head">
+                              <span className="at-bubble-date">
+                                {item.date}
+                              </span>
+                              <span
+                                className="at-status-badge"
+                                style={{
+                                  background: "#dbeafe",
+                                  color: "#1d4ed8",
                                 }}
                               >
-                                <option value={10}>10</option>
-                                <option value={25}>25</option>
-                                <option value={50}>50</option>
-                                <option value={100}>100</option>
-                                <option value={-1}>All</option>
-                              </select>
-                              entries per page
+                                <i className="bi bi-cash"></i> Payment
+                              </span>
                             </div>
-                            {atRowsPerPage !== -1 && (
-                              <div className="at-pg-right">
-                                <span className="at-pg-info">
-                                  Page {atCurrentPage} of {atEmployeeTotalPages}
+                            <div className="at-bubble-body">
+                              <span
+                                style={{ fontWeight: 700, color: "#1d4ed8" }}
+                              >
+                                {inr(p.amount)} paid
+                              </span>
+                              {p.note && <span>{p.note}</span>}
+                            </div>
+                            {canEditDelete && (
+                              <div className="at-bubble-foot">
+                                <span className="at-time-mono">
+                                  Logged {formatTime(p.created_at)}
                                 </span>
-                                <button
-                                  className="at-pg-btn"
-                                  disabled={atCurrentPage === 1}
-                                  onClick={() =>
-                                    setAtCurrentPage((p) => Math.max(1, p - 1))
-                                  }
-                                >
-                                  <i className="bi bi-chevron-left"></i>{" "}
-                                  Previous
-                                </button>
-                                <button
-                                  className="at-pg-btn"
-                                  disabled={
-                                    atCurrentPage === atEmployeeTotalPages
-                                  }
-                                  onClick={() =>
-                                    setAtCurrentPage((p) =>
-                                      Math.min(atEmployeeTotalPages, p + 1),
-                                    )
-                                  }
-                                >
-                                  Next <i className="bi bi-chevron-right"></i>
-                                </button>
+                                <div className="at-actions">
+                                  <button
+                                    className="at-act at-act--del"
+                                    onClick={() => setSyPaymentDeleteConfirm(p)}
+                                    title="Delete payment"
+                                  >
+                                    <i className="bi bi-trash-fill"></i>
+                                  </button>
+                                </div>
                               </div>
                             )}
                           </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="at-detail-header">
-                    <button
-                      className="at-back-btn"
-                      onClick={atBackToEmployeeList}
-                      title="Back to employee list"
-                    >
-                      <i className="bi bi-arrow-left"></i>
-                    </button>
-                    {atSelectedEmployee && (
-                      <div
-                        className="at-detail-avatar"
-                        style={{
-                          background: `hsl(${((atSelectedEmployee.employee_name || atSelectedEmployee.emp_name || "?").charCodeAt(0) * 7) % 360},60%,90%)`,
-                          color: `hsl(${((atSelectedEmployee.employee_name || atSelectedEmployee.emp_name || "?").charCodeAt(0) * 7) % 360},50%,35%)`,
-                        }}
-                      >
-                        {(
-                          atSelectedEmployee.employee_name ||
-                          atSelectedEmployee.emp_name ||
-                          "?"
-                        )
-                          .split(" ")
-                          .slice(0, 2)
-                          .map((w) => w[0])
-                          .join("")
-                          .toUpperCase()}
-                      </div>
-                    )}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div className="at-detail-name">
-                        {atSelectedEmployee
-                          ? atSelectedEmployee.employee_name ||
-                            atSelectedEmployee.emp_name
-                          : "Employee"}
-                      </div>
-                      <div className="at-detail-sub">
-                        {atSelectedRecords.length} record
-                        {atSelectedRecords.length !== 1 ? "s" : ""}
-                        {atShowBranchColumn && atSelectedRecords[0]?.branch_id
-                          ? ` · ${atBranchesMap[atSelectedRecords[0].branch_id] || `Branch #${atSelectedRecords[0].branch_id}`}`
-                          : ""}
-                      </div>
-                    </div>
-                    {atSelectedEmployee && (
-                      <div className="at-quick-mark">
-                        <input
-                          className="at-input"
-                          style={{ width: 140, height: 34, fontSize: 12.5 }}
-                          type="date"
-                          value={atQuickMarkDate}
-                          onChange={(e) => setAtQuickMarkDate(e.target.value)}
-                        />
-                        <button
-                          className={`at-quick-btn at-quick-btn--present${
-                            atSelectedRecords.find(
-                              (r) => dateOnly(r.date) === atQuickMarkDate,
-                            )?.status === "Present"
-                              ? " active"
-                              : ""
-                          }`}
-                          onClick={() =>
-                            handleQuickMark(atSelectedEmployee, "Present")
-                          }
-                        >
-                          <i className="bi bi-check-lg"></i> Present
-                        </button>
-                        <button
-                          className={`at-quick-btn at-quick-btn--absent${
-                            atSelectedRecords.find(
-                              (r) => dateOnly(r.date) === atQuickMarkDate,
-                            )?.status === "Absent"
-                              ? " active"
-                              : ""
-                          }`}
-                          onClick={() =>
-                            handleQuickMark(atSelectedEmployee, "Absent")
-                          }
-                        >
-                          <i className="bi bi-x-lg"></i> Absent
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  <div className="at-tabs" style={{ marginBottom: 4 }}>
-                    {[
-                      ["all", "All Records"],
-                      ["today", "Today"],
-                      ["week", "This Week"],
-                      ["month", "This Month"],
-                    ].map(([val, label]) => (
-                      <button
-                        key={val}
-                        className={`at-tab${atActiveTab === val ? " active" : ""}`}
-                        onClick={() => setAtActiveTab(val)}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="at-timeline">
-                    {atLoading ? (
-                      <div className="at-loading">
-                        <div className="at-spinner"></div>
-                        <span>Loading records…</span>
-                      </div>
-                    ) : atSelectedRecords.length === 0 ? (
-                      <div className="at-empty">
-                        <i className="bi bi-calendar-x"></i>
-                        <p>No attendance records</p>
-                        <span>Mark attendance for this employee above.</span>
-                      </div>
-                    ) : (
-                      atSelectedRecords.map((rec) => {
+                        );
+                      }
+
+                      /* ---- attendance-only day (no wage row) ---- */
+                      if (item.type === "att") {
+                        const rec = item.rec;
                         const meta = STATUS_META[rec.status] || {
                           bg: "#f1f5f9",
                           color: "#475569",
                           icon: "bi-dash-circle",
                         };
                         return (
-                          <div className="at-bubble" key={rec.id}>
+                          <div className="at-bubble" key={item.key}>
                             <div className="at-bubble-head">
-                              <span className="at-bubble-date">{rec.date}</span>
-                              <span
-                                className="at-status-badge"
+                              <span className="at-bubble-date">
+                                {item.date}
+                              </span>
+                              <div
                                 style={{
-                                  background: meta.bg,
-                                  color: meta.color,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 8,
                                 }}
                               >
-                                <i
-                                  className={`bi ${meta.icon}`}
-                                  style={{ fontSize: 10 }}
-                                ></i>
-                                {rec.status}
-                              </span>
+                                <span
+                                  className="at-status-badge"
+                                  style={{
+                                    background: meta.bg,
+                                    color: meta.color,
+                                  }}
+                                >
+                                  <i
+                                    className={`bi ${meta.icon}`}
+                                    style={{ fontSize: 10 }}
+                                  ></i>
+                                  {rec.status}
+                                </span>
+                                {canEditDelete && (
+                                  <button
+                                    className="at-act at-act--del"
+                                    style={{
+                                      width: 26,
+                                      height: 26,
+                                      fontSize: 11,
+                                    }}
+                                    onClick={() => setAtDeleteConfirm(rec)}
+                                    title="Delete attendance record"
+                                  >
+                                    <i className="bi bi-trash-fill"></i>
+                                  </button>
+                                )}
+                              </div>
                             </div>
                             <div className="at-bubble-body">
                               {(rec.check_in || rec.check_out) && (
@@ -1938,7 +2156,6 @@ export default function Salary() {
                                     ? formatTime12(rec.check_in)
                                     : "—"}{" "}
                                   <i className="bi bi-arrow-right"></i>{" "}
-                                  <i className="bi bi-box-arrow-left"></i>{" "}
                                   {rec.check_out
                                     ? formatTime12(rec.check_out)
                                     : "—"}
@@ -1951,736 +2168,271 @@ export default function Salary() {
                                 </span>
                               )}
                               {rec.leave_type && <span>{rec.leave_type}</span>}
+                              <span style={{ color: "#94a3b8" }}>
+                                No wage recorded for this day
+                              </span>
                             </div>
                             <div className="at-bubble-foot">
                               <span className="at-time-mono">
                                 Logged {formatTime(rec.created_at)}
                               </span>
-                              {canEditDelete && (
-                                <div className="at-actions">
-                                  <button
-                                    className="at-act at-act--del"
-                                    onClick={() => setAtDeleteConfirm(rec)}
-                                    title="Delete"
-                                  >
-                                    <i className="bi bi-trash-fill"></i>
-                                  </button>
-                                </div>
-                              )}
                             </div>
                           </div>
                         );
-                      })
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        )}
+                      }
 
-        {view === "salary" && (
-          <div className="at-root">
-            <div className="at-card">
-              {!sySelectedEmployeeId ? (
-                <>
-                  <div className="at-tabs-row">
-                    <div>
-                      <div
-                        style={{
-                          fontWeight: 700,
-                          fontSize: 15,
-                          color: "#1e293b",
-                        }}
-                      >
-                        Employee Salary
-                      </div>
-                      <div style={{ fontSize: 12, color: "#64748b" }}>
-                        {syLoading
-                          ? "Loading…"
-                          : `${syEmployeeList.length} employee${syEmployeeList.length !== 1 ? "s" : ""}`}
-                      </div>
-                    </div>
-                    <div className="at-filters">
-                      <input
-                        className="at-finput"
-                        style={{ width: 200 }}
-                        type="text"
-                        placeholder="Search name / ID…"
-                        value={sySearch}
-                        onChange={(e) => setSySearch(e.target.value)}
-                      />
-                      {isAdmin && (
-                        <button
-                          className="at-btn at-btn--ghost"
-                          style={{ padding: "7px 14px", fontSize: 13 }}
-                          onClick={syOpenManageOt}
-                        >
-                          <i className="bi bi-gear"></i> OT Types
-                        </button>
-                      )}
-                      <button
-                        className="at-pg-btn"
-                        onClick={refreshSalaryData}
-                        title="Refresh"
-                      >
-                        <i className="bi bi-arrow-clockwise"></i>
-                      </button>
-                    </div>
-                  </div>
-                  {syApiError && <div className="sl-error">{syApiError}</div>}
-                  <div style={{ marginTop: 16 }}>
-                    {syLoading ? (
-                      <div className="at-loading">
-                        <div className="at-spinner"></div>
-                        <span>Loading employees…</span>
-                      </div>
-                    ) : syEmployeeList.length === 0 ? (
-                      <div className="at-empty">
-                        <i className="bi bi-people"></i>
-                        <p>No employees found</p>
-                        <span>Try adjusting your search.</span>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="at-chat-list">
-                          {syPaginatedEmployeeList.map(
-                            ({
-                              emp,
-                              totalEarned,
-                              totalPaid,
-                              pending,
-                              lastDay,
-                            }) => {
-                              const name =
-                                emp.employee_name || emp.emp_name || "—";
-                              const hue = (name.charCodeAt(0) * 7) % 360;
-                              return (
-                                <div
-                                  className="at-chat-item"
-                                  key={emp.emp_id}
-                                  onClick={() =>
-                                    syOpenEmployeeDetail(emp.emp_id)
-                                  }
-                                >
-                                  <div
-                                    className="at-chat-avatar"
-                                    style={{
-                                      background: `hsl(${hue},60%,90%)`,
-                                      color: `hsl(${hue},50%,35%)`,
-                                    }}
-                                  >
-                                    {name
-                                      .split(" ")
-                                      .slice(0, 2)
-                                      .map((w) => w[0])
-                                      .join("")
-                                      .toUpperCase()}
-                                  </div>
-                                  <div className="at-chat-body">
-                                    <div className="at-chat-name">{name}</div>
-                                    <div className="at-chat-preview">
-                                      {lastDay ? (
-                                        <>
-                                          <i
-                                            className="bi bi-cash-coin"
-                                            style={{ color: "#008b3e" }}
-                                          ></i>{" "}
-                                          Last earning {lastDay.date} ·{" "}
-                                          {inr(lastDay.total_amount)}
-                                        </>
-                                      ) : (
-                                        "No earnings recorded yet"
-                                      )}
-                                    </div>
-                                  </div>
-                                  <div className="at-chat-meta">
-                                    <div
-                                      className="at-chat-badge"
-                                      style={{
-                                        background:
-                                          pending > 0 ? "#dc2626" : "#008b3e",
-                                      }}
-                                    >
-                                      {inr(pending)}
-                                    </div>
-                                    <i
-                                      className="bi bi-chevron-right"
-                                      style={{
-                                        color: "#cbd5e1",
-                                        fontSize: 13,
-                                      }}
-                                    ></i>
-                                  </div>
-                                </div>
-                              );
-                            },
-                          )}
-                        </div>
-                        {syEmployeeTotal > 0 && (
-                          <div className="at-pagination">
-                            <div className="at-pg-left">
-                              Show
-                              <select
-                                className="at-pg-select"
-                                value={syRowsPerPage}
-                                onChange={(e) => {
-                                  setSyRowsPerPage(parseInt(e.target.value));
-                                  setSyCurrentPage(1);
-                                }}
-                              >
-                                <option value={10}>10</option>
-                                <option value={25}>25</option>
-                                <option value={50}>50</option>
-                                <option value={100}>100</option>
-                                <option value={-1}>All</option>
-                              </select>
-                              entries per page
-                            </div>
-                            {syRowsPerPage !== -1 && (
-                              <div className="at-pg-right">
-                                <span className="at-pg-info">
-                                  Page {syCurrentPage} of {syEmployeeTotalPages}
-                                </span>
-                                <button
-                                  className="at-pg-btn"
-                                  disabled={syCurrentPage === 1}
-                                  onClick={() =>
-                                    setSyCurrentPage((p) => Math.max(1, p - 1))
-                                  }
-                                >
-                                  <i className="bi bi-chevron-left"></i>{" "}
-                                  Previous
-                                </button>
-                                <button
-                                  className="at-pg-btn"
-                                  disabled={
-                                    syCurrentPage === syEmployeeTotalPages
-                                  }
-                                  onClick={() =>
-                                    setSyCurrentPage((p) =>
-                                      Math.min(syEmployeeTotalPages, p + 1),
-                                    )
-                                  }
-                                >
-                                  Next <i className="bi bi-chevron-right"></i>
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="at-detail-header">
-                    <button
-                      className="at-back-btn"
-                      onClick={syBackToEmployeeList}
-                      title="Back to employee list"
-                    >
-                      <i className="bi bi-arrow-left"></i>
-                    </button>
-                    {sySelectedEmployee && (
-                      <div
-                        className="at-detail-avatar"
-                        style={{
-                          background: `hsl(${((sySelectedEmployee.employee_name || sySelectedEmployee.emp_name || "?").charCodeAt(0) * 7) % 360},60%,90%)`,
-                          color: `hsl(${((sySelectedEmployee.employee_name || sySelectedEmployee.emp_name || "?").charCodeAt(0) * 7) % 360},50%,35%)`,
-                        }}
-                      >
-                        {(
-                          sySelectedEmployee.employee_name ||
-                          sySelectedEmployee.emp_name ||
-                          "?"
-                        )
-                          .split(" ")
-                          .slice(0, 2)
-                          .map((w) => w[0])
-                          .join("")
-                          .toUpperCase()}
-                      </div>
-                    )}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div className="at-detail-name">
-                        {sySelectedEmployee
-                          ? sySelectedEmployee.employee_name ||
-                            sySelectedEmployee.emp_name
-                          : "Employee"}
-                      </div>
-                      <div className="at-detail-sub">
-                        {sySelectedEmployee?.whatsapp_number
-                          ? `WhatsApp: ${sySelectedEmployee.whatsapp_number}`
-                          : "No WhatsApp number on file"}
-                      </div>
-                    </div>
-                    <button
-                      className="at-btn at-btn--primary"
-                      style={{ padding: "7px 14px", fontSize: 13 }}
-                      onClick={handleSendWhatsApp}
-                    >
-                      <i className="bi bi-whatsapp"></i> Send
-                    </button>
-                  </div>
+                      /* ---- earnings day (carries its attendance status) ---- */
+                      const d = item.day;
+                      const isEditingThis = syEditingDayId === d.id;
+                      const emp = atDbEmployees.find((e) =>
+                        sameId(e.emp_id, d.employee_id),
+                      );
+                      const pricePerBag = emp
+                        ? Number(emp.price_per_bags) || 0
+                        : 0;
+                      const draftBase =
+                        d.attendance_status === "Present"
+                          ? syDraftBags * pricePerBag
+                          : d.base_amount;
+                      const draftOtTotal = (d.ot_entries || []).reduce(
+                        (sum, ot) =>
+                          sum +
+                          Number(ot.amount) *
+                            Number(syDraftOtQuantities[ot.id] ?? ot.quantity),
+                        0,
+                      );
+                      const draftTotal = draftBase + draftOtTotal;
+                      const attRec = atSelectedRecords.find(
+                        (r) => dateOnly(r.date) === item.date,
+                      );
+                      const statusLabel =
+                        d.attendance_status || attRec?.status || "";
+                      const statusMeta = STATUS_META[statusLabel] || {};
 
-                  <div className="at-tabs" style={{ marginBottom: 16 }}>
-                    {[
-                      ["day", "Day"],
-                      ["week", "Week"],
-                      ["month", "Month"],
-                      ["all", "All"],
-                    ].map(([val, label]) => (
-                      <button
-                        key={val}
-                        className={`at-tab${syPeriod === val ? " active" : ""}`}
-                        onClick={() => setSyPeriod(val)}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="sy-summary">
-                    <div className="sy-summary__item">
-                      <div className="sy-summary__label">
-                        Earned ({syUsingDateFilter ? "filtered" : syPeriod})
-                      </div>
-                      <div
-                        className="sy-summary__value"
-                        style={{ color: "#1e293b" }}
-                      >
-                        {inr(syPeriodEarned)}
-                      </div>
-                    </div>
-                    <div className="sy-summary__item">
-                      <div className="sy-summary__label">
-                        Paid ({syUsingDateFilter ? "filtered" : syPeriod})
-                      </div>
-                      <div
-                        className="sy-summary__value"
-                        style={{ color: "#15803d" }}
-                      >
-                        {inr(syPeriodPaid)}
-                      </div>
-                    </div>
-                    <div className="sy-summary__item">
-                      <div className="sy-summary__label">
-                        Pending Balance (all time)
-                      </div>
-                      <div
-                        className="sy-summary__value"
-                        style={{
-                          color: syPendingBalance > 0 ? "#dc2626" : "#15803d",
-                        }}
-                      >
-                        {inr(syPendingBalance)}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="sy-actions">
-                    <button
-                      className="at-btn at-btn--primary"
-                      onClick={syOpenOtModal}
-                    >
-                      <i className="bi bi-plus-lg"></i> Add OT
-                    </button>
-                    {isAdmin && (
-                      <button
-                        className="at-btn at-btn--ghost"
-                        onClick={syOpenPaymentModal}
-                      >
-                        <i className="bi bi-cash"></i> Add Payment
-                      </button>
-                    )}
-                    <button
-                      className={`at-btn ${syShowPaymentHistory ? "at-btn--primary" : "at-btn--ghost"}`}
-                      onClick={() => setSyShowPaymentHistory((v) => !v)}
-                    >
-                      <i className="bi bi-wallet2"></i> Payment History
-                    </button>
-                    <div className="sy-date-filter">
-                      <input
-                        className="at-finput"
-                        type="date"
-                        value={sySearchDateFrom}
-                        onChange={(e) => setSySearchDateFrom(e.target.value)}
-                        title="From date"
-                      />
-                      <span className="sy-date-filter__sep">to</span>
-                      <input
-                        className="at-finput"
-                        type="date"
-                        value={sySearchDateTo}
-                        onChange={(e) => setSySearchDateTo(e.target.value)}
-                        title="To date"
-                      />
-                      {syUsingDateFilter && (
-                        <button
-                          className="at-pg-btn"
-                          onClick={() => {
-                            setSySearchDateFrom("");
-                            setSySearchDateTo("");
-                          }}
-                          title="Clear date filter"
-                        >
-                          <i className="bi bi-x-lg"></i>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {!syShowPaymentHistory && (
-                    <div className="sy-section-head">
-                      <i className="bi bi-cash-coin"></i>
-                      <span>Earnings</span>
-                    </div>
-                  )}
-                  {!syShowPaymentHistory && (
-                    <div className="at-timeline">
-                      {syLoading ? (
-                        <div className="at-loading">
-                          <div className="at-spinner"></div>
-                          <span>Loading…</span>
-                        </div>
-                      ) : syEarningsTimeline.length === 0 ? (
-                        <div className="at-empty">
-                          <i className="bi bi-cash-coin"></i>
-                          <p>No earnings in this period</p>
-                          <span>
-                            Mark attendance or add OT to log earnings.
-                          </span>
-                        </div>
-                      ) : (
-                        syEarningsTimeline.map((d) => {
-                          const isEditingThis = syEditingDayId === d.id;
-                          const emp = atDbEmployees.find(
-                            (e) => e.emp_id === d.employee_id,
-                          );
-                          const pricePerBag = emp
-                            ? Number(emp.price_per_bags) || 0
-                            : 0;
-                          const draftBase =
-                            d.attendance_status === "Present"
-                              ? syDraftBags * pricePerBag
-                              : d.base_amount;
-                          const draftOtTotal = (d.ot_entries || []).reduce(
-                            (s, ot) =>
-                              s +
-                              Number(ot.amount) *
-                                Number(
-                                  syDraftOtQuantities[ot.id] ?? ot.quantity,
-                                ),
-                            0,
-                          );
-                          const draftTotal = draftBase + draftOtTotal;
-
-                          return (
-                            <div className="at-bubble" key={`d-${d.id}`}>
-                              <div className="at-bubble-head">
-                                <span className="at-bubble-date">{d.date}</span>
-                                <div
+                      return (
+                        <div className="at-bubble" key={item.key}>
+                          <div className="at-bubble-head">
+                            <span className="at-bubble-date">{item.date}</span>
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                              }}
+                            >
+                              {statusLabel && (
+                                <span
+                                  className="at-status-badge"
                                   style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 8,
+                                    background: statusMeta.bg || "#f1f5f9",
+                                    color: statusMeta.color || "#475569",
                                   }}
                                 >
-                                  {d.attendance_status && (
-                                    <span
-                                      className="at-status-badge"
-                                      style={{
-                                        background:
-                                          (
-                                            STATUS_META[d.attendance_status] ||
-                                            {}
-                                          ).bg || "#f1f5f9",
-                                        color:
-                                          (
-                                            STATUS_META[d.attendance_status] ||
-                                            {}
-                                          ).color || "#475569",
-                                      }}
-                                    >
-                                      {d.attendance_status}
+                                  {statusMeta.icon && (
+                                    <i
+                                      className={`bi ${statusMeta.icon}`}
+                                      style={{ fontSize: 10 }}
+                                    ></i>
+                                  )}
+                                  {statusLabel}
+                                </span>
+                              )}
+                              {!isEditingThis && (
+                                <button
+                                  className="sy-edit-btn"
+                                  onClick={() => syStartEditDay(d)}
+                                  title="Edit bags / OT for this day"
+                                >
+                                  <i className="bi bi-pencil"></i> Edit
+                                </button>
+                              )}
+                              {!isEditingThis && canEditDelete && (
+                                <button
+                                  className="at-act at-act--del"
+                                  style={{
+                                    width: 26,
+                                    height: 26,
+                                    fontSize: 11,
+                                  }}
+                                  onClick={() => setSyDayDeleteConfirm(d)}
+                                  title="Delete this day's earnings"
+                                >
+                                  <i className="bi bi-trash-fill"></i>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <div
+                            className="at-bubble-body"
+                            style={{ flexDirection: "column", gap: 6 }}
+                          >
+                            {isEditingThis ? (
+                              <>
+                                <span className="sy-bags-row">
+                                  <span>Bags:</span>
+                                  <button
+                                    type="button"
+                                    className="sy-stepper-btn"
+                                    onClick={() => syDraftAdjustBags("dec")}
+                                    disabled={
+                                      d.attendance_status !== "Present" ||
+                                      syDraftBags <= 0
+                                    }
+                                    title="Decrease bags"
+                                  >
+                                    <i className="bi bi-dash"></i>
+                                  </button>
+                                  <span className="sy-stepper-count">
+                                    {syDraftBags}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    className="sy-stepper-btn"
+                                    onClick={() => syDraftAdjustBags("inc")}
+                                    disabled={d.attendance_status !== "Present"}
+                                    title="Increase bags"
+                                  >
+                                    <i className="bi bi-plus"></i>
+                                  </button>
+                                  <span className="sy-stepper-total">
+                                    = {inr(draftBase)}
+                                  </span>
+                                  {d.attendance_status !== "Present" && (
+                                    <span className="sy-bags-hint">
+                                      (mark Present to adjust)
                                     </span>
                                   )}
-                                  {!isEditingThis && (
-                                    <button
-                                      className="sy-edit-btn"
-                                      onClick={() => syStartEditDay(d)}
-                                      title="Edit this day"
-                                    >
-                                      <i className="bi bi-pencil"></i> Edit
-                                    </button>
-                                  )}
-                                  {!isEditingThis && canEditDelete && (
-                                    <button
-                                      className="at-act at-act--del"
-                                      style={{
-                                        width: 26,
-                                        height: 26,
-                                        fontSize: 11,
-                                      }}
-                                      onClick={() => setSyDayDeleteConfirm(d)}
-                                      title="Delete this day's earnings"
-                                    >
-                                      <i className="bi bi-trash-fill"></i>
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                              <div
-                                className="at-bubble-body"
-                                style={{ flexDirection: "column", gap: 6 }}
-                              >
-                                {isEditingThis ? (
-                                  <>
-                                    <span className="sy-bags-row">
-                                      <span>Bags:</span>
+                                </span>
+                                {d.ot_entries &&
+                                  d.ot_entries.length > 0 &&
+                                  d.ot_entries.map((ot) => (
+                                    <span key={ot.id} className="sy-ot-line">
+                                      <i className="bi bi-clock-history"></i>{" "}
+                                      {ot.work_name}: {inr(ot.amount)}
                                       <button
                                         type="button"
                                         className="sy-stepper-btn"
-                                        onClick={() => syDraftAdjustBags("dec")}
-                                        disabled={
-                                          d.attendance_status !== "Present" ||
-                                          syDraftBags <= 0
+                                        onClick={() =>
+                                          syDraftAdjustOtQty(ot.id, "dec")
                                         }
-                                        title="Decrease bags"
+                                        disabled={
+                                          (syDraftOtQuantities[ot.id] ??
+                                            ot.quantity) <= 1
+                                        }
+                                        title="Decrease quantity"
                                       >
                                         <i className="bi bi-dash"></i>
                                       </button>
                                       <span className="sy-stepper-count">
-                                        {syDraftBags}
+                                        {syDraftOtQuantities[ot.id] ??
+                                          ot.quantity}
                                       </span>
                                       <button
                                         type="button"
                                         className="sy-stepper-btn"
-                                        onClick={() => syDraftAdjustBags("inc")}
-                                        disabled={
-                                          d.attendance_status !== "Present"
+                                        onClick={() =>
+                                          syDraftAdjustOtQty(ot.id, "inc")
                                         }
-                                        title="Increase bags"
+                                        title="Increase quantity"
                                       >
                                         <i className="bi bi-plus"></i>
                                       </button>
                                       <span className="sy-stepper-total">
-                                        = {inr(draftBase)}
+                                        ={" "}
+                                        {inr(
+                                          ot.amount *
+                                            (syDraftOtQuantities[ot.id] ??
+                                              ot.quantity),
+                                        )}
                                       </span>
-                                      {d.attendance_status !== "Present" && (
-                                        <span className="sy-bags-hint">
-                                          (mark Present to adjust)
-                                        </span>
+                                      {canEditDelete && (
+                                        <button
+                                          className="sy-ot-line__del"
+                                          onClick={() =>
+                                            setSyOtDeleteConfirm(ot)
+                                          }
+                                          title="Remove OT entry"
+                                        >
+                                          <i className="bi bi-x-lg"></i>
+                                        </button>
                                       )}
                                     </span>
-                                    {d.ot_entries &&
-                                      d.ot_entries.length > 0 &&
-                                      d.ot_entries.map((ot) => (
-                                        <span
-                                          key={ot.id}
-                                          className="sy-ot-line"
+                                  ))}
+                              </>
+                            ) : (
+                              <>
+                                <span className="sy-bags-row">
+                                  Bags: {d.bags_count} = {inr(d.base_amount)}
+                                </span>
+                                {d.ot_entries &&
+                                  d.ot_entries.length > 0 &&
+                                  d.ot_entries.map((ot) => (
+                                    <span key={ot.id} className="sy-ot-line">
+                                      <i className="bi bi-clock-history"></i>{" "}
+                                      {ot.work_name}: {inr(ot.amount)} ×{" "}
+                                      {ot.quantity} ={" "}
+                                      {inr(ot.amount * ot.quantity)}
+                                      {canEditDelete && (
+                                        <button
+                                          className="sy-ot-line__del"
+                                          onClick={() =>
+                                            setSyOtDeleteConfirm(ot)
+                                          }
+                                          title="Remove OT entry"
                                         >
-                                          <i className="bi bi-clock-history"></i>{" "}
-                                          {ot.work_name}: {inr(ot.amount)}
-                                          <button
-                                            type="button"
-                                            className="sy-stepper-btn"
-                                            onClick={() =>
-                                              syDraftAdjustOtQty(ot.id, "dec")
-                                            }
-                                            disabled={
-                                              (syDraftOtQuantities[ot.id] ??
-                                                ot.quantity) <= 1
-                                            }
-                                            title="Decrease quantity"
-                                          >
-                                            <i className="bi bi-dash"></i>
-                                          </button>
-                                          <span className="sy-stepper-count">
-                                            {syDraftOtQuantities[ot.id] ??
-                                              ot.quantity}
-                                          </span>
-                                          <button
-                                            type="button"
-                                            className="sy-stepper-btn"
-                                            onClick={() =>
-                                              syDraftAdjustOtQty(ot.id, "inc")
-                                            }
-                                            title="Increase quantity"
-                                          >
-                                            <i className="bi bi-plus"></i>
-                                          </button>
-                                          <span className="sy-stepper-total">
-                                            ={" "}
-                                            {inr(
-                                              ot.amount *
-                                                (syDraftOtQuantities[ot.id] ??
-                                                  ot.quantity),
-                                            )}
-                                          </span>
-                                          {canEditDelete && (
-                                            <button
-                                              className="sy-ot-line__del"
-                                              onClick={() =>
-                                                setSyOtDeleteConfirm(ot)
-                                              }
-                                              title="Remove OT entry"
-                                            >
-                                              <i className="bi bi-x-lg"></i>
-                                            </button>
-                                          )}
-                                        </span>
-                                      ))}
-                                  </>
-                                ) : (
-                                  <>
-                                    <span className="sy-bags-row">
-                                      Bags: {d.bags_count} ={" "}
-                                      {inr(d.base_amount)}
+                                          <i className="bi bi-x-lg"></i>
+                                        </button>
+                                      )}
                                     </span>
-                                    {d.ot_entries &&
-                                      d.ot_entries.length > 0 &&
-                                      d.ot_entries.map((ot) => (
-                                        <span
-                                          key={ot.id}
-                                          className="sy-ot-line"
-                                        >
-                                          <i className="bi bi-clock-history"></i>{" "}
-                                          {ot.work_name}: {inr(ot.amount)} ×{" "}
-                                          {ot.quantity} ={" "}
-                                          {inr(ot.amount * ot.quantity)}
-                                          {canEditDelete && (
-                                            <button
-                                              className="sy-ot-line__del"
-                                              onClick={() =>
-                                                setSyOtDeleteConfirm(ot)
-                                              }
-                                              title="Remove OT entry"
-                                            >
-                                              <i className="bi bi-x-lg"></i>
-                                            </button>
-                                          )}
-                                        </span>
-                                      ))}
-                                  </>
-                                )}
-                              </div>
-                              <div className="at-bubble-foot">
-                                <span className="at-wh">
-                                  Total:{" "}
-                                  {inr(
-                                    isEditingThis ? draftTotal : d.total_amount,
-                                  )}
-                                </span>
-                                {isEditingThis && (
-                                  <div style={{ display: "flex", gap: 8 }}>
-                                    <button
-                                      className="at-btn at-btn--ghost"
-                                      style={{
-                                        padding: "5px 12px",
-                                        fontSize: 12,
-                                      }}
-                                      onClick={syCancelEditDay}
-                                    >
-                                      Cancel
-                                    </button>
-                                    <button
-                                      className="at-btn at-btn--primary"
-                                      style={{
-                                        padding: "5px 12px",
-                                        fontSize: 12,
-                                      }}
-                                      onClick={() => syHandleSaveDayEdits(d)}
-                                    >
-                                      <i className="bi bi-check-lg"></i> Save
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  )}
-
-                  {syShowPaymentHistory && (
-                    <>
-                      <div className="sy-section-head">
-                        <i className="bi bi-wallet2"></i>
-                        <span>Payment History</span>
-                      </div>
-                      <div className="at-timeline">
-                        {syLoading ? (
-                          <div className="at-loading">
-                            <div className="at-spinner"></div>
-                            <span>Loading…</span>
+                                  ))}
+                              </>
+                            )}
                           </div>
-                        ) : syPaymentsTimeline.length === 0 ? (
-                          <div className="at-empty">
-                            <i className="bi bi-wallet2"></i>
-                            <p>No payments in this period</p>
-                            <span>Use Add Payment above to record one.</span>
+                          <div className="at-bubble-foot">
+                            <span className="at-wh">
+                              Total:{" "}
+                              {inr(isEditingThis ? draftTotal : d.total_amount)}
+                            </span>
+                            {isEditingThis ? (
+                              <div style={{ display: "flex", gap: 8 }}>
+                                <button
+                                  className="at-btn at-btn--ghost"
+                                  style={{ padding: "5px 12px", fontSize: 12 }}
+                                  onClick={syCancelEditDay}
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  className="at-btn at-btn--primary"
+                                  style={{ padding: "5px 12px", fontSize: 12 }}
+                                  onClick={() => syHandleSaveDayEdits(d)}
+                                >
+                                  <i className="bi bi-check-lg"></i> Save
+                                </button>
+                              </div>
+                            ) : (
+                              attRec &&
+                              canEditDelete && (
+                                <button
+                                  className="sy-edit-btn"
+                                  onClick={() => setAtDeleteConfirm(attRec)}
+                                  title="Delete the attendance record for this day"
+                                >
+                                  <i className="bi bi-calendar-x"></i> Remove
+                                  attendance
+                                </button>
+                              )
+                            )}
                           </div>
-                        ) : (
-                          syPaymentsTimeline.map((p) => (
-                            <div
-                              className="at-bubble at-bubble--payment"
-                              key={`p-${p.id}`}
-                            >
-                              <div className="at-bubble-head">
-                                <span className="at-bubble-date">
-                                  {p.payment_date}
-                                </span>
-                                <span
-                                  className="at-status-badge"
-                                  style={{
-                                    background: "#dbeafe",
-                                    color: "#1d4ed8",
-                                  }}
-                                >
-                                  <i className="bi bi-cash"></i> Payment
-                                </span>
-                              </div>
-                              <div className="at-bubble-body">
-                                <span
-                                  style={{ fontWeight: 700, color: "#1d4ed8" }}
-                                >
-                                  {inr(p.amount)} paid
-                                </span>
-                                {p.note && <span>{p.note}</span>}
-                              </div>
-                              {canEditDelete && (
-                                <div className="at-bubble-foot">
-                                  <span className="at-time-mono">
-                                    Logged {formatTime(p.created_at)}
-                                  </span>
-                                  <div className="at-actions">
-                                    <button
-                                      className="at-act at-act--del"
-                                      onClick={() =>
-                                        setSyPaymentDeleteConfirm(p)
-                                      }
-                                      title="Delete payment"
-                                    >
-                                      <i className="bi bi-trash-fill"></i>
-                                    </button>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </>
+                        </div>
+                      );
+                    })
                   )}
-                </>
-              )}
-            </div>
+                </div>
+              </>
+            )}
           </div>
-        )}
+        </div>
 
         {atBranchWarn && (
           <div className="at-overlay" onClick={() => setAtBranchWarn(false)}>
