@@ -3,7 +3,17 @@ import { apiFetch } from "../utils/api";
 
 const todayDate = () => new Date().toISOString().slice(0, 10);
 
-const UNITS = ["Pcs", "Kg", "Meter", "Roll", "Box", "Set", "Liter", "Ton"];
+const UNITS = [
+  "Pcs",
+  "Kg",
+  "Meter",
+  "Roll",
+  "Box",
+  "Set",
+  "Liter",
+  "Ton",
+  "Nos",
+];
 
 const emptyForm = {
   productName: "",
@@ -87,6 +97,8 @@ export default function Products() {
   const [damageLoading, setDamageLoading] = useState(false);
   const [stockInOpenId, setStockInOpenId] = useState(null);
   const [stockInQty, setStockInQty] = useState("");
+  const [stockOutOpenId, setStockOutOpenId] = useState(null);
+  const [stockOutQty, setStockOutQty] = useState("");
   const [editingDamageId, setEditingDamageId] = useState(null);
   const [damageEditForm, setDamageEditForm] = useState({
     qty: "",
@@ -260,6 +272,8 @@ export default function Products() {
   };
 
   const openStockIn = (id) => {
+    setStockOutOpenId(null);
+    setStockOutQty("");
     setStockInOpenId(id);
     setStockInQty("");
   };
@@ -293,22 +307,42 @@ export default function Products() {
     }
   };
 
-  const handleStockOut = async (p) => {
-    if (Number(p.stockQty) <= 0) {
-      setError("No stock available to remove");
+  const openStockOut = (id) => {
+    setStockInOpenId(null);
+    setStockInQty("");
+    setStockOutOpenId(id);
+    setStockOutQty("");
+  };
+
+  const cancelStockOut = () => {
+    setStockOutOpenId(null);
+    setStockOutQty("");
+  };
+
+  const confirmStockOut = async (p) => {
+    const qty = Number(stockOutQty);
+    if (!qty || qty <= 0) {
+      setError("Enter a valid quantity");
       return;
     }
+    if (qty > Number(p.stockQty)) {
+      setError("Not enough stock available");
+      return;
+    }
+    setError("");
     try {
       const res = await apiFetch(`/products.php?action=stock-out&id=${p.id}`, {
         method: "POST",
-        body: JSON.stringify({}),
+        body: JSON.stringify({ qty }),
       });
       if (!res.ok) {
         const e = await res.json();
         throw new Error(e.error || "Stock out failed");
       }
       await fetchProducts();
-      setSuccessMsg(`1 unit marked damaged: ${p.productName}`);
+      setStockOutOpenId(null);
+      setStockOutQty("");
+      setSuccessMsg(`${qty} unit(s) marked damaged: ${p.productName}`);
     } catch (err) {
       setError(err.message);
     }
@@ -443,6 +477,9 @@ export default function Products() {
     (p) => getStockStatus(p.stockQty, p.minStock) === "out",
   ).length;
 
+  const hsnDup = error?.toLowerCase().includes("hsn");
+  const nameDup = !hsnDup && error?.includes("already exists");
+
   return (
     <>
       <style>{`
@@ -532,8 +569,12 @@ export default function Products() {
 
         .at-inline-edit { background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 10px; padding: 12px 14px; margin-top: 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
         .at-inline-edit__label { font-size: 12.5px; font-weight: 600; color: #1d4ed8; flex-shrink: 0; }
+        .at-inline-edit--out { background: #fff7ed; border-color: #fed7aa; }
+        .at-inline-edit--out .at-inline-edit__label { color: #c2410c; }
         .at-chip { background: #fff; color: #1d4ed8; border: 1px solid #bfdbfe; border-radius: 20px; padding: 4px 12px; font-size: 12px; font-weight: 700; cursor: pointer; }
         .at-chip:hover { background: #eff6ff; }
+        .at-chip--out { color: #c2410c; border-color: #fed7aa; }
+        .at-chip--out:hover { background: #fff7ed; }
 
         .at-empty { display: flex; flex-direction: column; align-items: center; padding: 52px 20px; color: #94a3b8; }
         .at-empty i { font-size: 40px; margin-bottom: 10px; }
@@ -594,9 +635,11 @@ export default function Products() {
               <i className="bi bi-x-lg"></i> Close
             </button>
           ) : (
-            <button className="at-btn at-btn--primary" onClick={openAddForm}>
-              <i className="bi bi-plus-lg"></i> Add Product
-            </button>
+            isAdmin && (
+              <button className="at-btn at-btn--primary" onClick={openAddForm}>
+                <i className="bi bi-plus-lg"></i> Add Product
+              </button>
+            )
           )}
         </div>
 
@@ -714,14 +757,14 @@ export default function Products() {
                     Product Name <span className="req">*</span>
                   </label>
                   <input
-                    className={`at-input ${error?.includes("already exists") ? "error-field" : ""}`}
+                    className={`at-input ${nameDup ? "error-field" : ""}`}
                     name="productName"
                     value={form.productName}
                     onChange={handleChange}
                     placeholder="e.g. Chain Link Fence Roll"
                     required
                   />
-                  {error?.includes("already exists") && (
+                  {nameDup && (
                     <span className="at-hint error-hint">
                       This product name already exists in this branch
                     </span>
@@ -730,7 +773,7 @@ export default function Products() {
                 <div className="at-fg">
                   <label className="at-label">HSN</label>
                   <input
-                    className="at-input"
+                    className={`at-input ${hsnDup ? "error-field" : ""}`}
                     name="hsn"
                     value={form.hsn}
                     onChange={handleChange}
@@ -1006,7 +1049,9 @@ export default function Products() {
                               <div className="at-bubble-stat">
                                 <b>Date</b>
                                 {p.productDate
-                                  ? new Date(p.productDate).toLocaleDateString()
+                                  ? new Date(p.productDate).toLocaleDateString(
+                                      "en-GB",
+                                    )
                                   : "—"}
                               </div>
                               <div className="at-bubble-stat">
@@ -1024,45 +1069,47 @@ export default function Products() {
                             </div>
                             <div className="at-bubble-foot">
                               <span></span>
-                              {isAdmin ? (
-                                <div className="at-bubble-actions">
-                                  <button
-                                    className="at-act-btn at-act-btn--stockin"
-                                    onClick={() =>
-                                      stockInOpenId === p.id
-                                        ? cancelStockIn()
-                                        : openStockIn(p.id)
-                                    }
-                                  >
-                                    <i className="bi bi-plus-lg"></i> Stock In
-                                  </button>
-                                  <button
-                                    className="at-act-btn at-act-btn--stockout"
-                                    onClick={() => handleStockOut(p)}
-                                  >
-                                    <i className="bi bi-dash-lg"></i> Stock Out
-                                  </button>
-                                  <button
-                                    className="at-act-btn at-act-btn--edit"
-                                    onClick={() => handleEdit(p)}
-                                  >
-                                    <i className="bi bi-pencil"></i> Edit
-                                  </button>
-                                  <button
-                                    className="at-act-btn at-act-btn--delete"
-                                    onClick={() => setDeleteConfirmProduct(p)}
-                                  >
-                                    <i className="bi bi-trash"></i> Delete
-                                  </button>
-                                </div>
-                              ) : (
-                                <span
-                                  style={{ fontSize: 12, color: "#94a3b8" }}
+                              <div className="at-bubble-actions">
+                                <button
+                                  className="at-act-btn at-act-btn--stockin"
+                                  onClick={() =>
+                                    stockInOpenId === p.id
+                                      ? cancelStockIn()
+                                      : openStockIn(p.id)
+                                  }
                                 >
-                                  View only
-                                </span>
-                              )}
+                                  <i className="bi bi-plus-lg"></i> Stock In
+                                </button>
+                                {isAdmin && (
+                                  <>
+                                    <button
+                                      className="at-act-btn at-act-btn--stockout"
+                                      onClick={() =>
+                                        stockOutOpenId === p.id
+                                          ? cancelStockOut()
+                                          : openStockOut(p.id)
+                                      }
+                                    >
+                                      <i className="bi bi-dash-lg"></i> Stock
+                                      Out
+                                    </button>
+                                    <button
+                                      className="at-act-btn at-act-btn--edit"
+                                      onClick={() => handleEdit(p)}
+                                    >
+                                      <i className="bi bi-pencil"></i> Edit
+                                    </button>
+                                    <button
+                                      className="at-act-btn at-act-btn--delete"
+                                      onClick={() => setDeleteConfirmProduct(p)}
+                                    >
+                                      <i className="bi bi-trash"></i> Delete
+                                    </button>
+                                  </>
+                                )}
+                              </div>
                             </div>
+
                             {stockInOpenId === p.id && (
                               <div className="at-inline-edit">
                                 <span className="at-inline-edit__label">
@@ -1110,6 +1157,65 @@ export default function Products() {
                                     fontSize: 12.5,
                                   }}
                                   onClick={cancelStockIn}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            )}
+
+                            {stockOutOpenId === p.id && (
+                              <div className="at-inline-edit at-inline-edit--out">
+                                <span className="at-inline-edit__label">
+                                  Damaged qty:
+                                </span>
+                                <input
+                                  type="number"
+                                  className="at-input"
+                                  style={{ width: 110, height: 34 }}
+                                  value={stockOutQty}
+                                  onChange={(e) =>
+                                    setStockOutQty(e.target.value)
+                                  }
+                                  onWheel={(e) => e.target.blur()}
+                                  placeholder="Qty"
+                                  min="1"
+                                  max={p.stockQty}
+                                  autoFocus
+                                />
+                                {[1, 5, 10].map((q) => (
+                                  <button
+                                    key={q}
+                                    type="button"
+                                    className="at-chip at-chip--out"
+                                    onClick={() => setStockOutQty(String(q))}
+                                  >
+                                    -{q}
+                                  </button>
+                                ))}
+                                <span
+                                  style={{ fontSize: 12, color: "#94a3b8" }}
+                                >
+                                  Available: {p.stockQty}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="at-btn at-btn--primary"
+                                  style={{
+                                    padding: "6px 16px",
+                                    fontSize: 12.5,
+                                  }}
+                                  onClick={() => confirmStockOut(p)}
+                                >
+                                  Confirm
+                                </button>
+                                <button
+                                  type="button"
+                                  className="at-btn at-btn--ghost"
+                                  style={{
+                                    padding: "6px 16px",
+                                    fontSize: 12.5,
+                                  }}
+                                  onClick={cancelStockOut}
                                 >
                                   Cancel
                                 </button>
@@ -1173,7 +1279,9 @@ export default function Products() {
                             <div className="at-bubble-stat">
                               <b>Date of Damage</b>
                               {d.damageDate
-                                ? new Date(d.damageDate).toLocaleDateString()
+                                ? new Date(d.damageDate).toLocaleDateString(
+                                    "en-GB",
+                                  )
                                 : "—"}
                             </div>
                             <div className="at-bubble-stat">

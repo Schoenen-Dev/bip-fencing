@@ -12,6 +12,7 @@ const emptyItem = () => ({
 
 const emptyForm = () => ({
   company_name: "",
+  supplier_phone: "",
   invoice_no: "",
   bill_date: new Date().toISOString().slice(0, 10),
   notes: "",
@@ -232,6 +233,7 @@ export default function PurchaseBill() {
   const startEdit = (bill) => {
     setForm({
       company_name: bill.company_name || "",
+      supplier_phone: bill.supplier_phone || "",
       invoice_no: bill.invoice_no || "",
       bill_date: bill.bill_date || "",
       notes: bill.notes || "",
@@ -403,6 +405,21 @@ export default function PurchaseBill() {
               />
             </div>
             <div className="at-fg">
+              <label className="at-label">Supplier Phone</label>
+              <input
+                type="tel"
+                name="supplier_phone"
+                placeholder="10-digit mobile number"
+                className="at-input"
+                value={form.supplier_phone}
+                onChange={handleHeaderChange}
+              />
+              <small style={{ color: "#6b7280", fontSize: 12 }}>
+                Enter the same number used on their tax invoice to net the
+                balances together on the Client page.
+              </small>
+            </div>
+            <div className="at-fg">
               <label className="at-label">
                 Invoice No. <span className="req">*</span>
               </label>
@@ -465,7 +482,7 @@ export default function PurchaseBill() {
                       <input
                         type="text"
                         name="product_id"
-                        placeholder="SKU / Code"
+                        placeholder="HSN / Code"
                         className="at-input-t"
                         value={item.product_id}
                         onChange={(e) => handleItemChange(idx, e)}

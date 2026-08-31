@@ -674,7 +674,7 @@ export default function PurchaseInventory() {
                         </div>
                         <div className="at-bubble-body">
                           <div className="at-bubble-stat">
-                            <b>Product ID</b>
+                            <b>HSN Code</b>
                             {p.product_id}
                           </div>
                           {isAdmin && (
@@ -850,7 +850,7 @@ export default function PurchaseInventory() {
                         {h.deducted_at}
                       </div>
                       <div className="at-bubble-stat">
-                        <b>Product ID</b>
+                        <b>HSN code</b>
                         {h.product_id}
                       </div>
                       <div className="at-bubble-stat">

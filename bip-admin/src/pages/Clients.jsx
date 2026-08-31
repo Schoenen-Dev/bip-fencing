@@ -24,10 +24,26 @@ const fmt = (n) =>
 const inr = (v) => `₹ ${fmt(v)}`;
 
 const getStatusBadge = (pending, totalBilled) => {
-  if (Number(pending) <= 0) return { label: "Fully Paid", cls: "cl-tag--paid" };
-  if (Number(pending) >= Number(totalBilled))
+  const net = Number(pending);
+  // Negative net = the purchase bills outweigh the invoices, so WE owe them.
+  if (net < 0) return { label: "You Owe", cls: "cl-tag--unpaid" };
+  if (net === 0) return { label: "Settled", cls: "cl-tag--paid" };
+  if (net >= Number(totalBilled))
     return { label: "Unpaid", cls: "cl-tag--unpaid" };
   return { label: "Partial", cls: "cl-tag--partial" };
+};
+
+// Net balance shown as a positive number plus a direction label.
+const balanceView = (net) => {
+  const v = Number(net) || 0;
+  return v < 0
+    ? {
+        label: "You Owe",
+        amount: Math.abs(v),
+        cls: "cl-amount--red",
+        weOwe: true,
+      }
+    : { label: "Balance Due", amount: v, cls: "cl-amount--red", weOwe: false };
 };
 
 // ── Number to words ───────────────────────────────────────────
@@ -102,688 +118,842 @@ function numberToWords(num) {
 }
 
 // ── Tax Invoice Print View ────────────────────────────────────
+// ── Tax Invoice Print View (A4 print-optimized) ─────────────────
 function TaxInvoiceView({ inv, onBack }) {
   const items = inv.items || [];
+  const B = "1px solid #000";
+
+  const COMPANY = {
+    name: "BIP FENCING CONTRACT WORK",
+    address:
+      "NO. 26/A, MAIN ROAD, PAMBANKULAM, KALANTHAPANAI, PANAGUDI - 627109",
+    gst: "33ABLPI5244C1Z1",
+    state: "Tamil Nadu",
+    stateCode: "33",
+    phone: "9655072445",
+  };
+  const DECLARATION =
+    "We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.";
+
+  const fmt2 = fmt;
+
+  const formatDate = (d) => {
+    if (!d) return "";
+    const dt = new Date(String(d).slice(0, 10) + "T00:00:00");
+    if (isNaN(dt)) return d;
+    return dt.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "2-digit",
+    });
+  };
+
+  const sectionHead = {
+    fontWeight: "bold",
+    fontSize: 15,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+    marginBottom: 2,
+    borderBottom: "1px dashed #999",
+    paddingBottom: 1,
+  };
+
   const printStyles = `
-      @media print {
-        .no-print { display: none !important; }
-        body { margin: 0; }
-        .invoice-wrapper { padding: 0 !important; background: white !important; }
-      }
-    `;
+    @media print {
+      html, body { width: 210mm; margin: 0 !important; padding: 0 !important; background: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      body * { visibility: hidden !important; }
+      #invoice-print, #invoice-print * { visibility: visible !important; }
+      #invoice-print { position: absolute !important; top: 0 !important; left: 0 !important; width: 100% !important; margin: 0 !important; box-shadow: none !important; border: 2px solid #000 !important; }
+      .no-print { display: none !important; }
+      table { border-collapse: collapse !important; }
+      .inv-product-row { page-break-inside: avoid; }
+      .inv-footer { page-break-inside: avoid; }
+      .inv-thead { display: table-header-group !important; }
+      @page { size: A4 portrait; margin: 5mm; }
+    }
+  `;
+
+  const rows = items.map((it) => {
+    const qty = parseFloat(it.qty) || 0;
+    const rateIncl = parseFloat(it.rate_incl) || 0;
+    const rateExcl =
+      parseFloat(it.rate_excl) ||
+      (qty ? (parseFloat(it.taxable_amt) || 0) / qty : 0);
+    const taxableAmt = parseFloat(it.taxable_amt) || rateExcl * qty;
+    return {
+      desc: it.description || "",
+      hsn: it.hsn || "",
+      per: it.per || "NOS",
+      qty,
+      rateIncl,
+      rateExcl,
+      taxableAmt,
+    };
+  });
+
+  const itemCount = rows.length;
+  const dynFont =
+    itemCount <= 10 ? 11 : itemCount <= 20 ? 12 : itemCount <= 30 ? 11 : 10;
+  const dynPad = itemCount <= 20 ? "3px 6px" : "2px 5px";
+  const MIN_ROWS = itemCount >= 15 ? 0 : Math.max(0, 15 - itemCount);
+
+  const dc = (extra = {}) => ({
+    border: "none",
+    borderLeft: B,
+    borderRight: B,
+    padding: dynPad,
+    fontSize: dynFont,
+    verticalAlign: "middle",
+    lineHeight: "1.2",
+    ...extra,
+  });
+  const dhc = (extra = {}) => ({
+    ...dc(),
+    borderTop: B,
+    borderBottom: B,
+    fontWeight: "bold",
+    background: "#e8e8e8",
+    ...extra,
+  });
+
+  const cgstRate = Number(inv.cgst_rate || 0);
+  const sgstRate = Number(inv.sgst_rate || 0);
+  const subtotal = Number(inv.subtotal || 0);
+  const cgstAmt = Number(inv.cgst_amount || 0);
+  const sgstAmt = Number(inv.sgst_amount || 0);
+  const totalTax = cgstAmt + sgstAmt;
+  const netAmount = Number(inv.net_amount || 0);
+  const totalQty = rows.reduce((s, r) => s + r.qty, 0);
+  const openBalance = Number(inv.open_balance || 0);
+  const closingBalance = openBalance + netAmount;
+
+  const hsnGroups = {};
+  rows.forEach((r) => {
+    const key = r.hsn || "–";
+    if (!hsnGroups[key]) hsnGroups[key] = { taxableValue: 0, cgst: 0, sgst: 0 };
+    hsnGroups[key].taxableValue += r.taxableAmt;
+    hsnGroups[key].cgst += r.taxableAmt * (cgstRate / 100);
+    hsnGroups[key].sgst += r.taxableAmt * (sgstRate / 100);
+  });
+
+  const leftMetaFields = [
+    { label: "Invoice No.", value: inv.invoice_no },
+    inv.reference_no
+      ? { label: "Reference No. & Date", value: inv.reference_no }
+      : null,
+    inv.buyers_order_no
+      ? { label: "Buyer's Order No.", value: inv.buyers_order_no }
+      : null,
+    inv.dated ? { label: "Dated", value: formatDate(inv.dated) } : null,
+  ].filter(Boolean);
+
+  const rightMetaFields = [
+    inv.dispatch_doc_no
+      ? { label: "Dispatch Doc No.", value: inv.dispatch_doc_no }
+      : null,
+    inv.delivery_note_date
+      ? {
+          label: "Delivery Note Date",
+          value: formatDate(inv.delivery_note_date),
+        }
+      : null,
+  ].filter(Boolean);
+
+  const buyerRightDetails = [
+    { label: "Payment", value: inv.payment_mode || "Credit" },
+    inv.dispatched_through
+      ? { label: "Transport", value: inv.dispatched_through }
+      : null,
+    inv.eway_number
+      ? { label: "E-Way Bill No.", value: inv.eway_number }
+      : null,
+    inv.destination ? { label: "Delivery To", value: inv.destination } : null,
+    inv.bill_of_lading
+      ? { label: "Bill of Lading/LR-RR No.", value: inv.bill_of_lading }
+      : null,
+    inv.motor_vehicle_no
+      ? { label: "Motor Vehicle No.", value: inv.motor_vehicle_no }
+      : null,
+  ].filter(Boolean);
 
   return (
-    <div
-      className="invoice-wrapper"
-      style={{ background: "#f0f0f0", minHeight: "100vh", padding: "20px" }}
-    >
+    <div style={{ background: "#f0f0f0", minHeight: "100vh", padding: "20px" }}>
       <style>{printStyles}</style>
-      <div className="no-print d-flex justify-content-between align-items-center mb-3">
-        <h5 className="mb-0">Tax Invoice — {inv.invoice_no}</h5>
-        <div className="d-flex gap-2">
-          <button className="btn btn-outline-secondary btn-sm" onClick={onBack}>
-            ← Back to Clients
-          </button>
-        </div>
+
+      <div
+        className="no-print"
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          gap: 12,
+          paddingBottom: 16,
+        }}
+      >
+        <button className="btn btn-outline-secondary btn-sm" onClick={onBack}>
+          ← Back to Customers
+        </button>
+        <button
+          className="btn btn-success btn-sm"
+          onClick={() => window.print()}
+        >
+          🖨️ Print
+        </button>
       </div>
 
       <div
         id="invoice-print"
         style={{
-          background: "white",
-          maxWidth: "900px",
-          margin: "0 auto",
+          width: "210mm",
+          minHeight: "297mm",
+          margin: "0 auto 30px",
+          padding: "8mm",
+          fontFamily: "'Times New Roman', Times, serif",
+          color: "#000",
+          background: "#fff",
           border: "2px solid #000",
-          fontFamily: "Arial, sans-serif",
-          fontSize: "12px",
+          fontSize: dynFont + 2,
+          boxSizing: "border-box",
+          display: "flex",
+          flexDirection: "column",
         }}
       >
         <div
           style={{
             textAlign: "right",
-            fontSize: "10px",
             padding: "2px 8px",
+            fontStyle: "italic",
+            fontSize: 10,
             borderBottom: "1px solid #000",
           }}
         >
-          (ORIGINAL FOR RECIPIENT)
+          ({inv.copy_type || "ORIGINAL FOR RECIPIENT"})
         </div>
 
-        {/* Company Header */}
-        <div style={{ display: "flex", borderBottom: "2px solid #000" }}>
-          <div
-            style={{
-              width: "80px",
-              minWidth: "80px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "4px",
-              margin: "6px",
-            }}
-          >
-            <img
-              src={BIP_LOGO_B64}
-              alt="BIP Fencing"
-              style={{ width: "68px", height: "68px", objectFit: "contain" }}
-            />
-          </div>
-          <div style={{ flex: 1, textAlign: "center", padding: "8px 0" }}>
-            <div
-              style={{
-                fontSize: "16px",
-                fontWeight: "bold",
-                textTransform: "uppercase",
-              }}
-            >
-              BIP FENCING CONTRACT WORK
-            </div>
-            <div style={{ fontSize: "11px" }}>
-              NO: 26/A, MAIN ROAD, PAMBANKULAM, KALANTHAPANAI, PANAGUDI - 627109
-            </div>
-            <div style={{ fontSize: "11px" }}>
-              GSTIN/UIN: <strong>{inv.seller_gst || "33ABLPI5244C1Z1"}</strong>{" "}
-              &nbsp;|&nbsp; State: Tamil Nadu, Code: 33
-            </div>
-            <div style={{ fontSize: "11px" }}>
-              Ph: {inv.seller_phone || "9655072445"}
-            </div>
-          </div>
-          <div
-            style={{
-              width: "160px",
-              padding: "6px 8px",
-              fontSize: "10px",
-              borderLeft: "1px solid #000",
-            }}
-          >
-            <div>E-Way Bill No: {inv.eway_number || ""}</div>
-          </div>
-        </div>
-
-        {/* Consignee + Invoice Details */}
-        <div style={{ display: "flex", borderBottom: "1px solid #000" }}>
-          <div
-            style={{
-              flex: 1,
-              padding: "6px 8px",
-              borderRight: "1px solid #000",
-            }}
-          >
-            <div
-              style={{
-                fontWeight: "bold",
-                fontSize: "10px",
-                marginBottom: "2px",
-              }}
-            >
-              CONSIGNEE (SHIP TO)
-            </div>
-            <div style={{ fontWeight: "bold" }}>
-              {inv.consignee_name || inv.buyer_name}
-            </div>
-            {inv.consignee_address && <div>{inv.consignee_address}</div>}
-            {inv.consignee_state && (
-              <div>
-                State Name: {inv.consignee_state}, Code:{" "}
-                {inv.consignee_state_code}
-              </div>
-            )}
-          </div>
-          <div style={{ width: "320px", fontSize: "11px" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <tbody>
-                {[
-                  ["Invoice No.", inv.invoice_no],
-                  ["Delivery Note", inv.delivery_note || ""],
-                  ["Reference No. & Date", inv.reference_no || ""],
-                  ["Other References", inv.other_references || ""],
-                  ["Buyer's Order No.", inv.buyers_order_no || ""],
-                  ["Dated", inv.invoice_date],
-                ].map(([label, value]) => (
-                  <tr key={label} style={{ borderBottom: "1px solid #ccc" }}>
-                    <td
-                      style={{
-                        padding: "2px 6px",
-                        color: "#555",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {label}
-                    </td>
-                    <td style={{ padding: "2px 6px" }}>: {value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div
-            style={{
-              width: "220px",
-              fontSize: "11px",
-              borderLeft: "1px solid #000",
-            }}
-          >
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <tbody>
-                {[
-                  ["Dispatch Doc No.", inv.dispatch_doc_no || ""],
-                  ["Delivery Note Date", inv.delivery_note_date || ""],
-                  ["Dispatched through", inv.dispatched_through || ""],
-                  ["Destination", inv.destination || ""],
-                  ["Bill of Lading/LR-RR No.", inv.bill_of_lading || ""],
-                  ["Motor Vehicle No.", inv.motor_vehicle_no || ""],
-                ].map(([label, value]) => (
-                  <tr key={label} style={{ borderBottom: "1px solid #ccc" }}>
-                    <td
-                      style={{
-                        padding: "2px 6px",
-                        color: "#555",
-                        whiteSpace: "nowrap",
-                        fontSize: "10px",
-                      }}
-                    >
-                      {label}
-                    </td>
-                    <td style={{ padding: "2px 4px", fontSize: "10px" }}>
-                      : {value}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Buyer */}
-        <div style={{ display: "flex", borderBottom: "1px solid #000" }}>
-          <div
-            style={{
-              flex: 1,
-              padding: "6px 8px",
-              borderRight: "1px solid #000",
-              fontSize: "11px",
-            }}
-          >
-            <div
-              style={{
-                fontWeight: "bold",
-                fontSize: "10px",
-                marginBottom: "2px",
-              }}
-            >
-              BUYER (BILL TO)
-            </div>
-            <div style={{ fontWeight: "bold", fontSize: "13px" }}>
-              {inv.buyer_name}
-            </div>
-            {inv.buyer_address && <div>{inv.buyer_address}</div>}
-            {inv.buyer_phone && <div>Ph: {inv.buyer_phone}</div>}
-            {inv.buyer_gst && <div>GSTIN/UIN: {inv.buyer_gst}</div>}
-            {inv.buyer_state && (
-              <div>
-                State Name: {inv.buyer_state}, Code: {inv.buyer_state_code}
-              </div>
-            )}
-          </div>
-          <div style={{ width: "320px", fontSize: "11px" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <tbody>
-                {[
-                  ["Invoice No.", inv.invoice_no],
-                  ["Invoice Date", inv.invoice_date],
-                  ["Payment", inv.payment_mode || ""],
-                  ["Transport", inv.dispatched_through || ""],
-                ].map(([label, value]) => (
-                  <tr key={label} style={{ borderBottom: "1px solid #ccc" }}>
-                    <td
-                      style={{
-                        padding: "2px 6px",
-                        color: "#555",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {label}
-                    </td>
-                    <td style={{ padding: "2px 6px" }}>: {value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div
-            style={{
-              width: "220px",
-              borderLeft: "1px solid #000",
-              fontSize: "11px",
-            }}
-          >
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <tbody>
-                {[
-                  ["Motor Vehicle No.", inv.motor_vehicle_no || ""],
-                  ["E-Way Bill No.", inv.eway_number || ""],
-                  ["Delivery To", inv.destination || ""],
-                ].map(([label, value]) => (
-                  <tr key={label} style={{ borderBottom: "1px solid #ccc" }}>
-                    <td
-                      style={{
-                        padding: "2px 6px",
-                        color: "#555",
-                        whiteSpace: "nowrap",
-                        fontSize: "10px",
-                      }}
-                    >
-                      {label}
-                    </td>
-                    <td style={{ padding: "2px 4px", fontSize: "10px" }}>
-                      : {value}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Items Table */}
+        {/* HEADER */}
         <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            borderBottom: "1px solid #000",
-          }}
+          style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}
         >
-          <thead>
-            <tr
-              style={{ background: "#f5f5f5", borderBottom: "1px solid #000" }}
-            >
-              <th style={thStyle}>Sl No.</th>
-              <th style={{ ...thStyle, textAlign: "left" }}>
-                Description of Goods
-              </th>
-              <th style={thStyle}>
-                HSN/
-                <br />
-                SAC
-              </th>
-              <th style={thStyle}>Quantity</th>
-              <th style={thStyle}>
-                Rate
-                <br />
-                (Incl. of Tax)
-              </th>
-              <th style={thStyle}>
-                Rate
-                <br />
-                (Excl. Tax)
-              </th>
-              <th style={thStyle}>per</th>
-              <th style={thStyle}>
-                Amount
-                <br />
-                (Taxable Value)
-              </th>
-            </tr>
-          </thead>
           <tbody>
-            {items.map((item, idx) => (
-              <tr
-                key={item.id || idx}
-                style={{ borderBottom: "1px solid #eee" }}
-              >
-                <td style={tdCenter}>{idx + 1}</td>
-                <td style={{ ...tdStyle, textAlign: "left" }}>
-                  {item.description}
-                </td>
-                <td style={tdCenter}>{item.hsn}</td>
-                <td style={tdCenter}>
-                  {item.qty} {item.per}
-                </td>
-                <td style={tdRight}>{fmt(item.rate_incl)}</td>
-                <td style={tdRight}>
-                  {fmt(item.rate_excl || item.taxable_amt / (item.qty || 1))}
-                </td>
-                <td style={tdCenter}>{item.per}</td>
-                <td style={tdRight}>{fmt(item.taxable_amt)}</td>
-              </tr>
-            ))}
-            {items.length < 6 &&
-              Array(6 - items.length)
-                .fill(0)
-                .map((_, i) => (
-                  <tr
-                    key={`empty-${i}`}
-                    style={{
-                      height: "22px",
-                      borderBottom: "1px solid #f0f0f0",
-                    }}
-                  >
-                    <td colSpan={8}>&nbsp;</td>
-                  </tr>
-                ))}
-          </tbody>
-          <tfoot>
-            <tr style={{ borderTop: "1px solid #ccc" }}>
-              <td
-                colSpan={6}
-                style={{
-                  textAlign: "right",
-                  padding: "3px 8px",
-                  fontSize: "11px",
-                }}
-              >
-                CGST TAX
-              </td>
-              <td
-                colSpan={2}
-                style={{
-                  textAlign: "right",
-                  padding: "3px 8px",
-                  fontWeight: "bold",
-                }}
-              >
-                {fmt(inv.cgst_amount)}
-              </td>
-            </tr>
             <tr>
               <td
-                colSpan={6}
                 style={{
-                  textAlign: "right",
-                  padding: "3px 8px",
-                  fontSize: "11px",
+                  width: 80,
+                  borderRight: B,
+                  padding: "4px",
+                  textAlign: "center",
+                  verticalAlign: "middle",
                 }}
               >
-                SGST TAX
+                <img
+                  src={BIP_LOGO_B64}
+                  alt="BIP Fencing"
+                  style={{
+                    width: 68,
+                    height: 68,
+                    objectFit: "contain",
+                    display: "block",
+                    margin: "0 auto",
+                  }}
+                />
               </td>
               <td
-                colSpan={2}
                 style={{
-                  textAlign: "right",
-                  padding: "3px 8px",
-                  fontWeight: "bold",
+                  padding: "4px 10px",
+                  textAlign: "center",
+                  verticalAlign: "middle",
                 }}
               >
-                {fmt(inv.sgst_amount)}
-              </td>
-            </tr>
-            {Number(inv.round_off) !== 0 && (
-              <tr>
-                <td
-                  colSpan={6}
+                <div
                   style={{
-                    textAlign: "right",
-                    padding: "3px 8px",
-                    fontSize: "11px",
+                    fontSize: 24,
+                    fontWeight: "bold",
+                    letterSpacing: 1.5,
+                    textTransform: "uppercase",
                   }}
                 >
-                  ROUNDING OFF
-                </td>
-                <td
-                  colSpan={2}
-                  style={{ textAlign: "right", padding: "3px 8px" }}
-                >
-                  {Number(inv.round_off) > 0 ? "+" : ""}
-                  {fmt(inv.round_off)}
-                </td>
-              </tr>
-            )}
-            <tr style={{ borderTop: "2px solid #000" }}>
-              <td
-                colSpan={3}
-                style={{
-                  padding: "4px 8px",
-                  fontWeight: "bold",
-                  fontSize: "11px",
-                }}
-              >
-                Total &nbsp;&nbsp;{" "}
-                {items.reduce((s, i) => s + Number(i.qty || 0), 0).toFixed(2)}
-              </td>
-              <td
-                colSpan={5}
-                style={{
-                  textAlign: "right",
-                  padding: "4px 8px",
-                  fontWeight: "bold",
-                  fontSize: "13px",
-                }}
-              >
-                ₹{fmt(inv.net_amount)}
+                  {COMPANY.name}
+                </div>
+                <div style={{ fontSize: 10, marginTop: 1 }}>
+                  {COMPANY.address}
+                </div>
+                <div style={{ fontSize: 10 }}>
+                  GSTIN/UIN: <strong>{COMPANY.gst}</strong>&nbsp;&nbsp;State:{" "}
+                  {COMPANY.state}, Code: {COMPANY.stateCode}
+                </div>
+                <div style={{ fontSize: 10 }}>Ph: {COMPANY.phone}</div>
               </td>
             </tr>
-          </tfoot>
+          </tbody>
         </table>
 
-        {/* Amount in Words */}
-        <div style={{ display: "flex", borderBottom: "1px solid #000" }}>
-          <div
-            style={{
-              flex: 1,
-              padding: "6px 8px",
-              borderRight: "1px solid #000",
-            }}
-          >
-            <div style={{ fontSize: "10px", color: "#555" }}>
-              Amount Chargeable (in words)
-            </div>
-            <div
-              style={{
-                fontStyle: "italic",
-                fontSize: "12px",
-                fontWeight: "bold",
-              }}
-            >
-              {numberToWords(Number(inv.net_amount))}
-            </div>
-          </div>
-          <div
-            style={{
-              width: "200px",
-              textAlign: "right",
-              padding: "6px 8px",
-              fontWeight: "bold",
-              fontSize: "20px",
-            }}
-          >
-            ₹ {fmt(inv.net_amount)}
-          </div>
-          <div
-            style={{
-              width: "80px",
-              textAlign: "center",
-              padding: "6px 4px",
-              fontSize: "10px",
-              borderLeft: "1px solid #000",
-            }}
-          >
-            E. &amp; O.E.
-          </div>
-        </div>
+        {/* CONSIGNEE + META */}
+        <table
+          style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}
+        >
+          <tbody>
+            <tr>
+              <td
+                style={{
+                  width: "50%",
+                  borderRight: B,
+                  padding: "6px 7px",
+                  verticalAlign: "top",
+                }}
+              >
+                <div style={sectionHead}>Consignee (Ship to)</div>
+                <div style={{ fontWeight: "bold", fontSize: 16 }}>
+                  {inv.consignee_name || inv.buyer_name}
+                </div>
+                <div style={{ fontSize: 14 }}>
+                  {inv.consignee_address || inv.buyer_address}
+                </div>
+                <div style={{ fontSize: 14 }}>
+                  State Name: {inv.consignee_state || inv.buyer_state}, Code:{" "}
+                  {inv.consignee_state_code || inv.buyer_state_code}
+                </div>
+              </td>
+              <td
+                style={{
+                  width: "50%",
+                  padding: "6px 7px",
+                  verticalAlign: "top",
+                }}
+              >
+                {[...leftMetaFields, ...rightMetaFields].map(
+                  ({ label, value }, idx) => (
+                    <div
+                      key={label + idx}
+                      style={{ display: "flex", marginBottom: 2 }}
+                    >
+                      <span
+                        style={{
+                          fontWeight: "normal",
+                          minWidth: 130,
+                          whiteSpace: "nowrap",
+                          fontSize: 13,
+                        }}
+                      >
+                        {label}
+                      </span>
+                      <span style={{ fontWeight: "bold", fontSize: 13 }}>
+                        {" "}
+                        : {value}
+                      </span>
+                    </div>
+                  ),
+                )}
+              </td>
+            </tr>
+          </tbody>
+        </table>
 
-        {/* HSN Tax Summary */}
-        <div style={{ borderBottom: "1px solid #000" }}>
+        {/* BUYER + PAYMENT */}
+        <table
+          style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}
+        >
+          <tbody>
+            <tr>
+              <td
+                style={{
+                  width: "50%",
+                  borderRight: B,
+                  padding: "6px 7px",
+                  verticalAlign: "top",
+                }}
+              >
+                <div style={sectionHead}>Buyer (Bill to)</div>
+                <div style={{ fontWeight: "bold", fontSize: 16 }}>
+                  {inv.buyer_name}
+                </div>
+                <div style={{ fontSize: 14 }}>{inv.buyer_address}</div>
+                {inv.buyer_phone && (
+                  <div style={{ fontSize: 14 }}>Ph: {inv.buyer_phone}</div>
+                )}
+                {inv.buyer_gst && (
+                  <div style={{ fontSize: 14 }}>GSTIN/UIN: {inv.buyer_gst}</div>
+                )}
+                <div style={{ fontSize: 14 }}>
+                  State Name: {inv.buyer_state}, Code: {inv.buyer_state_code}
+                </div>
+              </td>
+              <td
+                style={{
+                  padding: "6px 7px",
+                  verticalAlign: "top",
+                  width: "50%",
+                }}
+              >
+                {buyerRightDetails.map(({ label, value }) => (
+                  <div key={label} style={{ display: "flex", marginBottom: 2 }}>
+                    <span
+                      style={{
+                        fontWeight: "normal",
+                        minWidth: 95,
+                        whiteSpace: "nowrap",
+                        fontSize: 14,
+                      }}
+                    >
+                      {label}
+                    </span>
+                    <span style={{ fontWeight: "bold", fontSize: 14 }}>
+                      {" "}
+                      : {value}
+                    </span>
+                  </div>
+                ))}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* PRODUCT TABLE */}
+        <div style={{ flex: 1 }}>
           <table
             style={{
               width: "100%",
               borderCollapse: "collapse",
-              fontSize: "11px",
+              tableLayout: "fixed",
+              borderTop: B,
+              borderBottom: B,
             }}
           >
-            <thead>
-              <tr
-                style={{
-                  background: "#f5f5f5",
-                  borderBottom: "1px solid #ccc",
-                }}
-              >
-                <th style={thStyle}>HSN/SAC</th>
-                <th style={thStyle}>Taxable Value</th>
-                <th style={thStyle}>CGST Rate</th>
-                <th style={thStyle}>CGST Amount</th>
-                <th style={thStyle}>SGST/UTGST Rate</th>
-                <th style={thStyle}>SGST/UTGST Amount</th>
-                <th style={thStyle}>Total Tax Amount</th>
+            <colgroup>
+              <col style={{ width: "4%" }} />
+              <col style={{ width: "48%" }} />
+              <col style={{ width: "8%" }} />
+              <col style={{ width: "9%" }} />
+              <col style={{ width: "11%" }} />
+              <col style={{ width: "11%" }} />
+              <col style={{ width: "5%" }} />
+              <col style={{ width: "14%" }} />
+            </colgroup>
+            <thead className="inv-thead">
+              <tr>
+                {[
+                  ["Sl\nNo.", "center"],
+                  ["Description of Goods", "left"],
+                  ["HSN/\nSAC", "center"],
+                  ["Quantity", "center"],
+                  ["Rate\n(Incl. Tax)", "right"],
+                  ["Rate\n(Excl. Tax)", "right"],
+                  ["Per", "center"],
+                  ["Taxable\nAmount", "right"],
+                ].map(([label, align], i) => (
+                  <th
+                    key={i}
+                    style={dhc({
+                      textAlign: align,
+                      whiteSpace: "pre-line",
+                      padding: dynPad,
+                    })}
+                  >
+                    {label}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {Object.entries(
-                items.reduce((acc, item) => {
-                  const key = item.hsn || "N/A";
-                  if (!acc[key]) acc[key] = { taxable: 0, cgst: 0, sgst: 0 };
-                  acc[key].taxable += Number(item.taxable_amt || 0);
-                  acc[key].cgst += Number(
-                    item.cgst_amount ||
-                      (item.taxable_amt * (inv.cgst_rate || 0)) / 100 ||
-                      0,
-                  );
-                  acc[key].sgst += Number(
-                    item.sgst_amount ||
-                      (item.taxable_amt * (inv.sgst_rate || 0)) / 100 ||
-                      0,
-                  );
-                  return acc;
-                }, {}),
-              ).map(([hsn, vals]) => (
-                <tr key={hsn} style={{ borderBottom: "1px solid #eee" }}>
-                  <td style={tdCenter}>{hsn}</td>
-                  <td style={tdRight}>{fmt(vals.taxable)}</td>
-                  <td style={tdCenter}>{inv.cgst_rate}%</td>
-                  <td style={tdRight}>
-                    {fmt(vals.cgst || inv.cgst_amount / items.length)}
+              {rows.map((r, i) => (
+                <tr key={i} className="inv-product-row">
+                  <td style={dc({ textAlign: "center" })}>{i + 1}</td>
+                  <td style={dc({ fontWeight: "bold", fontSize: 18 })}>
+                    {r.desc}
                   </td>
-                  <td style={tdCenter}>{inv.sgst_rate}%</td>
-                  <td style={tdRight}>
-                    {fmt(vals.sgst || inv.sgst_amount / items.length)}
+                  <td style={dc({ textAlign: "center", fontWeight: "bold" })}>
+                    {r.hsn || "–"}
                   </td>
-                  <td style={tdRight}>
-                    {fmt(
-                      (vals.cgst || Number(inv.cgst_amount)) +
-                        (vals.sgst || Number(inv.sgst_amount)),
-                    )}
+                  <td style={dc({ textAlign: "center", fontWeight: "bold" })}>
+                    {fmt2(r.qty)}
+                  </td>
+                  <td style={dc({ textAlign: "right" })}>{fmt2(r.rateIncl)}</td>
+                  <td style={dc({ textAlign: "right" })}>{fmt2(r.rateExcl)}</td>
+                  <td style={dc({ textAlign: "center" })}>{r.per}</td>
+                  <td style={dc({ textAlign: "right" })}>
+                    {fmt2(r.taxableAmt)}
                   </td>
                 </tr>
               ))}
-            </tbody>
-            <tfoot>
-              <tr style={{ borderTop: "1px solid #000", fontWeight: "bold" }}>
-                <td style={tdCenter}>Total</td>
-                <td style={tdRight}>{fmt(inv.subtotal)}</td>
-                <td style={tdCenter}></td>
-                <td style={tdRight}>{fmt(inv.cgst_amount)}</td>
-                <td style={tdCenter}></td>
-                <td style={tdRight}>{fmt(inv.sgst_amount)}</td>
-                <td style={tdRight}>
-                  {fmt(Number(inv.cgst_amount) + Number(inv.sgst_amount))}
+              {Array.from({ length: MIN_ROWS }).map((_, i) => (
+                <tr key={`blank_${i}`} style={{ height: 18 }}>
+                  {Array(8)
+                    .fill(null)
+                    .map((__, j) => (
+                      <td key={j} style={dc()}>
+                        &nbsp;
+                      </td>
+                    ))}
+                </tr>
+              ))}
+
+              {(openBalance !== 0 || netAmount !== 0) && (
+                <tr>
+                  <td
+                    colSpan={8}
+                    style={dc({
+                      borderTop: "1px dashed #999",
+                      padding: "3px 7px",
+                    })}
+                  >
+                    <div style={{ fontWeight: "bold", fontSize: dynFont + 2 }}>
+                      Open Balance: ₹ {fmt2(openBalance)}
+                    </div>
+                    <div style={{ fontWeight: "bold", fontSize: dynFont + 2 }}>
+                      Closing Balance: ₹ {fmt2(closingBalance)}
+                    </div>
+                  </td>
+                </tr>
+              )}
+
+              <tr>
+                <td
+                  colSpan={7}
+                  style={dc({
+                    textAlign: "right",
+                    fontWeight: "bold",
+                    borderTop: B,
+                  })}
+                >
+                  Total Taxable Amount
+                </td>
+                <td
+                  style={dc({
+                    textAlign: "right",
+                    fontWeight: "bold",
+                    borderTop: B,
+                  })}
+                >
+                  {fmt2(subtotal)}
                 </td>
               </tr>
-            </tfoot>
+              <tr>
+                <td
+                  colSpan={7}
+                  style={dc({
+                    textAlign: "right",
+                    fontStyle: "italic",
+                    fontWeight: "bold",
+                    borderTop: B,
+                  })}
+                >
+                  CGST TAX
+                </td>
+                <td
+                  style={dc({
+                    textAlign: "right",
+                    fontWeight: "bold",
+                    borderTop: B,
+                  })}
+                >
+                  {fmt2(cgstAmt)}
+                </td>
+              </tr>
+              <tr>
+                <td
+                  colSpan={7}
+                  style={dc({
+                    textAlign: "right",
+                    fontStyle: "italic",
+                    fontWeight: "bold",
+                  })}
+                >
+                  SGST TAX
+                </td>
+                <td style={dc({ textAlign: "right", fontWeight: "bold" })}>
+                  {fmt2(sgstAmt)}
+                </td>
+              </tr>
+
+              <tr style={{ background: "#f0f0f0" }}>
+                <td style={dc({ borderTop: B, borderBottom: B })}></td>
+                <td
+                  style={dc({
+                    fontWeight: "bold",
+                    borderTop: B,
+                    borderBottom: B,
+                    fontSize: dynFont + 1,
+                  })}
+                >
+                  Total
+                </td>
+                <td style={dc({ borderTop: B, borderBottom: B })}></td>
+                <td
+                  style={dc({
+                    textAlign: "center",
+                    fontWeight: "bold",
+                    borderTop: B,
+                    borderBottom: B,
+                    fontSize: dynFont + 1,
+                  })}
+                >
+                  {totalQty.toFixed(2)}
+                </td>
+                <td style={dc({ borderTop: B, borderBottom: B })}></td>
+                <td style={dc({ borderTop: B, borderBottom: B })}></td>
+                <td style={dc({ borderTop: B, borderBottom: B })}></td>
+                <td
+                  style={dc({
+                    textAlign: "right",
+                    fontWeight: "bold",
+                    borderTop: B,
+                    borderBottom: B,
+                    fontSize: dynFont + 3,
+                  })}
+                >
+                  ₹ {fmt2(netAmount)}
+                </td>
+              </tr>
+            </tbody>
           </table>
-          <div
-            style={{
-              padding: "4px 8px",
-              fontSize: "11px",
-              fontStyle: "italic",
-            }}
-          >
-            Tax Amount (in words):{" "}
-            {numberToWords(Number(inv.cgst_amount) + Number(inv.sgst_amount))}
-          </div>
         </div>
 
-        {/* Bank Details + Declaration */}
-        <div style={{ display: "flex", borderBottom: "1px solid #000" }}>
-          {inv.bank_name && (
-            <div
-              style={{
-                flex: 1,
-                padding: "8px",
-                borderRight: "1px solid #000",
-                fontSize: "11px",
-              }}
-            >
-              <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
-                Company's Bank Details
-              </div>
-              <div>
-                A/c Holder's Name : <strong>{inv.bank_holder_name}</strong>
-              </div>
-              <div>Bank Name : {inv.bank_name}</div>
-              <div>A/C No. : {inv.bank_account_no}</div>
-              <div>
-                Branch &amp; IFS Code: {inv.bank_branch} &amp; {inv.bank_ifsc}
-              </div>
-              {inv.open_balance != null && (
-                <div
+        {/* AMOUNT IN WORDS */}
+        <table
+          style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}
+        >
+          <tbody>
+            <tr>
+              <td
+                style={{
+                  width: "58%",
+                  borderRight: B,
+                  padding: "3px 7px",
+                  verticalAlign: "middle",
+                  fontSize: 10,
+                }}
+              >
+                <span style={{ fontWeight: "bold" }}>
+                  Amount Chargeable (in words):{" "}
+                </span>
+                <em style={{ fontWeight: "bold" }}>
+                  {numberToWords(netAmount)}
+                </em>
+              </td>
+              <td
+                style={{
+                  padding: "3px 7px",
+                  verticalAlign: "middle",
+                  textAlign: "right",
+                }}
+              >
+                <div style={{ fontSize: 10 }}>E. &amp; O.E</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* HSN TAX TABLE */}
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            tableLayout: "fixed",
+            borderBottom: B,
+          }}
+          className="inv-footer"
+        >
+          <colgroup>
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "16%" }} />
+            <col style={{ width: "10%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "16%" }} />
+            <col style={{ width: "16%" }} />
+          </colgroup>
+          <thead>
+            <tr>
+              {[
+                ["HSN/SAC", "center"],
+                ["Taxable\nValue", "right"],
+                ["CGST\nRate", "center"],
+                ["CGST\nAmount", "right"],
+                ["SGST/UTGST\nRate", "center"],
+                ["SGST/UTGST\nAmount", "right"],
+                ["Total Tax\nAmount", "right"],
+              ].map(([label, align]) => (
+                <th
+                  key={label}
+                  style={dhc({
+                    textAlign: align,
+                    whiteSpace: "pre-line",
+                    padding: "2px 6px",
+                    fontSize: 10,
+                  })}
+                >
+                  {label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(hsnGroups).map(([hsn, d]) => (
+              <tr key={hsn}>
+                <td style={dc({ textAlign: "center", fontSize: 11 })}>{hsn}</td>
+                <td style={dc({ textAlign: "right", fontSize: 11 })}>
+                  {fmt2(d.taxableValue)}
+                </td>
+                <td style={dc({ textAlign: "center", fontSize: 10 })}>
+                  {cgstRate}%
+                </td>
+                <td style={dc({ textAlign: "right", fontSize: 10 })}>
+                  {fmt2(d.cgst)}
+                </td>
+                <td style={dc({ textAlign: "center", fontSize: 10 })}>
+                  {sgstRate}%
+                </td>
+                <td style={dc({ textAlign: "right", fontSize: 10 })}>
+                  {fmt2(d.sgst)}
+                </td>
+                <td style={dc({ textAlign: "right", fontSize: 10 })}>
+                  {fmt2(d.cgst + d.sgst)}
+                </td>
+              </tr>
+            ))}
+            <tr style={{ background: "#f5f5f5", fontWeight: "bold" }}>
+              <td style={dc({ borderTop: B, borderBottom: B, fontSize: 10 })}>
+                Total
+              </td>
+              <td
+                style={dc({
+                  textAlign: "right",
+                  borderTop: B,
+                  borderBottom: B,
+                  fontSize: 10,
+                })}
+              >
+                {fmt2(subtotal)}
+              </td>
+              <td style={dc({ borderTop: B, borderBottom: B })}></td>
+              <td
+                style={dc({
+                  textAlign: "right",
+                  borderTop: B,
+                  borderBottom: B,
+                  fontSize: 10,
+                })}
+              >
+                {fmt2(cgstAmt)}
+              </td>
+              <td style={dc({ borderTop: B, borderBottom: B })}></td>
+              <td
+                style={dc({
+                  textAlign: "right",
+                  borderTop: B,
+                  borderBottom: B,
+                  fontSize: 10,
+                })}
+              >
+                {fmt2(sgstAmt)}
+              </td>
+              <td
+                style={dc({
+                  textAlign: "right",
+                  borderTop: B,
+                  borderBottom: B,
+                  fontSize: 10,
+                })}
+              >
+                {fmt2(totalTax)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style={{ padding: "2px 7px", borderBottom: B, fontSize: 10 }}>
+          <strong>Tax Amount (in words):</strong>&nbsp;
+          <em style={{ fontWeight: "bold" }}>{numberToWords(totalTax)}</em>
+        </div>
+
+        {/* FOOTER */}
+        <div style={{ marginTop: "auto" }}>
+          <table
+            style={{ width: "100%", borderCollapse: "collapse" }}
+            className="inv-footer"
+          >
+            <tbody>
+              <tr>
+                <td
                   style={{
-                    marginTop: "6px",
-                    borderTop: "1px dashed #ccc",
-                    paddingTop: "6px",
+                    width: "44%",
+                    borderRight: B,
+                    padding: "4px 7px",
+                    verticalAlign: "top",
+                    fontSize: 10,
                   }}
                 >
-                  <div>Open Balance: {fmt(inv.open_balance)}</div>
-                  <div style={{ fontWeight: "bold" }}>
-                    Closing Balance:{" "}
-                    {fmt(Number(inv.open_balance) + Number(inv.net_amount))}
+                  <div
+                    style={{
+                      fontWeight: "bold",
+                      marginBottom: 2,
+                      fontSize: 15,
+                    }}
+                  >
+                    Company's Bank Details
                   </div>
-                </div>
-              )}
-            </div>
-          )}
-          <div style={{ flex: 1, padding: "8px", fontSize: "11px" }}>
-            <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
-              Declaration:
-            </div>
-            <div>
-              We declare that this invoice shows the actual price of the goods
-              described and that all particulars are true and correct.
-            </div>
-            <div
-              style={{
-                textAlign: "right",
-                marginTop: "20px",
-                fontWeight: "bold",
-              }}
-            >
-              for BIP FENCING CONTRACT WORK
-            </div>
-          </div>
-        </div>
-
-        {/* Signature Row */}
-        <div style={{ display: "flex", borderBottom: "1px solid #000" }}>
-          <div
-            style={{
-              flex: 1,
-              padding: "30px 8px 6px",
-              fontSize: "11px",
-              borderRight: "1px solid #000",
-              textAlign: "center",
-            }}
-          >
-            Receiver's Signature
-          </div>
-          <div
-            style={{
-              flex: 1,
-              padding: "30px 8px 6px",
-              fontSize: "11px",
-              textAlign: "center",
-            }}
-          >
-            Authorised Signatory
-          </div>
-        </div>
-        <div
-          style={{
-            textAlign: "center",
-            padding: "4px",
-            fontSize: "10px",
-            color: "#555",
-          }}
-        >
-          This is a Computer Generated Invoice
+                  {[
+                    ["A/c Holder's Name", inv.bank_holder_name],
+                    ["Bank Name", inv.bank_name],
+                    ["A/c No.", inv.bank_account_no],
+                    [
+                      "Branch & IFS Code",
+                      `${inv.bank_branch || ""} & ${inv.bank_ifsc || ""}`,
+                    ],
+                  ].map(([k, v]) => (
+                    <div key={k} style={{ marginBottom: 2, fontSize: 12 }}>
+                      <strong>{k}</strong>: {v}
+                    </div>
+                  ))}
+                </td>
+                <td style={{ padding: "4px 7px", verticalAlign: "top" }}>
+                  <div style={{ fontSize: 9, marginBottom: 4 }}>
+                    <strong>Declaration:</strong> {DECLARATION}
+                  </div>
+                  <div
+                    style={{
+                      textAlign: "right",
+                      fontWeight: "bold",
+                      fontSize: 10,
+                      marginBottom: 2,
+                    }}
+                  >
+                    for {COMPANY.name}
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginTop: 28,
+                    }}
+                  >
+                    <div style={{ textAlign: "center", width: "42%" }}>
+                      <div
+                        style={{ borderTop: B, paddingTop: 2, fontSize: 10 }}
+                      >
+                        Receiver's Signature
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "center", width: "42%" }}>
+                      <div
+                        style={{ borderTop: B, paddingTop: 2, fontSize: 10 }}
+                      >
+                        Authorised Signatory
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      textAlign: "center",
+                      marginTop: 4,
+                      fontSize: 9,
+                      color: "#666",
+                    }}
+                  >
+                    This is a Computer Generated Invoice
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -835,7 +1005,7 @@ function QuotationView({ data, onBack }) {
             🖨️ Print
           </button>
           <button className="btn btn-outline-secondary btn-sm" onClick={onBack}>
-            ← Back to Clients
+            ← Back to Customers
           </button>
         </div>
       </div>
@@ -1390,7 +1560,7 @@ export default function Clients() {
   const [viewInvoice, setViewInvoice] = useState(null);
   const [viewLoading, setViewLoading] = useState(false);
 
-  // Page-level tab: Client Directory vs Quotations
+  // Page-level tab: Customer Directory vs Quotations
   const [pageView, setPageView] = useState("clients");
   const [quotations, setQuotations] = useState([]);
   const [quotationsLoading, setQuotationsLoading] = useState(false);
@@ -1409,6 +1579,21 @@ export default function Clients() {
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // ── Settlement of what WE owe the party (cash or product) ──
+  const [showSettleModal, setShowSettleModal] = useState(false);
+  const [settleForm, setSettleForm] = useState({
+    mode: "cash",
+    amount: "",
+    settle_date: new Date().toISOString().slice(0, 10),
+    product_id: "",
+    product_name: "",
+    quantity: "",
+    rate: "",
+    note: "",
+  });
+  const [settleLoading, setSettleLoading] = useState(false);
+  const [stockProducts, setStockProducts] = useState([]);
 
   const [toast, setToast] = useState({
     show: false,
@@ -1503,6 +1688,125 @@ export default function Clients() {
     }
   };
 
+  // Render the invoice off-screen, snapshot it, and share/download as an image.
+  const handleShareInvoicePDF = async (invoice_no) => {
+    try {
+      const res = await apiFetch(`/client.php?invoice_no=${invoice_no}`);
+      const data = await res.json();
+      if (!data.success) return showToast("Invoice not found", "error");
+      const inv = data.invoice;
+
+      setViewInvoice(inv);
+      setTimeout(async () => {
+        const html2canvas = (await import("html2canvas")).default;
+        const el = document.getElementById("invoice-print");
+        if (!el) return;
+        const canvas = await html2canvas(el, { scale: 2 });
+        const blob = await new Promise((resolve) =>
+          canvas.toBlob(resolve, "image/png"),
+        );
+        const file = new File([blob], `${inv.invoice_no}.png`, {
+          type: "image/png",
+        });
+        if (navigator.share && navigator.canShare?.({ files: [file] })) {
+          await navigator.share({ files: [file], title: inv.invoice_no });
+        } else {
+          const link = document.createElement("a");
+          link.href = URL.createObjectURL(blob);
+          link.download = `${inv.invoice_no}.png`;
+          link.click();
+          const raw = (inv.buyer_phone || selected?.phone || "").replace(
+            /\D/g,
+            "",
+          );
+          const phone = raw.length === 10 ? `91${raw}` : raw;
+          const text = encodeURIComponent(
+            `Dear ${inv.buyer_name},\n\nInvoice ${inv.invoice_no} — ₹${fmt(inv.net_amount)}\n\nThank you,\nBIP Fencing`,
+          );
+          window.open(`https://wa.me/${phone}?text=${text}`, "_blank");
+        }
+      }, 500);
+    } catch (err) {
+      console.error(err);
+      showToast("Failed to share invoice", "error");
+    }
+  };
+
+  // Load stock so a product settlement can pick from real inventory
+  const loadStockProducts = useCallback(async () => {
+    try {
+      const res = await apiFetch("/get_inventory_products.php");
+      const data = await res.json();
+      setStockProducts(Array.isArray(data) ? data : data.products || []);
+    } catch (err) {
+      console.error("Failed to load stock products", err);
+      setStockProducts([]);
+    }
+  }, []);
+
+  const openSettleModal = () => {
+    const owed = Math.abs(Number(clientDetail?.net_balance ?? 0));
+    setSettleForm({
+      mode: "cash",
+      amount: owed ? String(owed) : "",
+      settle_date: new Date().toISOString().slice(0, 10),
+      product_id: "",
+      product_name: "",
+      quantity: "",
+      rate: "",
+      note: "",
+    });
+    loadStockProducts();
+    setShowSettleModal(true);
+  };
+
+  const handleSettle = async () => {
+    if (settleForm.mode === "cash" && !(Number(settleForm.amount) > 0)) {
+      showToast("Enter an amount greater than zero", "error");
+      return;
+    }
+    if (
+      settleForm.mode === "product" &&
+      (!settleForm.product_id || !(Number(settleForm.quantity) > 0))
+    ) {
+      showToast("Pick a product and enter a quantity", "error");
+      return;
+    }
+
+    setSettleLoading(true);
+    try {
+      const res = await apiFetch("/client.php?action=settle", {
+        method: "POST",
+        body: JSON.stringify({
+          client_id: selected.id,
+          settle_date: settleForm.settle_date,
+          mode: settleForm.mode,
+          amount: settleForm.amount,
+          product_id: settleForm.product_id,
+          product_name: settleForm.product_name,
+          quantity: settleForm.quantity,
+          rate: settleForm.rate,
+          note: settleForm.note,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("Settlement recorded");
+        setShowSettleModal(false);
+        const d = await apiFetch(`/client.php?client_id=${selected.id}`);
+        setClientDetail(await d.json());
+        fetchClients();
+      } else {
+        showToast(data.message || "Settlement failed", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Server error", "error");
+    } finally {
+      setSettleLoading(false);
+    }
+  };
+
   const handleRecordPayment = async () => {
     if (!payForm.amount || !payForm.payment_date) {
       showToast("Amount and date required", "error");
@@ -1564,7 +1868,7 @@ export default function Clients() {
       const data = await res.json();
       if (data.success) {
         setShowEditModal(false);
-        showToast("Client updated successfully");
+        showToast("Customer updated successfully");
         fetchClients();
         setSelected((prev) => ({ ...prev, ...editForm }));
       } else {
@@ -1594,7 +1898,7 @@ export default function Clients() {
       if (data.success) {
         setShowDeleteModal(false);
         setSelected(null);
-        showToast("Client deleted");
+        showToast("Customer deleted");
         fetchClients();
       } else {
         showToast(data.message || "Delete failed", "error");
@@ -1665,7 +1969,7 @@ export default function Clients() {
 
   const statCards = [
     {
-      label: "Total Clients",
+      label: "Total Customers",
       value: clients.length,
       icon: "bi-people",
       color: "#1d4ed8",
@@ -1733,9 +2037,9 @@ export default function Clients() {
           <i className="bi bi-people-fill"></i>
         </div>
         <div>
-          <h1 className="cl-header__title">Clients</h1>
+          <h1 className="cl-header__title">Customers</h1>
           <p className="cl-header__sub">
-            Manage client accounts, payments and billing
+            Manage customer accounts, payments and billing
           </p>
         </div>
       </div>
@@ -1759,7 +2063,7 @@ export default function Clients() {
         ))}
       </div>
 
-      {/* Tabs: Client Directory / Quotations */}
+      {/* Tabs: Customer Directory / Quotations */}
       <div className="cl-tabs">
         <button
           type="button"
@@ -1767,7 +2071,7 @@ export default function Clients() {
           onClick={() => setPageView("clients")}
         >
           <i className="bi bi-people"></i>
-          <span>Client Directory</span>
+          <span>Customer Directory</span>
           <span className="cl-tab__badge">{clients.length}</span>
         </button>
         <button
@@ -1798,7 +2102,7 @@ export default function Clients() {
               <input
                 className="cl-finput cl-finput--icon"
                 type="text"
-                placeholder="Search client or quote no…"
+                placeholder="Search customer or quote no…"
                 value={quotationSearch}
                 onChange={(e) => setQuotationSearch(e.target.value)}
               />
@@ -1816,7 +2120,7 @@ export default function Clients() {
                 <thead>
                   <tr>
                     <th>Quote No</th>
-                    <th>Client</th>
+                    <th>Customer</th>
                     <th>Date</th>
                     <th>Amount</th>
                     <th>Actions</th>
@@ -1898,8 +2202,8 @@ export default function Clients() {
         <div className="cl-card">
           <div className="cl-card__head">
             <i className="bi bi-people"></i>
-            <span>Client Directory</span>
-            <span className="cl-count">{filtered.length} clients</span>
+            <span>Customer Directory</span>
+            <span className="cl-count">{filtered.length} customers</span>
           </div>
 
           <div className="cl-filters">
@@ -1928,19 +2232,20 @@ export default function Clients() {
           {loading ? (
             <div className="cl-loading">
               <div className="cl-spinner"></div>
-              <span>Loading clients…</span>
+              <span>Loading customers…</span>
             </div>
           ) : (
             <div className="cl-table-wrap">
               <table className="cl-table">
                 <thead>
                   <tr>
-                    <th>Client</th>
+                    <th>Customer</th>
                     <th>Phone</th>
                     <th>Status</th>
                     <th>Billed</th>
                     <th>Paid</th>
-                    <th>Pending</th>
+                    <th>Purchases</th>
+                    <th>Net Balance</th>
                     {isAdmin && <th>Actions</th>}
                   </tr>
                 </thead>
@@ -1948,7 +2253,7 @@ export default function Clients() {
                   {filtered.length > 0 ? (
                     filtered.map((client) => {
                       const status = getStatusBadge(
-                        client.pending,
+                        client.net_balance ?? client.pending,
                         client.total_billed,
                       );
                       return (
@@ -1991,9 +2296,41 @@ export default function Clients() {
                             </span>
                           </td>
                           <td>
-                            <span className="cl-amount cl-amount--red">
-                              {inr(client.pending)}
+                            <span className="cl-amount">
+                              {inr(client.total_purchased || 0)}
                             </span>
+                            {client.is_dual_party && (
+                              <span
+                                className="cl-tag cl-tag--neutral"
+                                style={{ marginLeft: 6 }}
+                              >
+                                Both
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            {(() => {
+                              const b = balanceView(client.net_balance);
+                              return (
+                                <span
+                                  className="cl-amount cl-amount--red"
+                                  title={b.label}
+                                >
+                                  {b.weOwe && (
+                                    <small
+                                      style={{
+                                        display: "block",
+                                        fontWeight: 600,
+                                        fontSize: 11,
+                                      }}
+                                    >
+                                      You Owe
+                                    </small>
+                                  )}
+                                  {inr(b.amount)}
+                                </span>
+                              );
+                            })()}
                           </td>
                           {isAdmin && (
                             <td>
@@ -2026,7 +2363,7 @@ export default function Clients() {
                       <td colSpan={isAdmin ? 7 : 6}>
                         <div className="cl-empty">
                           <i className="bi bi-inbox"></i>
-                          <p>No clients found</p>
+                          <p>No customers found</p>
                           <span>Try adjusting your search or filters</span>
                         </div>
                       </td>
@@ -2058,11 +2395,13 @@ export default function Clients() {
                 <h3>{selected.name}</h3>
                 <p>{selected.phone || "—"}</p>
                 <span
-                  className={`cl-tag ${getStatusBadge(selected.pending, selected.total_billed).cls}`}
+                  className={`cl-tag ${getStatusBadge(selected.net_balance ?? selected.pending, selected.total_billed).cls}`}
                 >
                   {
-                    getStatusBadge(selected.pending, selected.total_billed)
-                      .label
+                    getStatusBadge(
+                      selected.net_balance ?? selected.pending,
+                      selected.total_billed,
+                    ).label
                   }
                 </span>
               </div>
@@ -2088,7 +2427,7 @@ export default function Clients() {
 
             {/* Sub-tabs */}
             <div className="cl-subtabs">
-              {["overview", "invoices", "payments"].map((tab) => (
+              {["overview", "invoices", "purchases", "payments"].map((tab) => (
                 <button
                   key={tab}
                   type="button"
@@ -2111,20 +2450,74 @@ export default function Clients() {
               {/* Overview */}
               {!detailLoading && activeTab === "overview" && clientDetail && (
                 <div>
-                  <div className="cl-mini-stats">
-                    <div className="cl-mini-stat cl-mini-stat--paid">
-                      <span className="cl-mini-stat__label">Paid</span>
-                      <span className="cl-mini-stat__value">
-                        {inr(clientDetail.total_paid)}
-                      </span>
+                  {/* ── SECTION 1 — SALES (we billed them) ── */}
+                  <div className="cl-section-head">
+                    <i className="bi bi-receipt"></i> Sales — Tax Invoices
+                  </div>
+                  <div className="cl-detail-rows">
+                    <div className="cl-detail-row">
+                      <span>Total Invoiced</span>
+                      <strong>{inr(clientDetail.total_billed)}</strong>
                     </div>
-                    <div className="cl-mini-stat cl-mini-stat--pending">
-                      <span className="cl-mini-stat__label">Pending</span>
-                      <span className="cl-mini-stat__value">
-                        {inr(clientDetail.pending)}
-                      </span>
+                    <div className="cl-detail-row">
+                      <span>Received from them</span>
+                      <strong style={{ color: "#16a34a" }}>
+                        {inr(clientDetail.total_paid)}
+                      </strong>
+                    </div>
+                    <div className="cl-detail-row cl-detail-row--sum">
+                      <span>They owe you</span>
+                      <strong>{inr(clientDetail.they_owe)}</strong>
                     </div>
                   </div>
+
+                  {/* ── SECTION 2 — PURCHASES (they billed us) ── */}
+                  <div className="cl-section-head">
+                    <i className="bi bi-bag-check"></i> Purchases — Purchase
+                    Bills
+                  </div>
+                  <div className="cl-detail-rows">
+                    <div className="cl-detail-row">
+                      <span>Total Purchased</span>
+                      <strong>{inr(clientDetail.total_purchased)}</strong>
+                    </div>
+                    <div className="cl-detail-row">
+                      <span>Paid to them</span>
+                      <strong style={{ color: "#16a34a" }}>
+                        {inr(clientDetail.purchase_paid)}
+                      </strong>
+                    </div>
+                    <div className="cl-detail-row">
+                      <span>Settled (cash / product)</span>
+                      <strong style={{ color: "#16a34a" }}>
+                        {inr(clientDetail.settled)}
+                      </strong>
+                    </div>
+                    <div className="cl-detail-row cl-detail-row--sum">
+                      <span>You owe them</span>
+                      <strong>{inr(clientDetail.we_owe)}</strong>
+                    </div>
+                  </div>
+
+                  {/* ── NET TOTAL ── */}
+                  {(() => {
+                    const b = balanceView(clientDetail.net_balance);
+                    return (
+                      <div
+                        className={`cl-net-total${b.weOwe ? " cl-net-total--owe" : ""}`}
+                      >
+                        <span className="cl-net-total__label">{b.label}</span>
+                        <span className="cl-net-total__value">
+                          {inr(b.amount)}
+                        </span>
+                        <span className="cl-net-total__hint">
+                          {b.weOwe
+                            ? "Purchases exceed invoices — settle in cash or product"
+                            : "Invoices exceed purchases — collect from the party"}
+                        </span>
+                      </div>
+                    );
+                  })()}
 
                   <div className="cl-detail-rows">
                     {[
@@ -2141,7 +2534,7 @@ export default function Clients() {
                         clientDetail.invoices?.[0]?.invoice_date || "—",
                       ],
                       [
-                        "Client Since",
+                        "Customer Since",
                         selected.created_at?.slice(0, 10) || "—",
                       ],
                     ].map(([key, value]) => (
@@ -2156,15 +2549,92 @@ export default function Clients() {
                     className="cl-btn cl-btn--primary cl-btn--block"
                     onClick={() => setShowPayModal(true)}
                   >
-                    <i className="bi bi-plus-circle"></i> Record Payment
+                    <i className="bi bi-plus-circle"></i> Recieve Payment
                   </button>
+
+                  {Number(clientDetail.net_balance) < 0 && (
+                    <button
+                      className="cl-btn cl-btn--block"
+                      style={{
+                        background: "#dc2626",
+                        color: "#fff",
+                        marginTop: 8,
+                      }}
+                      onClick={openSettleModal}
+                    >
+                      <i className="bi bi-arrow-left-right"></i> Settle What You
+                      Owe
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Purchases tab */}
+              {!detailLoading && activeTab === "purchases" && clientDetail && (
+                <div>
+                  <p className="cl-subhint">
+                    Purchase bills raised by this party against you
+                  </p>
+                  {(clientDetail.purchases || []).length === 0 && (
+                    <div className="cl-empty cl-empty--small">
+                      <i className="bi bi-inbox"></i>
+                      <p>No purchase bills from this party</p>
+                    </div>
+                  )}
+                  {(clientDetail.purchases || []).map((pb) => (
+                    <div key={pb.id} className="cl-list-item">
+                      <div>
+                        <p className="cl-list-item__title">{pb.invoice_no}</p>
+                        <p className="cl-list-item__sub">{pb.bill_date}</p>
+                        {pb.notes && (
+                          <p className="cl-list-item__sub">{pb.notes}</p>
+                        )}
+                      </div>
+                      <div className="cl-list-item__right">
+                        <p className="cl-amount cl-amount--red">
+                          {inr(pb.total_amount)}
+                        </p>
+                        <p className="cl-list-item__sub">
+                          Paid {inr(pb.paid_amount || 0)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+
+                  {(clientDetail.settlements || []).length > 0 && (
+                    <>
+                      <div className="cl-section-head">Settlements</div>
+                      {clientDetail.settlements.map((st) => (
+                        <div key={st.id} className="cl-list-item">
+                          <div>
+                            <p className="cl-list-item__title">
+                              {st.mode === "product"
+                                ? `${st.product_name} × ${parseFloat(st.quantity)}`
+                                : "Cash settlement"}
+                            </p>
+                            <p className="cl-list-item__sub">
+                              {st.settle_date}
+                            </p>
+                            {st.note && (
+                              <p className="cl-list-item__sub">{st.note}</p>
+                            )}
+                          </div>
+                          <div className="cl-list-item__right">
+                            <p className="cl-amount cl-amount--green">
+                              {inr(st.amount)}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
                 </div>
               )}
 
               {/* Invoices */}
               {!detailLoading && activeTab === "invoices" && clientDetail && (
                 <div>
-                  <p className="cl-subhint">All invoices for this client</p>
+                  <p className="cl-subhint">All invoices for this customer</p>
                   {(clientDetail.invoices || []).length === 0 && (
                     <div className="cl-empty cl-empty--small">
                       <i className="bi bi-inbox"></i>
@@ -2204,6 +2674,15 @@ export default function Clients() {
                             title="Add items from another branch to this same bill"
                           >
                             ➕ Continue
+                          </button>
+                          <button
+                            className="cl-btn cl-btn--tiny cl-btn--ghost"
+                            onClick={() =>
+                              handleShareInvoicePDF(inv.invoice_no)
+                            }
+                            title="Share as image via WhatsApp"
+                          >
+                            📤 Send invoice
                           </button>
                         </div>
                       </div>
@@ -2268,6 +2747,168 @@ export default function Clients() {
             </div>
           </div>
         </>
+      )}
+
+      {/* ── Settle Modal (what WE owe the party) ── */}
+      {showSettleModal && (
+        <div className="cl-overlay" onClick={() => setShowSettleModal(false)}>
+          <div className="cl-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="cl-modal__header">
+              <div className="cl-modal__title">
+                <i className="bi bi-arrow-left-right"></i> Settle —{" "}
+                {selected?.name}
+              </div>
+              <button
+                className="cl-modal__close"
+                onClick={() => setShowSettleModal(false)}
+              >
+                <i className="bi bi-x-lg"></i>
+              </button>
+            </div>
+            <div className="cl-modal__body cl-modal__body--col">
+              <div className="cl-fg">
+                <label className="cl-label">Settle by</label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {["cash", "product"].map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      className={`cl-btn ${settleForm.mode === m ? "cl-btn--primary" : "cl-btn--ghost"}`}
+                      style={{ flex: 1 }}
+                      onClick={() => setSettleForm({ ...settleForm, mode: m })}
+                    >
+                      {m === "cash" ? "Cash" : "Product"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {settleForm.mode === "cash" ? (
+                <div className="cl-fg">
+                  <label className="cl-label">
+                    Amount (₹) <span className="cl-req">*</span>
+                  </label>
+                  <input
+                    className="cl-input"
+                    type="number"
+                    placeholder="0.00"
+                    value={settleForm.amount}
+                    onChange={(e) =>
+                      setSettleForm({ ...settleForm, amount: e.target.value })
+                    }
+                  />
+                </div>
+              ) : (
+                <>
+                  <div className="cl-fg">
+                    <label className="cl-label">
+                      Product <span className="cl-req">*</span>
+                    </label>
+                    <select
+                      className="cl-input"
+                      value={settleForm.product_id}
+                      onChange={(e) => {
+                        const prod = stockProducts.find(
+                          (x) => String(x.product_id) === e.target.value,
+                        );
+                        setSettleForm({
+                          ...settleForm,
+                          product_id: e.target.value,
+                          product_name: prod?.product_name || "",
+                          rate: prod?.rate ? String(prod.rate) : "",
+                        });
+                      }}
+                    >
+                      <option value="">— Select product —</option>
+                      {stockProducts.map((prod) => (
+                        <option key={prod.product_id} value={prod.product_id}>
+                          {prod.product_name} (stock {prod.current_stock})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="cl-fg">
+                    <label className="cl-label">
+                      Quantity <span className="cl-req">*</span>
+                    </label>
+                    <input
+                      className="cl-input"
+                      type="number"
+                      value={settleForm.quantity}
+                      onChange={(e) =>
+                        setSettleForm({
+                          ...settleForm,
+                          quantity: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="cl-fg">
+                    <label className="cl-label">Rate (₹)</label>
+                    <input
+                      className="cl-input"
+                      type="number"
+                      value={settleForm.rate}
+                      onChange={(e) =>
+                        setSettleForm({ ...settleForm, rate: e.target.value })
+                      }
+                    />
+                    <small style={{ color: "#6b7280", fontSize: 12 }}>
+                      Value settled ={" "}
+                      {inr(
+                        (Number(settleForm.quantity) || 0) *
+                          (Number(settleForm.rate) || 0),
+                      )}
+                      . This quantity is deducted from your stock.
+                    </small>
+                  </div>
+                </>
+              )}
+
+              <div className="cl-fg">
+                <label className="cl-label">Date</label>
+                <input
+                  className="cl-input"
+                  type="date"
+                  value={settleForm.settle_date}
+                  onChange={(e) =>
+                    setSettleForm({
+                      ...settleForm,
+                      settle_date: e.target.value,
+                    })
+                  }
+                />
+              </div>
+              <div className="cl-fg">
+                <label className="cl-label">Note</label>
+                <input
+                  className="cl-input"
+                  type="text"
+                  placeholder="Optional"
+                  value={settleForm.note}
+                  onChange={(e) =>
+                    setSettleForm({ ...settleForm, note: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+            <div className="cl-modal__footer">
+              <button
+                className="cl-btn cl-btn--ghost"
+                onClick={() => setShowSettleModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="cl-btn cl-btn--primary"
+                onClick={handleSettle}
+                disabled={settleLoading}
+              >
+                {settleLoading ? "Saving…" : "Save Settlement"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── Payment Modal ── */}
@@ -2361,7 +3002,7 @@ export default function Clients() {
           <div className="cl-modal" onClick={(e) => e.stopPropagation()}>
             <div className="cl-modal__header">
               <div className="cl-modal__title">
-                <i className="bi bi-pencil-square"></i> Edit Client
+                <i className="bi bi-pencil-square"></i> Edit Customer
               </div>
               <button
                 className="cl-modal__close"
@@ -2447,7 +3088,7 @@ export default function Clients() {
           >
             <div className="cl-modal__header">
               <div className="cl-modal__title" style={{ color: "#dc2626" }}>
-                <i className="bi bi-trash"></i> Delete Client
+                <i className="bi bi-trash"></i> Delete Customer
               </div>
               <button
                 className="cl-modal__close"
@@ -2464,7 +3105,7 @@ export default function Clients() {
                 Delete {selected?.name}?
               </p>
               <p className="cl-modal__confirm-sub">
-                This will permanently delete the client and all associated
+                This will permanently delete the customer and all associated
                 payment records. This action cannot be undone.
               </p>
             </div>
@@ -2489,6 +3130,34 @@ export default function Clients() {
       )}
 
       <style>{`
+        .cl-section-head {
+          display: flex; align-items: center; gap: 8px;
+          font-size: 13px; font-weight: 700; text-transform: uppercase;
+          letter-spacing: .4px; color: #4b5563;
+          margin: 18px 0 8px;
+        }
+        .cl-detail-row--sum {
+          border-top: 1px solid #e5e7eb;
+          font-weight: 700;
+        }
+        .cl-net-total {
+          margin: 18px 0 12px; padding: 16px; border-radius: 12px;
+          background: #ecfdf5; border: 1px solid #a7f3d0;
+          display: flex; flex-direction: column; gap: 2px;
+        }
+        .cl-net-total--owe {
+          background: #fef2f2; border-color: #fecaca;
+        }
+        .cl-net-total__label {
+          font-size: 12px; font-weight: 700; text-transform: uppercase;
+          letter-spacing: .5px; color: #047857;
+        }
+        .cl-net-total--owe .cl-net-total__label { color: #b91c1c; }
+        .cl-net-total__value {
+          font-size: 26px; font-weight: 800; color: #065f46;
+        }
+        .cl-net-total--owe .cl-net-total__value { color: #dc2626; }
+        .cl-net-total__hint { font-size: 12px; color: #6b7280; }
         * {
           scrollbar-width: none;
           -ms-overflow-style: none;

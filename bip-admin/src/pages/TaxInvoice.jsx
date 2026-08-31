@@ -216,12 +216,9 @@ const mapInvoiceToForm = (inv) => ({
   // Balance columns default to '0.00' in the DB even when the user never set
   // one — treat zero the same as blank so the printed balance banner doesn't
   // reappear for invoices that never had a real balance.
-  openBalance:
-    inv.open_balance && Number(inv.open_balance) !== 0 ? inv.open_balance : "",
+  openBalance: inv.open_balance != null ? String(inv.open_balance) : "",
   closingBalance:
-    inv.closing_balance && Number(inv.closing_balance) !== 0
-      ? inv.closing_balance
-      : "",
+    inv.closing_balance != null ? String(inv.closing_balance) : "",
   gstRate: inv.gst_rate ? Number(inv.gst_rate) : DEFAULT_FORM.gstRate,
   bankHolderName: inv.bank_holder_name || DEFAULT_BANK.holderName,
   bankName: inv.bank_name || DEFAULT_BANK.bankName,
@@ -463,6 +460,17 @@ export default function TaxInvoice() {
     !!continueInvoiceNo || !!fromQuotationId,
   );
   const [existingInvoiceError, setExistingInvoiceError] = useState(null);
+  const [clientsList, setClientsList] = useState([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await apiFetch("/client.php");
+        const data = await res.json();
+        if (data.success) setClientsList(data.clients || []);
+      } catch (_) {}
+    })();
+  }, []);
 
   // ── Check user role on mount ───────────────────────────────────────────────
   useEffect(() => {
@@ -509,6 +517,22 @@ export default function TaxInvoice() {
     } catch (_) {}
     return [emptyProduct()];
   });
+
+  // ── Auto-fill Open Balance when Buyer Name matches an existing client ──────
+  useEffect(() => {
+    const name = form.buyerName.trim().toLowerCase();
+    if (!name) return;
+    const match = clientsList.find(
+      (c) =>
+        c.name?.trim().toLowerCase() === name ||
+        (form.buyerPhone &&
+          c.phone?.replace(/\D/g, "") === form.buyerPhone.replace(/\D/g, "")),
+    );
+    if (match) {
+      setForm((prev) => ({ ...prev, openBalance: String(match.pending ?? 0) }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.buyerName, form.buyerPhone, clientsList]);
 
   const [errors, setErrors] = useState({});
 
@@ -766,14 +790,17 @@ export default function TaxInvoice() {
     return { ...p, qty, rateIncl, rateExcl, taxableAmt };
   });
 
+  const r2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
+
   const totalQty = rows.reduce((s, r) => s + r.qty, 0);
-  const subtotal = rows.reduce((s, r) => s + r.taxableAmt, 0);
-  const cgstAmt = subtotal * (cgstRate / 100);
-  const sgstAmt = subtotal * (sgstRate / 100);
-  const totalTax = cgstAmt + sgstAmt;
-  const gross = subtotal + totalTax;
-  const roundOff = Math.round(gross) - gross;
-  const netAmount = gross + roundOff;
+  const subtotal = r2(rows.reduce((s, r) => s + r2(r.taxableAmt), 0));
+  const cgstAmt = r2(subtotal * (cgstRate / 100));
+  const sgstAmt = r2(subtotal * (sgstRate / 100));
+  const totalTax = r2(cgstAmt + sgstAmt);
+  const gross = r2(subtotal + totalTax);
+  const roundOff = 0;
+  const netAmount = gross;
+  const closingBalance = (parseFloat(form.openBalance) || 0) + netAmount;
 
   const hsnGroups = {};
   rows.forEach((r) => {
@@ -957,7 +984,7 @@ export default function TaxInvoice() {
         round_off: roundOff,
         net_amount: netAmount,
         open_balance: form.openBalance,
-        closing_balance: form.closingBalance,
+        closing_balance: closingBalance,
         bank_holder_name: form.bankHolderName,
         bank_name: form.bankName,
         bank_account_no: form.bankAccountNo,
@@ -1610,7 +1637,7 @@ export default function TaxInvoice() {
                   CGST {cgstRate}%: ₹ {fmt2(cgstAmt)} | SGST {sgstRate}%: ₹{" "}
                   {fmt2(sgstAmt)}
                 </div>
-                <div className="muted">Round Off: ₹ {fmt2(roundOff)}</div>
+
                 <div className="net">Net Amount: ₹ {fmt2(netAmount)}</div>
               </div>
             </div>
@@ -1637,13 +1664,13 @@ export default function TaxInvoice() {
               <div className="at-fg">
                 <label className="at-label">Closing Balance (₹)</label>
                 <input
-                  type="number"
+                  type="text"
                   className="at-input"
-                  name="closingBalance"
-                  value={form.closingBalance}
-                  onChange={handleForm}
-                  placeholder="0.00"
+                  value={fmt2(closingBalance)}
+                  readOnly
+                  disabled
                 />
+                <div className="at-hint">Auto = Open Balance + Net Amount</div>
               </div>
             </div>
           </div>
@@ -2150,7 +2177,7 @@ export default function TaxInvoice() {
                 </tr>
               ))}
 
-              {(form.openBalance || form.closingBalance) && (
+              {true && (
                 <tr>
                   <td
                     colSpan={8}
@@ -2159,20 +2186,12 @@ export default function TaxInvoice() {
                       padding: "3px 7px",
                     })}
                   >
-                    {form.openBalance && (
-                      <div
-                        style={{ fontWeight: "bold", fontSize: dynFont + 2 }}
-                      >
-                        Open Balance: ₹ {fmt2(form.openBalance)}
-                      </div>
-                    )}
-                    {form.closingBalance && (
-                      <div
-                        style={{ fontWeight: "bold", fontSize: dynFont + 2 }}
-                      >
-                        Closing Balance: ₹ {fmt2(form.closingBalance)}
-                      </div>
-                    )}
+                    <div style={{ fontWeight: "bold", fontSize: dynFont + 2 }}>
+                      Open Balance: ₹ {fmt2(form.openBalance || 0)}
+                    </div>
+                    <div style={{ fontWeight: "bold", fontSize: dynFont + 2 }}>
+                      Closing Balance: ₹ {fmt2(closingBalance)}
+                    </div>
                   </td>
                 </tr>
               )}
@@ -2234,23 +2253,7 @@ export default function TaxInvoice() {
                   {fmt2(sgstAmt)}
                 </td>
               </tr>
-              <tr>
-                <td
-                  colSpan={7}
-                  style={dc({
-                    textAlign: "right",
-                    fontStyle: "italic",
-                    fontWeight: "bold",
-                  })}
-                >
-                  ROUNDING OFF
-                </td>
-                <td style={dc({ textAlign: "right", fontWeight: "bold" })}>
-                  {roundOff >= 0
-                    ? `(+) ${fmt2(Math.abs(roundOff))}`
-                    : `(-) ${fmt2(Math.abs(roundOff))}`}
-                </td>
-              </tr>
+
               <tr style={{ background: "#f0f0f0" }}>
                 <td style={dc({ borderTop: B, borderBottom: B })}></td>
                 <td

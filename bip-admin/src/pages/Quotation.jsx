@@ -311,7 +311,9 @@ const emptyForm = () => ({
   shipState: "Tamil Nadu",
   shipStateCode: "33",
   discount: 0,
+  manualRoundOff: "",
   priceUnit: "Nos",
+  unitQty: "",
   isGst: true,
   taxPercent: 18,
   notes: "",
@@ -341,6 +343,7 @@ export default function Quotation() {
   const [sameAsClient, setSameAsClient] = useState(true);
   const [products, setProducts] = useState([]);
   const [previewRec, setPreviewRec] = useState(null);
+  const [gstRates, setGstRates] = useState([18, 12, 5, 28, 0]);
 
   useEffect(() => {
     fetchQuotations();
@@ -365,6 +368,22 @@ export default function Quotation() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const fetchNextQuoteNo = async () => {
+    try {
+      const res = await apiFetch("/quotation_api.php");
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : [];
+      let max = 0;
+      list.forEach((r) => {
+        const m = String(r.quote_no || "").match(/(\d+)$/);
+        if (m) max = Math.max(max, parseInt(m[1], 10));
+      });
+      return `BIP-QT-${String(max + 1).padStart(3, "0")}`;
+    } catch (_) {
+      return "BIP-QT-001";
+    }
+  };
 
   const fetchProducts = async () => {
     try {
@@ -396,7 +415,7 @@ export default function Quotation() {
     return data;
   };
 
-  const calcTotals = (items, discount, tax) => {
+  const calcTotals = (items, discount, tax, manualRound) => {
     const subtotal = items.reduce(
       (s, i) => s + (parseFloat(i.qty) || 0) * (parseFloat(i.rateIncl) || 0),
       0,
@@ -406,7 +425,7 @@ export default function Quotation() {
     const taxAmt = taxable * (tax / 100);
     const cgst = taxAmt / 2;
     const sgst = taxAmt / 2;
-    const roundOff = Math.round(taxable + taxAmt) - (taxable + taxAmt);
+    const roundOff = parseFloat(manualRound) || 0;
     const grandTotal = taxable + taxAmt + roundOff;
     return {
       subtotal,
@@ -424,6 +443,7 @@ export default function Quotation() {
     form.items,
     Number(form.discount),
     form.isGst ? Number(form.taxPercent) : 0,
+    form.manualRoundOff,
   );
 
   const handleChange = (e) =>
@@ -553,6 +573,8 @@ export default function Quotation() {
         taxPercent: data.tax_percent,
         notes: data.notes || "",
         declaration: data.declaration || DECLARATION,
+        unitQty: data.unit_qty ?? "",
+        priceUnit: data.price_unit || "Nos",
         bankHolderName: data.bank_holder_name || DEFAULT_BANK.holderName,
         bankName: data.bank_name || DEFAULT_BANK.bankName,
         bankAccountNo: data.bank_account_no || DEFAULT_BANK.accountNo,
@@ -1180,14 +1202,16 @@ export default function Quotation() {
               borderLeftColor: !isGst ? "#000" : "transparent",
             }}
           >
-            {rows.map((r, i) => {
-              const rateExcl = r.rateIncl / (1 + tax / 100);
+            {(() => {
+              const uq = Number(d.unitQty ?? d.unit_qty ?? 0);
+              const pu = d.priceUnit || d.price_unit || "Nos";
+              if (uq <= 0) return null;
               return (
-                <div key={i}>
-                  {r.description} per {r.unit} ₹{fmt2(rateExcl)}
+                <div style={{ fontWeight: "bold" }}>
+                  {uq} {pu} — ₹{fmt2(netAmount / uq)} per {pu}
                 </div>
               );
-            })}
+            })()}
           </div>
 
           {/* ─── AMOUNT IN WORDS ─── */}
@@ -1523,8 +1547,11 @@ export default function Quotation() {
             <button
               type="button"
               className="at-btn at-btn--primary"
-              onClick={() => {
-                resetForm();
+              onClick={async () => {
+                const no = await fetchNextQuoteNo();
+                setEditId(null);
+                setSameAsClient(true);
+                setForm({ ...emptyForm(), quoteNo: no });
                 setView("form");
               }}
             >
@@ -1600,7 +1627,7 @@ export default function Quotation() {
                   <thead>
                     <tr>
                       <th>Quote No</th>
-                      <th>Client</th>
+                      <th>Customer</th>
                       <th>Date</th>
                       <th>Valid Until</th>
                       <th>Items</th>
@@ -1903,18 +1930,38 @@ export default function Quotation() {
               {form.isGst && (
                 <div className="at-fg">
                   <label className="at-label">GST Rate %</label>
-                  <select
-                    name="taxPercent"
-                    value={form.taxPercent}
-                    onChange={handleChange}
-                    className="at-select"
-                  >
-                    <option value={18}>18% (CGST 9% + SGST 9%)</option>
-                    <option value={12}>12% (CGST 6% + SGST 6%)</option>
-                    <option value={5}>5% (CGST 2.5% + SGST 2.5%)</option>
-                    <option value={28}>28% (CGST 14% + SGST 14%)</option>
-                    <option value={0}>0%</option>
-                  </select>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <select
+                      name="taxPercent"
+                      value={form.taxPercent}
+                      onChange={handleChange}
+                      className="at-select"
+                      style={{ flex: 1 }}
+                    >
+                      {gstRates.map((r) => (
+                        <option key={r} value={r}>
+                          {r}% (CGST {r / 2}% + SGST {r / 2}%)
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      className="at-input"
+                      placeholder="New %"
+                      style={{ width: 100 }}
+                      onKeyDown={(e) => {
+                        if (e.key !== "Enter") return;
+                        e.preventDefault();
+                        const v = parseFloat(e.target.value);
+                        if (isNaN(v) || v < 0) return;
+                        if (!gstRates.includes(v))
+                          setGstRates([...gstRates, v].sort((a, b) => a - b));
+                        setForm({ ...form, taxPercent: v });
+                        e.target.value = "";
+                      }}
+                      onWheel={(e) => e.target.blur()}
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -1929,7 +1976,7 @@ export default function Quotation() {
             <div className="at-form-grid">
               <div className="at-fg">
                 <label className="at-label">
-                  Client Name <span className="req">*</span>
+                  Customer Name <span className="req">*</span>
                 </label>
                 <input
                   name="clientName"
@@ -2112,14 +2159,6 @@ export default function Quotation() {
               <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <i className="bi bi-box-seam"></i>Items
               </span>
-              <button
-                type="button"
-                className="at-btn at-btn--primary"
-                style={{ padding: "6px 14px", fontSize: 12 }}
-                onClick={addItem}
-              >
-                <i className="bi bi-plus-lg"></i> Add Item
-              </button>
             </div>
 
             {products.length > 0 ? (
@@ -2181,10 +2220,14 @@ export default function Quotation() {
               </table>
             </div>
 
-            <div
-              className="at-totals-row"
-              style={{ justifyContent: "flex-end" }}
-            >
+            <div className="at-totals-row">
+              <button
+                type="button"
+                className="at-btn at-btn--primary"
+                onClick={addItem}
+              >
+                <i className="bi bi-plus-lg"></i> Add Item
+              </button>
               <div className="at-totals-box">
                 <div>
                   Subtotal: <strong>₹ {fmt2(T.subtotal)}</strong>
@@ -2201,9 +2244,28 @@ export default function Quotation() {
                     {Number(form.taxPercent) / 2}%: ₹ {fmt2(T.sgst)}
                   </div>
                 )}
-                <div className="muted">
-                  Round Off: {T.roundOff >= 0 ? "+" : "-"}₹{" "}
-                  {fmt2(Math.abs(T.roundOff))}
+                <div
+                  className="muted"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    justifyContent: "flex-end",
+                  }}
+                >
+                  <span>Round Off:</span>
+                  <input
+                    type="number"
+                    step="any"
+                    className="at-input"
+                    style={{ width: 90, height: 30, textAlign: "right" }}
+                    placeholder="auto"
+                    value={form.manualRoundOff}
+                    onChange={(e) =>
+                      setForm({ ...form, manualRoundOff: e.target.value })
+                    }
+                    onWheel={(e) => e.target.blur()}
+                  />
                 </div>
                 <div className="net">Grand Total: ₹ {fmt2(T.grandTotal)}</div>
               </div>
@@ -2234,17 +2296,28 @@ export default function Quotation() {
                 </select>
               </div>
               <div className="at-fg">
+                <label className="at-label">Quantity</label>
+                <input
+                  type="number"
+                  className="at-input"
+                  placeholder="e.g. 500"
+                  value={form.unitQty}
+                  onChange={(e) =>
+                    setForm({ ...form, unitQty: e.target.value })
+                  }
+                  onWheel={(e) => e.target.blur()}
+                />
+              </div>
+              <div className="at-fg">
                 <label className="at-label">Price per {form.priceUnit}</label>
                 <input
                   className="at-input"
                   readOnly
-                  value={(() => {
-                    const totalQty = form.items.reduce(
-                      (s, i) => s + (parseFloat(i.qty) || 0),
-                      0,
-                    );
-                    return totalQty > 0 ? inr(T.grandTotal / totalQty) : inr(0);
-                  })()}
+                  value={
+                    Number(form.unitQty) > 0
+                      ? inr(T.grandTotal / Number(form.unitQty))
+                      : inr(0)
+                  }
                 />
               </div>
             </div>
