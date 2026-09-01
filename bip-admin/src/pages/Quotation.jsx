@@ -310,7 +310,7 @@ const emptyForm = () => ({
   shipGst: "",
   shipState: "Tamil Nadu",
   shipStateCode: "33",
-  discount: 0,
+   discount: 0,
   manualRoundOff: "",
   priceUnit: "Nos",
   unitQty: "",
@@ -343,7 +343,7 @@ export default function Quotation() {
   const [sameAsClient, setSameAsClient] = useState(true);
   const [products, setProducts] = useState([]);
   const [previewRec, setPreviewRec] = useState(null);
-  const [gstRates, setGstRates] = useState([18, 12, 5, 28, 0]);
+    const [gstRates, setGstRates] = useState([18, 12, 5, 28, 0]);
 
   useEffect(() => {
     fetchQuotations();
@@ -572,7 +572,7 @@ export default function Quotation() {
         isGst: data.is_gst == null ? true : !!Number(data.is_gst),
         taxPercent: data.tax_percent,
         notes: data.notes || "",
-        declaration: data.declaration || DECLARATION,
+               declaration: data.declaration || DECLARATION,
         unitQty: data.unit_qty ?? "",
         priceUnit: data.price_unit || "Nos",
         bankHolderName: data.bank_holder_name || DEFAULT_BANK.holderName,
@@ -1795,7 +1795,25 @@ export default function Quotation() {
   return (
     <>
       <style>{screenStyles}</style>
-      <div className="at-root">
+      <div
+        className="at-root"
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            const tag = e.target.tagName;
+            if (tag === "BUTTON" || tag === "TEXTAREA") return;
+            e.preventDefault();
+            const fields = Array.from(
+              e.currentTarget.querySelectorAll(
+                "input:not([disabled]):not([readonly]), select:not([disabled])",
+              ),
+            ).filter((el) => el.offsetParent !== null);
+            const i = fields.indexOf(e.target);
+            if (i > -1 && i + 1 < fields.length) fields[i + 1].focus();
+          } else if (e.key === "Escape") {
+            e.target.blur();
+          }
+        }}
+      >
         <div className="at-header">
           <div className="at-header__left">
             <div className="at-header__icon">
@@ -1952,6 +1970,7 @@ export default function Quotation() {
                       onKeyDown={(e) => {
                         if (e.key !== "Enter") return;
                         e.preventDefault();
+                        e.stopPropagation();
                         const v = parseFloat(e.target.value);
                         if (isNaN(v) || v < 0) return;
                         if (!gstRates.includes(v))
@@ -2246,12 +2265,7 @@ export default function Quotation() {
                 )}
                 <div
                   className="muted"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    justifyContent: "flex-end",
-                  }}
+                  style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}
                 >
                   <span>Round Off:</span>
                   <input
