@@ -468,6 +468,7 @@ export default function TaxInvoice() {
     () => location.state?.fromQuotationId || null,
   );
 
+
   const [step, setStep] = useState(1);
   const [productsByBranch, setProductsByBranch] = useState({});
   const [stockReduced, setStockReduced] = useState(false);
@@ -1169,7 +1170,25 @@ export default function TaxInvoice() {
       <>
         <style>{printStyles}</style>
         <style>{screenStyles}</style>
-        <div className="at-root no-print">
+        <div
+          className="at-root no-print"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              const tag = e.target.tagName;
+              if (tag === "BUTTON" || tag === "TEXTAREA") return;
+              e.preventDefault();
+              const fields = Array.from(
+                e.currentTarget.querySelectorAll(
+                  "input:not([disabled]):not([readonly]), select:not([disabled])",
+                ),
+              ).filter((el) => el.offsetParent !== null);
+              const i = fields.indexOf(e.target);
+              if (i > -1 && i + 1 < fields.length) fields[i + 1].focus();
+            } else if (e.key === "Escape") {
+              e.target.blur();
+            }
+          }}
+        >
           <div className="at-header">
             <div className="at-header__left">
               <div className="at-header__icon">
@@ -1317,11 +1336,7 @@ export default function TaxInvoice() {
                       <input
                         type="date"
                         className="at-datewrap__native"
-                        value={
-                          /^\d{4}-\d{2}-\d{2}$/.test(form[name] || "")
-                            ? form[name]
-                            : ""
-                        }
+                        value={/^\d{4}-\d{2}-\d{2}$/.test(form[name] || "") ? form[name] : ""}
                         onChange={(e) => {
                           setForm((p) => ({ ...p, [name]: e.target.value }));
                           if (errors[name])
@@ -1696,7 +1711,7 @@ export default function TaxInvoice() {
                   CGST {cgstRate}%: ₹ {fmt2(cgstAmt)} | SGST {sgstRate}%: ₹{" "}
                   {fmt2(sgstAmt)}
                 </div>
-
+                
                 <div className="net">Net Amount: ₹ {fmt2(netAmount)}</div>
               </div>
             </div>
@@ -2236,7 +2251,7 @@ export default function TaxInvoice() {
                 </tr>
               ))}
 
-              {true && (
+                            {true && (
                 <tr>
                   <td
                     colSpan={8}
@@ -2312,7 +2327,7 @@ export default function TaxInvoice() {
                   {fmt2(sgstAmt)}
                 </td>
               </tr>
-
+             
               <tr style={{ background: "#f0f0f0" }}>
                 <td style={dc({ borderTop: B, borderBottom: B })}></td>
                 <td
