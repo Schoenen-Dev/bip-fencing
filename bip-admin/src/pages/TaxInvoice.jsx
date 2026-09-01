@@ -136,6 +136,16 @@ const formatDate = (d) => {
     year: "2-digit",
   });
 };
+// dd/mm/yyyy <-> yyyy-mm-dd (so mobile shows day first, not month first)
+const toDisplay = (iso) => {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-");
+  return d ? `${d}/${m}/${y}` : iso;
+};
+const toISO = (txt) => {
+  const m = txt.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : "";
+};
 const emptyProduct = () => ({
   branchId: null,
   productId: null,
@@ -359,6 +369,14 @@ const screenStyles = `
   .at-input.error-field, .at-select.error-field { border-color: #ef4444; background: #fef2f2; }
   .at-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px; cursor: pointer; }
   .at-hint { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+
+  /* Date field: always shows dd/mm/yyyy; the calendar button opens the
+     native picker (which is hidden but stretched over the icon area). */
+  .at-datewrap { position: relative; }
+  .at-datewrap .at-input { padding-right: 36px; }
+  .at-datewrap__icon { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #64748b; font-size: 15px; pointer-events: none; }
+  .at-datewrap__native { position: absolute; right: 0; top: 0; width: 40px; height: 100%; opacity: 0; border: none; padding: 0; margin: 0; cursor: pointer; background: transparent; }
+  .at-datewrap__native::-webkit-calendar-picker-indicator { width: 100%; height: 100%; cursor: pointer; }
   .at-error-text { font-size: 11px; color: #ef4444; font-weight: 600; margin-top: 2px; }
 
   .at-alert { display: flex; align-items: flex-start; gap: 10px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; border-radius: 10px; padding: 12px 16px; font-size: 13px; margin-bottom: 18px; }
@@ -1272,14 +1290,55 @@ export default function TaxInvoice() {
               ].map(([name, label, placeholder, type]) => (
                 <div className="at-fg" key={name}>
                   <label className="at-label">{label}</label>
-                  <input
-                    type={type || "text"}
-                    className={`at-input${errors[name] ? " error-field" : ""}`}
-                    name={name}
-                    value={form[name]}
-                    onChange={handleForm}
-                    placeholder={placeholder || ""}
-                  />
+                  {type === "date" ? (
+                    <div className="at-datewrap">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="dd/mm/yyyy"
+                        maxLength={10}
+                        className={`at-input${errors[name] ? " error-field" : ""}`}
+                        value={toDisplay(form[name])}
+                        onChange={(e) => {
+                          let v = e.target.value.replace(/\D/g, "").slice(0, 8);
+                          if (v.length > 4)
+                            v = `${v.slice(0, 2)}/${v.slice(2, 4)}/${v.slice(4)}`;
+                          else if (v.length > 2)
+                            v = `${v.slice(0, 2)}/${v.slice(2)}`;
+                          setForm((p) => ({
+                            ...p,
+                            [name]: v.length === 10 ? toISO(v) : v,
+                          }));
+                          if (errors[name])
+                            setErrors((p) => ({ ...p, [name]: "" }));
+                        }}
+                      />
+                      <i className="bi bi-calendar3 at-datewrap__icon"></i>
+                      <input
+                        type="date"
+                        className="at-datewrap__native"
+                        value={
+                          /^\d{4}-\d{2}-\d{2}$/.test(form[name] || "")
+                            ? form[name]
+                            : ""
+                        }
+                        onChange={(e) => {
+                          setForm((p) => ({ ...p, [name]: e.target.value }));
+                          if (errors[name])
+                            setErrors((p) => ({ ...p, [name]: "" }));
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      className={`at-input${errors[name] ? " error-field" : ""}`}
+                      name={name}
+                      value={form[name]}
+                      onChange={handleForm}
+                      placeholder={placeholder || ""}
+                    />
+                  )}
                   {errors[name] && (
                     <div className="at-error-text">{errors[name]}</div>
                   )}
