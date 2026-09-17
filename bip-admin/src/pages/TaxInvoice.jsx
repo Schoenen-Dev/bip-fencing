@@ -606,7 +606,7 @@ export default function TaxInvoice() {
     error: null,
   }));
 
-  // All Branches mode → use the first product row's branch for numbering
+  // Invoice number is global — works for a specific branch AND for All Branch
   const fetchInvoiceNoPeek = async (branchId = null) => {
     try {
       const res = await apiFetch(
@@ -628,9 +628,7 @@ export default function TaxInvoice() {
           loading: false,
           branchId: null,
           error:
-            data.message === "no_branch_selected"
-              ? "Pick a Branch in the first product row to get the invoice number."
-              : "Could not load the invoice number.",
+            "Could not load the invoice number. Click Refresh to try again.",
         });
       }
     } catch (_) {
@@ -1030,11 +1028,7 @@ export default function TaxInvoice() {
         });
         const data = await res.json();
         if (!data.success) {
-          alert(
-            data.message === "no_branch_selected"
-              ? "⚠️ Please select a Branch in the first product row."
-              : "⚠️ Could not generate the invoice number. Please try again.",
-          );
+          alert("⚠️ Could not generate the invoice number. Please try again.");
           return;
         }
         invoiceNoToUse = data.invoice_no;
@@ -1382,7 +1376,7 @@ export default function TaxInvoice() {
                 <div className="at-hint">
                   {form.invoiceNoLocked
                     ? "Reserved for this invoice."
-                    : "Auto-generated per branch — finalized when you click Preview."}
+                    : "Auto-generated (specific branch or All Branch) — finalized when you click Preview."}
                 </div>
                 {branchInfo.error && (
                   <div className="at-error-text">{branchInfo.error}</div>
