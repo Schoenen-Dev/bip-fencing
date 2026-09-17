@@ -136,7 +136,7 @@ export default function Sidebar() {
             }
           >
             <i className="bi bi-file-earmark-text"></i>
-            <span>Tax Invoice</span>
+            <span>Sales</span>
           </NavLink>
           <NavLink
             to="/purchase-bill"
@@ -234,7 +234,7 @@ export default function Sidebar() {
               <div className="nav-icon-wrap">
                 <i className="bi bi-person-lines-fill"></i>
               </div>
-              <span>Clients</span>
+              <span>customers</span>
             </NavLink>
           </>
         )}
