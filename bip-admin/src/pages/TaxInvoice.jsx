@@ -1,5 +1,6 @@
 // ✅ v3 — Logo image, 2-col meta, hide blank fields, sessionStorage persistence
 // ✅ Added role-based access control - Only Admin can access
+// ✅ Client name search + autofill for Consignee & Buyer
 
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -186,6 +187,7 @@ const DEFAULT_FORM = {
   buyerStateCode: "33",
   openBalance: "",
   closingBalance: "",
+  roundOffManual: "",
   gstRate: 18,
   bankHolderName: DEFAULT_BANK.holderName,
   bankName: DEFAULT_BANK.bankName,
@@ -193,6 +195,12 @@ const DEFAULT_FORM = {
   bankIfsc: DEFAULT_BANK.ifsc,
   bankBranch: DEFAULT_BANK.branch,
 };
+
+// Phone key used to identify the same customer: last 10 digits only.
+const phoneKey = (p) =>
+  String(p || "")
+    .replace(/\D/g, "")
+    .slice(-10);
 
 // Map a saved invoice row (snake_case, from /client.php?invoice_no=) back into form state.
 const mapInvoiceToForm = (inv) => ({
@@ -223,9 +231,6 @@ const mapInvoiceToForm = (inv) => ({
   buyerGst: inv.buyer_gst || "",
   buyerState: inv.buyer_state || DEFAULT_FORM.buyerState,
   buyerStateCode: inv.buyer_state_code || DEFAULT_FORM.buyerStateCode,
-  // Balance columns default to '0.00' in the DB even when the user never set
-  // one — treat zero the same as blank so the printed balance banner doesn't
-  // reappear for invoices that never had a real balance.
   openBalance: inv.open_balance != null ? String(inv.open_balance) : "",
   closingBalance:
     inv.closing_balance != null ? String(inv.closing_balance) : "",
@@ -237,10 +242,7 @@ const mapInvoiceToForm = (inv) => ({
   bankBranch: inv.bank_branch || DEFAULT_BANK.branch,
 });
 
-// Map saved invoice_items rows back into product row state. These were already
-// stock-deducted when first saved, so they're marked deducted and skipped by
-// reduceStock — only newly added rows (from continuing at another branch) get
-// their stock taken off.
+// Saved items were already stock-deducted when first saved.
 const mapItemsToProducts = (items) =>
   items && items.length
     ? items.map((it) => ({
@@ -255,10 +257,7 @@ const mapItemsToProducts = (items) =>
       }))
     : [emptyProduct()];
 
-// Map a quotation row (from /quotation_api.php?id=) into invoice form state —
-// used by the Clients page "Go to Tax Invoice" button to quick-fill a bill
-// from an existing quotation. Invoice No / lock state are intentionally left
-// out here; the normal invoice-number peek assigns a fresh, real one.
+// Quotation → invoice form (Clients page "To Invoice").
 const mapQuotationToForm = (q) => ({
   dispatchedThrough: q.dispatched_through || "",
   motorVehicleNo: q.vehicle_no || "",
@@ -282,10 +281,6 @@ const mapQuotationToForm = (q) => ({
       : DEFAULT_FORM.gstRate,
 });
 
-// Quotation items have no branch_id (they never touch stock) — leave branchId
-// unset so the user picks a branch per line, same as starting a fresh invoice.
-// stockDeducted stays false: this is now a real bill, so stock gets deducted
-// for real when it's previewed/saved.
 const mapQuotationItemsToProducts = (items) =>
   items && items.length
     ? items.map((it) => ({
@@ -333,7 +328,7 @@ const printStyles = `
 }
 `;
 
-// ─── SCREEN STYLES (form / loading / error states) ───────────────────────────
+// ─── SCREEN STYLES ───────────────────────────────────────────────────────────
 const screenStyles = `
   .at-root { color: #0f172a; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
   .at-toast { position: fixed; top: 24px; right: 24px; z-index: 1200; display: flex; align-items: center; gap: 10px; padding: 13px 20px; border-radius: 10px; font-size: 14px; font-weight: 600; box-shadow: 0 8px 24px rgba(0,0,0,0.18); color: #fff; min-width: 240px; background: #008b3e; }
@@ -370,8 +365,6 @@ const screenStyles = `
   .at-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px; cursor: pointer; }
   .at-hint { font-size: 11px; color: #94a3b8; margin-top: 2px; }
 
-  /* Date field: always shows dd/mm/yyyy; the calendar button opens the
-     native picker (which is hidden but stretched over the icon area). */
   .at-datewrap { position: relative; }
   .at-datewrap .at-input { padding-right: 36px; }
   .at-datewrap__icon { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #64748b; font-size: 15px; pointer-events: none; }
@@ -410,6 +403,13 @@ const screenStyles = `
   .at-center-card { max-width: 460px; margin: 80px auto; text-align: center; }
   .at-center-card .icon { font-size: 44px; margin-bottom: 14px; }
 
+  /* Client name suggestions */
+  .at-suggest { position: absolute; top: 100%; left: 0; right: 0; z-index: 50; margin-top: 4px; background: #fff; border: 1.5px solid #e2e8f0; border-radius: 8px; box-shadow: 0 8px 20px rgba(0,0,0,.12); max-height: 240px; overflow-y: auto; }
+  .at-suggest__item { padding: 9px 11px; cursor: pointer; display: flex; flex-direction: column; font-size: 13px; border-bottom: 1px solid #f1f5f9; }
+  .at-suggest__item:last-child { border-bottom: none; }
+  .at-suggest__item:hover { background: #f0fdf4; }
+  .at-suggest__item span { font-size: 11.5px; color: #64748b; }
+
   @media (max-width: 900px) {
     .at-form-grid, .at-form-grid--5 { grid-template-columns: 1fr 1fr; }
     .at-fg--span2 { grid-column: span 2; }
@@ -426,24 +426,6 @@ const screenStyles = `
 `;
 
 const B = "1px solid #000";
-const cell = (extra = {}) => ({
-  border: "none",
-  borderLeft: B,
-  borderRight: B,
-  padding: "2px 4px",
-  fontSize: 11,
-  verticalAlign: "middle",
-  lineHeight: "1.3",
-  ...extra,
-});
-const hCell = (extra = {}) => ({
-  ...cell(),
-  borderTop: B,
-  borderBottom: B,
-  fontWeight: "bold",
-  background: "#e8e8e8",
-  ...extra,
-});
 const sectionHead = {
   fontWeight: "bold",
   fontSize: 15,
@@ -454,26 +436,83 @@ const sectionHead = {
   paddingBottom: 1,
 };
 
+// ─── CLIENT NAME INPUT (type → suggestions → tap to fill) ────────────────────
+function ClientNameInput({
+  name,
+  value,
+  onChange,
+  onPick,
+  clients,
+  className,
+  placeholder,
+}) {
+  const [open, setOpen] = useState(false);
+  const q = (value || "").trim().toLowerCase();
+  const matches = q
+    ? clients
+        .filter(
+          (c) =>
+            c.name?.toLowerCase().includes(q) || (c.phone || "").includes(q),
+        )
+        .slice(0, 8)
+    : [];
+
+  return (
+    <div style={{ position: "relative" }}>
+      <input
+        className={className}
+        name={name}
+        value={value}
+        placeholder={placeholder}
+        autoComplete="off"
+        onChange={(e) => {
+          onChange(e);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+      />
+      {open && matches.length > 0 && (
+        <div className="at-suggest">
+          {matches.map((c) => (
+            <div
+              key={c.id}
+              className="at-suggest__item"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onPick(c);
+                setOpen(false);
+              }}
+            >
+              <strong>{c.name}</strong>
+              <span>
+                {c.phone || "—"}
+                {c.address ? `, ${c.address}` : ""}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 export default function TaxInvoice() {
   const location = useLocation();
   const navigate = useNavigate();
-  // Captured once at mount — set when arriving via the Clients page "Continue" button.
   const [continueInvoiceNo] = useState(
     () => location.state?.continueInvoiceNo || null,
   );
-  // Captured once at mount — set when arriving via the Clients page
-  // "Go to Tax Invoice" button on a quotation (quick-fill a bill from it).
   const [fromQuotationId] = useState(
     () => location.state?.fromQuotationId || null,
   );
-
 
   const [step, setStep] = useState(1);
   const [productsByBranch, setProductsByBranch] = useState({});
   const [stockReduced, setStockReduced] = useState(false);
   const [stockReducing, setStockReducing] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(null); // null = loading, true = admin, false = not admin
+  const [isAdmin, setIsAdmin] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadingExistingInvoice, setLoadingExistingInvoice] = useState(
     !!continueInvoiceNo || !!fromQuotationId,
@@ -497,11 +536,7 @@ export default function TaxInvoice() {
       try {
         const res = await apiFetch("/check_session.php");
         const data = await res.json();
-        if (data.success && data.user && data.user.role === "admin") {
-          setIsAdmin(true);
-        } else {
-          setIsAdmin(false);
-        }
+        setIsAdmin(!!(data.success && data.user && data.user.role === "admin"));
       } catch (_) {
         setIsAdmin(false);
       } finally {
@@ -512,7 +547,6 @@ export default function TaxInvoice() {
   }, []);
 
   // ── Load persisted form from sessionStorage on mount ──────────────────────
-  // (skipped when continuing an existing invoice — that's loaded from the server instead)
   const [form, setForm] = useState(() => {
     if (continueInvoiceNo || fromQuotationId) return { ...DEFAULT_FORM };
     try {
@@ -537,16 +571,17 @@ export default function TaxInvoice() {
     return [emptyProduct()];
   });
 
-  // ── Auto-fill Open Balance when Buyer Name matches an existing client ──────
+  // ── Auto-fill Open Balance for an existing client ──────────────────────────
+  //    Same phone number = same customer (checked first, even if the
+  //    name or invoice number is different). Name match is the fallback.
   useEffect(() => {
     const name = form.buyerName.trim().toLowerCase();
-    if (!name) return;
-    const match = clientsList.find(
-      (c) =>
-        c.name?.trim().toLowerCase() === name ||
-        (form.buyerPhone &&
-          c.phone?.replace(/\D/g, "") === form.buyerPhone.replace(/\D/g, "")),
-    );
+    const phone = phoneKey(form.buyerPhone);
+    if (!name && !phone) return;
+    const match =
+      (phone.length === 10 &&
+        clientsList.find((c) => phoneKey(c.phone) === phone)) ||
+      (name && clientsList.find((c) => c.name?.trim().toLowerCase() === name));
     if (match) {
       setForm((prev) => ({ ...prev, openBalance: String(match.pending ?? 0) }));
     }
@@ -555,16 +590,20 @@ export default function TaxInvoice() {
 
   const [errors, setErrors] = useState({});
 
-  // ── Branch-aware invoice numbering (server-assigned, never reused) ─────────
+  // ── Branch-aware invoice numbering ─────────────────────────────────────────
   const [branchInfo, setBranchInfo] = useState(() => ({
     loading: !form.invoiceNoLocked,
     branchId: null,
     error: null,
   }));
 
-  const fetchInvoiceNoPeek = async () => {
+  // All Branches mode → use the first product row's branch for numbering
+  const fetchInvoiceNoPeek = async (branchId = null) => {
     try {
-      const res = await apiFetch("/get_invoice_number.php");
+      const res = await apiFetch(
+        "/get_invoice_number.php",
+        branchId ? { branchId } : undefined,
+      );
       const data = await res.json();
       if (data.success) {
         setForm((prev) =>
@@ -581,7 +620,7 @@ export default function TaxInvoice() {
           branchId: null,
           error:
             data.message === "no_branch_selected"
-              ? "Select a branch to generate an invoice number."
+              ? "Pick a Branch in the first product row to get the invoice number."
               : "Could not load the invoice number.",
         });
       }
@@ -594,7 +633,6 @@ export default function TaxInvoice() {
     }
   };
 
-  // ── Persist form + products to sessionStorage whenever they change ─────────
   useEffect(() => {
     try {
       sessionStorage.setItem(SESSION_KEY, JSON.stringify({ form, products }));
@@ -605,14 +643,21 @@ export default function TaxInvoice() {
     BRANCHES.forEach((b) => fetchProductsForBranch(b.id));
   }, []);
 
-  // Only peek a fresh number if this draft hasn't already reserved one.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!form.invoiceNoLocked && !continueInvoiceNo) fetchInvoiceNoPeek();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Quick-filling from a quotation (via Clients page "Go to Tax Invoice") ──
+  // ── Re-peek invoice no when first row's branch changes (All Branches mode) ──
+  const firstRowBranch = products[0]?.branchId || null;
+  useEffect(() => {
+    if (form.invoiceNoLocked || continueInvoiceNo || !firstRowBranch) return;
+    fetchInvoiceNoPeek(firstRowBranch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firstRowBranch]);
+
+  // ── Quick-fill from a quotation ────────────────────────────────────────────
   useEffect(() => {
     if (!fromQuotationId) return;
     (async () => {
@@ -626,7 +671,6 @@ export default function TaxInvoice() {
           setLoadingExistingInvoice(false);
           return;
         }
-        // Merge (not replace) so the invoice number peeked above isn't clobbered.
         setForm((prev) => ({ ...prev, ...mapQuotationToForm(data) }));
         setProducts(mapQuotationItemsToProducts(data.items));
       } catch (_) {
@@ -635,14 +679,13 @@ export default function TaxInvoice() {
         );
       } finally {
         setLoadingExistingInvoice(false);
-        // Clear the hand-off state so refresh/back doesn't redo this fetch.
         navigate(location.pathname, { replace: true, state: {} });
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Continuing an existing invoice (via Clients page "Continue") ───────────
+  // ── Continuing an existing invoice ─────────────────────────────────────────
   useEffect(() => {
     if (!continueInvoiceNo) return;
     (async () => {
@@ -662,12 +705,11 @@ export default function TaxInvoice() {
         setForm({ ...DEFAULT_FORM, ...mapInvoiceToForm(inv) });
         setProducts(mapItemsToProducts(inv.items));
         setBranchInfo({ loading: false, branchId: inv.branch_id, error: null });
-        setStockReduced(true); // loaded items were already deducted when first saved
+        setStockReduced(true);
       } catch (_) {
         setExistingInvoiceError("Could not reach the server for that invoice.");
       } finally {
         setLoadingExistingInvoice(false);
-        // Clear the hand-off state so refresh/back doesn't redo this fetch.
         navigate(location.pathname, { replace: true, state: {} });
       }
     })();
@@ -677,9 +719,7 @@ export default function TaxInvoice() {
   async function fetchProductsForBranch(branchId) {
     try {
       const res = await apiFetch("/products.php", { branchId });
-
       if (!res.ok) return;
-
       const data = await res.json();
       setProductsByBranch((prev) => ({
         ...prev,
@@ -707,6 +747,31 @@ export default function TaxInvoice() {
       ...(name === "ewayRequired" && value === "No" ? { ewayNumber: "" } : {}),
     }));
     if (errors[name]) setErrors((p) => ({ ...p, [name]: "" }));
+  };
+
+  // ── Pick a client from suggestions → fill details ──────────────────────────
+  const pickBuyer = (c) => {
+    setForm((prev) => ({
+      ...prev,
+      buyerName: c.name || "",
+      buyerPhone: (c.phone || "").replace(/\D/g, "").slice(0, 10),
+      buyerAddress: c.address || "",
+      buyerGst: c.gst || "",
+      buyerState: c.state || "Tamil Nadu",
+      buyerStateCode: c.state_code || "33",
+      openBalance: String(c.pending ?? 0),
+    }));
+    setErrors((p) => ({ ...p, buyerName: "", buyerPhone: "" }));
+  };
+
+  const pickConsignee = (c) => {
+    setForm((prev) => ({
+      ...prev,
+      consigneeName: c.name || "",
+      consigneeAddress: c.address || "",
+      consigneeState: c.state || "Tamil Nadu",
+      consigneeStateCode: c.state_code || "33",
+    }));
   };
 
   const handleProduct = (idx, field, value) => {
@@ -817,8 +882,12 @@ export default function TaxInvoice() {
   const sgstAmt = r2(subtotal * (sgstRate / 100));
   const totalTax = r2(cgstAmt + sgstAmt);
   const gross = r2(subtotal + totalTax);
-  const roundOff = 0;
-  const netAmount = gross;
+  const autoRoundOff = r2(Math.round(gross) - gross);
+  const roundOff =
+    form.roundOffManual !== "" && !isNaN(parseFloat(form.roundOffManual))
+      ? r2(parseFloat(form.roundOffManual))
+      : autoRoundOff;
+  const netAmount = r2(gross + roundOff);
   const closingBalance = (parseFloat(form.openBalance) || 0) + netAmount;
 
   const hsnGroups = {};
@@ -830,9 +899,6 @@ export default function TaxInvoice() {
     hsnGroups[key].sgst += r.taxableAmt * (sgstRate / 100);
   });
 
-  // Safe to call every time Preview is clicked, including when continuing an
-  // already-saved bill at a different branch — rows already deducted (from an
-  // earlier Preview) are skipped, only newly added rows get stock taken off.
   const reduceStock = async () => {
     setStockReducing(true);
     try {
@@ -855,9 +921,6 @@ export default function TaxInvoice() {
         return false;
       }
 
-      // Items can come from different branches — fetch each touched branch's
-      // fresh product list (with the matching X-Branch-ID) rather than
-      // relying on whichever branch the admin currently has selected.
       const branchIds = [
         ...new Set(pendingIndexes.map((idx) => products[idx].branchId)),
       ];
@@ -900,7 +963,6 @@ export default function TaxInvoice() {
             description: match.description,
           }),
         });
-
         if (!updateRes.ok)
           throw new Error(`Failed to update stock for "${match.product_name}"`);
         deductedIndexes.push(idx);
@@ -942,13 +1004,13 @@ export default function TaxInvoice() {
       try {
         const res = await apiFetch("/get_invoice_number.php", {
           method: "POST",
+          branchId: products[0]?.branchId || undefined,
         });
-
         const data = await res.json();
         if (!data.success) {
           alert(
             data.message === "no_branch_selected"
-              ? "⚠️ Please select a branch before generating an invoice."
+              ? "⚠️ Please select a Branch in the first product row."
               : "⚠️ Could not generate the invoice number. Please try again.",
           );
           return;
@@ -1022,9 +1084,9 @@ export default function TaxInvoice() {
       };
       const res = await apiFetch("/save_invoice.php", {
         method: "POST",
+        branchId: branchInfo.branchId || products[0]?.branchId || undefined,
         body: JSON.stringify(payload),
       });
-
       const result = await res.json();
       if (!result.success)
         console.error("Invoice save failed:", result.message);
@@ -1045,9 +1107,6 @@ export default function TaxInvoice() {
         JSON.stringify([...filtered, newInvoice]),
       );
     } catch (_) {}
-    // Invoice is saved now — drop the draft so reopening Tax Invoice later
-    // starts blank instead of resurfacing this already-saved bill. To edit
-    // it again, use "Continue" on the Clients page (loads fresh from the server).
     try {
       sessionStorage.removeItem(SESSION_KEY);
     } catch (_) {}
@@ -1055,7 +1114,6 @@ export default function TaxInvoice() {
     window.scrollTo(0, 0);
   };
 
-  // Clear session and reset form
   const handleNewInvoice = () => {
     try {
       sessionStorage.removeItem(SESSION_KEY);
@@ -1067,10 +1125,9 @@ export default function TaxInvoice() {
     setStep(1);
     window.scrollTo(0, 0);
     setBranchInfo({ loading: true, branchId: null, error: null });
-    fetchInvoiceNoPeek();
+    fetchInvoiceNoPeek(); // first-row branch effect re-peeks once a branch is picked
   };
 
-  // ── Show loading state ──────────────────────────────────────────────────────
   if (loading) {
     return (
       <>
@@ -1085,7 +1142,6 @@ export default function TaxInvoice() {
     );
   }
 
-  // ── Show access denied for non-admin users ────────────────────────────────
   if (!isAdmin) {
     return (
       <>
@@ -1115,7 +1171,6 @@ export default function TaxInvoice() {
     );
   }
 
-  // ── Show loading state while pulling in a "Continue" invoice ───────────────
   if (loadingExistingInvoice) {
     return (
       <>
@@ -1163,7 +1218,7 @@ export default function TaxInvoice() {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // STEP 1 — FORM (only shown to Admin users)
+  // STEP 1 — FORM
   // ═══════════════════════════════════════════════════════════════════════════
   if (step === 1) {
     return (
@@ -1173,19 +1228,26 @@ export default function TaxInvoice() {
         <div
           className="at-root no-print"
           onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              const tag = e.target.tagName;
-              if (tag === "BUTTON" || tag === "TEXTAREA") return;
-              e.preventDefault();
-              const fields = Array.from(
-                e.currentTarget.querySelectorAll(
-                  "input:not([disabled]):not([readonly]), select:not([disabled])",
-                ),
-              ).filter((el) => el.offsetParent !== null);
-              const i = fields.indexOf(e.target);
-              if (i > -1 && i + 1 < fields.length) fields[i + 1].focus();
-            } else if (e.key === "Escape") {
-              e.target.blur();
+            // Enter → next field, Tab → previous field, Shift+Tab → next field
+            const isEnter = e.key === "Enter";
+            const isTab = e.key === "Tab";
+            if (!isEnter && !isTab) return;
+            const tag = e.target.tagName;
+            if (isEnter && (tag === "BUTTON" || tag === "TEXTAREA")) return;
+            const fields = Array.from(
+              e.currentTarget.querySelectorAll(
+                "input:not([disabled]):not([readonly]), select:not([disabled])",
+              ),
+            ).filter((el) => el.offsetParent !== null && el.type !== "date");
+            const i = fields.indexOf(e.target);
+            if (i === -1) return;
+            e.preventDefault();
+            const back = isTab && !e.shiftKey;
+            const next = back ? i - 1 : i + 1;
+            if (next >= 0 && next < fields.length) {
+              fields[next].focus();
+              if (fields[next].select && fields[next].tagName === "INPUT")
+                fields[next].select();
             }
           }}
         >
@@ -1336,7 +1398,11 @@ export default function TaxInvoice() {
                       <input
                         type="date"
                         className="at-datewrap__native"
-                        value={/^\d{4}-\d{2}-\d{2}$/.test(form[name] || "") ? form[name] : ""}
+                        value={
+                          /^\d{4}-\d{2}-\d{2}$/.test(form[name] || "")
+                            ? form[name]
+                            : ""
+                        }
                         onChange={(e) => {
                           setForm((p) => ({ ...p, [name]: e.target.value }));
                           if (errors[name])
@@ -1397,12 +1463,14 @@ export default function TaxInvoice() {
             <div className="at-form-grid">
               <div className="at-fg at-fg--span2">
                 <label className="at-label">Name</label>
-                <input
+                <ClientNameInput
                   className="at-input"
                   name="consigneeName"
                   value={form.consigneeName}
                   onChange={handleForm}
-                  placeholder="Leave blank to copy from Buyer"
+                  onPick={pickConsignee}
+                  clients={clientsList}
+                  placeholder="Type to search customers, or leave blank to copy from Buyer"
                 />
               </div>
               <div className="at-fg">
@@ -1446,11 +1514,14 @@ export default function TaxInvoice() {
                 <label className="at-label">
                   Name <span className="req">*</span>
                 </label>
-                <input
+                <ClientNameInput
                   className={`at-input${errors.buyerName ? " error-field" : ""}`}
                   name="buyerName"
                   value={form.buyerName}
                   onChange={handleForm}
+                  onPick={pickBuyer}
+                  clients={clientsList}
+                  placeholder="Type to search customers"
                 />
                 {errors.buyerName && (
                   <div className="at-error-text">{errors.buyerName}</div>
@@ -1711,7 +1782,29 @@ export default function TaxInvoice() {
                   CGST {cgstRate}%: ₹ {fmt2(cgstAmt)} | SGST {sgstRate}%: ₹{" "}
                   {fmt2(sgstAmt)}
                 </div>
-                
+                <div
+                  className="muted"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "flex-end",
+                    gap: 8,
+                    marginTop: 6,
+                  }}
+                >
+                  <span>Round Off:</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    name="roundOffManual"
+                    className="at-input-t"
+                    style={{ width: 110, textAlign: "right" }}
+                    placeholder={`auto (${autoRoundOff > 0 ? "+" : ""}${fmt2(autoRoundOff)})`}
+                    value={form.roundOffManual}
+                    onChange={handleForm}
+                    onWheel={(e) => e.target.blur()}
+                  />
+                </div>
                 <div className="net">Net Amount: ₹ {fmt2(netAmount)}</div>
               </div>
             </div>
@@ -1784,9 +1877,7 @@ export default function TaxInvoice() {
               className="at-btn at-btn--primary at-btn--lg"
               onClick={handlePreview}
               disabled={
-                stockReducing ||
-                (!form.invoiceNoLocked &&
-                  (branchInfo.loading || !!branchInfo.error))
+                stockReducing || (!form.invoiceNoLocked && branchInfo.loading)
               }
             >
               {stockReducing ? (
@@ -1812,12 +1903,10 @@ export default function TaxInvoice() {
   // ═══════════════════════════════════════════════════════════════════════════
   // STEP 2 — INVOICE PREVIEW
   // ═══════════════════════════════════════════════════════════════════════════
-
   const itemCount = rows.length;
   const dynFont =
     itemCount <= 10 ? 11 : itemCount <= 20 ? 12 : itemCount <= 30 ? 11 : 10;
-  const dynPad =
-    itemCount <= 10 ? "3px 6px" : itemCount <= 20 ? "3px 6px" : "2px 5px";
+  const dynPad = itemCount <= 20 ? "3px 6px" : "2px 5px";
 
   const dc = (extra = {}) => ({
     border: "none",
@@ -1840,10 +1929,6 @@ export default function TaxInvoice() {
 
   const MIN_ROWS = itemCount >= 15 ? 0 : Math.max(0, 15 - itemCount);
 
-  // ── Meta fields: only show if filled ─────────────────────────────────────
-  // LEFT column: Invoice No, Reference No, Buyer's Order No
-  // RIGHT column: Dispatch Doc No, Dispatched Through, Destination
-  // Each only shows if value is non-empty
   const leftMetaFields = [
     { label: "Invoice No.", value: form.invoiceNo },
     form.referenceNo
@@ -1867,9 +1952,6 @@ export default function TaxInvoice() {
       : null,
   ].filter(Boolean);
 
-  // Buyer panel right-side details (only non-empty)
-
-  // Buyer panel right-side details (only non-empty)
   const buyerRightDetails = [
     { label: "Payment", value: form.paymentMode },
     form.dispatchedThrough
@@ -1887,25 +1969,74 @@ export default function TaxInvoice() {
       : null,
   ].filter(Boolean);
 
+  // Snapshot the invoice → share as image (mobile) or download + open WhatsApp chat (desktop)
+  const sendWhatsApp = async () => {
+    try {
+      const html2canvas = (await import("html2canvas")).default;
+      const node = document.getElementById("bip-invoice-print");
+      const canvas = await html2canvas(node, {
+        scale: 2,
+        backgroundColor: "#fff",
+      });
+      const blob = await new Promise((r) => canvas.toBlob(r, "image/png"));
+      const fileName = `${form.invoiceNo || "invoice"}.png`;
+      const file = new File([blob], fileName, { type: "image/png" });
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: fileName,
+          text: `Invoice ${form.invoiceNo}`,
+        });
+        return;
+      }
+
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = fileName;
+      a.click();
+
+      const raw = (form.buyerPhone || "").replace(/\D/g, "");
+      const phone = raw.length === 10 ? `91${raw}` : raw;
+      const text = encodeURIComponent(
+        `Dear ${form.buyerName},\n\nInvoice ${form.invoiceNo} — ₹${fmt2(netAmount)}\n\nThank you,\nBIP Fencing`,
+      );
+      window.open(`https://wa.me/${phone}?text=${text}`, "_blank");
+    } catch (err) {
+      console.error(err);
+      alert("Could not prepare the invoice for WhatsApp.");
+    }
+  };
+
+  const actionBar = (extraClass) => (
+    <div
+      className={`no-print d-flex justify-content-center gap-3 ${extraClass}`}
+    >
+      <button className="at-btn at-btn--ghost" onClick={handleEdit}>
+        <i className="bi bi-pencil"></i> Edit
+      </button>
+      <button className="at-btn at-btn--primary" onClick={() => window.print()}>
+        <i className="bi bi-printer"></i> Confirm &amp; Print
+      </button>
+      <button
+        className="at-btn"
+        style={{ background: "#25D366", color: "#fff" }}
+        onClick={sendWhatsApp}
+      >
+        <i className="bi bi-whatsapp"></i> WhatsApp
+      </button>
+      <button className="at-btn at-btn--ghost" onClick={handleNewInvoice}>
+        <i className="bi bi-file-earmark-plus"></i> New Invoice
+      </button>
+    </div>
+  );
+
   return (
     <>
       <style>{printStyles}</style>
       <style>{screenStyles}</style>
 
-      <div className="no-print py-3 d-flex justify-content-center gap-3">
-        <button className="at-btn at-btn--ghost" onClick={handleEdit}>
-          <i className="bi bi-pencil"></i> Edit
-        </button>
-        <button
-          className="at-btn at-btn--primary"
-          onClick={() => window.print()}
-        >
-          <i className="bi bi-printer"></i> Confirm &amp; Print
-        </button>
-        <button className="at-btn at-btn--ghost" onClick={handleNewInvoice}>
-          <i className="bi bi-file-earmark-plus"></i> New Invoice
-        </button>
-      </div>
+      {actionBar("py-3")}
 
       {stockReduced && (
         <div
@@ -1944,7 +2075,6 @@ export default function TaxInvoice() {
           flexDirection: "column",
         }}
       >
-        {/* Copy label */}
         <div
           style={{
             textAlign: "right",
@@ -1957,13 +2087,12 @@ export default function TaxInvoice() {
           ({form.copyType})
         </div>
 
-        {/* ── HEADER: Logo + Company Info ── */}
+        {/* HEADER */}
         <table
           style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}
         >
           <tbody>
             <tr>
-              {/* LEFT: Logo image */}
               <td
                 style={{
                   width: 80,
@@ -1985,7 +2114,6 @@ export default function TaxInvoice() {
                   }}
                 />
               </td>
-              {/* CENTER: Company details */}
               <td
                 style={{
                   padding: "4px 10px",
@@ -1995,7 +2123,7 @@ export default function TaxInvoice() {
               >
                 <div
                   style={{
-                    fontSize: 24, // ← Changed from 17 to 20
+                    fontSize: 24,
                     fontWeight: "bold",
                     letterSpacing: 1.5,
                     textTransform: "uppercase",
@@ -2010,31 +2138,18 @@ export default function TaxInvoice() {
                   GSTIN/UIN: <strong>{COMPANY.gst}</strong>&nbsp;&nbsp;State:{" "}
                   {COMPANY.state}, Code: {COMPANY.stateCode}
                 </div>
-                <div
-                  style={{
-                    fontSize: 10,
-                    display: "flex",
-                    justifyContent: "center",
-                    gap: 24,
-                  }}
-                >
-                  <span>Ph: {COMPANY.phone}</span>
-                </div>
+                <div style={{ fontSize: 10 }}>Ph: {COMPANY.phone}</div>
               </td>
             </tr>
           </tbody>
         </table>
 
-        {/* ── CONSIGNEE + META (2-column split) ── */}
-
-        {/* ── CONSIGNEE + META (2-column split) ── */}
+        {/* CONSIGNEE + META */}
         <table
           style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}
-          className="meta-table"
         >
           <tbody>
             <tr>
-              {/* Consignee - Left Column */}
               <td
                 style={{
                   width: "50%",
@@ -2055,8 +2170,6 @@ export default function TaxInvoice() {
                   {form.consigneeStateCode || form.buyerStateCode}
                 </div>
               </td>
-
-              {/* Meta - Right Column */}
               <td
                 style={{
                   width: "50%",
@@ -2064,42 +2177,40 @@ export default function TaxInvoice() {
                   verticalAlign: "top",
                 }}
               >
-                <div>
-                  {[...leftMetaFields, ...rightMetaFields].map(
-                    ({ label, value }, idx) => (
-                      <div
-                        key={label + idx}
-                        style={{ display: "flex", marginBottom: 2 }}
+                {[...leftMetaFields, ...rightMetaFields].map(
+                  ({ label, value }, idx) => (
+                    <div
+                      key={label + idx}
+                      style={{ display: "flex", marginBottom: 2 }}
+                    >
+                      <span
+                        style={{
+                          fontWeight: "normal",
+                          minWidth: 130,
+                          whiteSpace: "nowrap",
+                          fontSize: 13,
+                        }}
                       >
-                        <span
-                          style={{
-                            fontWeight: "normal",
-                            minWidth: 130,
-                            whiteSpace: "nowrap",
-                            fontSize: 13,
-                          }}
-                        >
-                          {label}
-                        </span>
-                        <span style={{ fontWeight: "bold", fontSize: 13 }}>
-                          {" "}
-                          : {value}
-                        </span>
-                      </div>
-                    ),
-                  )}
-                </div>
+                        {label}
+                      </span>
+                      <span style={{ fontWeight: "bold", fontSize: 13 }}>
+                        {" "}
+                        : {value}
+                      </span>
+                    </div>
+                  ),
+                )}
               </td>
             </tr>
           </tbody>
         </table>
-        {/* ── BUYER + PAYMENT (2-column split) ── */}
+
+        {/* BUYER + PAYMENT */}
         <table
           style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}
         >
           <tbody>
             <tr>
-              {/* Buyer - Left Column */}
               <td
                 style={{
                   width: "50%",
@@ -2123,8 +2234,6 @@ export default function TaxInvoice() {
                   State Name: {form.buyerState}, Code: {form.buyerStateCode}
                 </div>
               </td>
-
-              {/* Payment - Right Column */}
               <td
                 style={{
                   padding: "6px 7px",
@@ -2150,24 +2259,12 @@ export default function TaxInvoice() {
                     </span>
                   </div>
                 ))}
-                {buyerRightDetails.length === 0 && (
-                  <div
-                    style={{
-                      color: "#999",
-                      fontSize: 12,
-                      fontStyle: "italic",
-                    }}
-                  >
-                    No additional details
-                  </div>
-                )}
               </td>
             </tr>
           </tbody>
         </table>
-        {/* ── BUYER + PAYMENT ── */}
 
-        {/* ── PRODUCT TABLE ── */}
+        {/* PRODUCT TABLE */}
         <div style={{ flex: 1 }}>
           <table
             style={{
@@ -2217,12 +2314,7 @@ export default function TaxInvoice() {
               {rows.map((r, i) => (
                 <tr key={i} className="inv-product-row">
                   <td style={dc({ textAlign: "center" })}>{i + 1}</td>
-                  <td
-                    style={dc({
-                      fontWeight: "bold",
-                      fontSize: 18,
-                    })}
-                  >
+                  <td style={dc({ fontWeight: "bold", fontSize: 18 })}>
                     {r.desc}
                   </td>
                   <td style={dc({ textAlign: "center", fontWeight: "bold" })}>
@@ -2251,24 +2343,22 @@ export default function TaxInvoice() {
                 </tr>
               ))}
 
-                            {true && (
-                <tr>
-                  <td
-                    colSpan={8}
-                    style={dc({
-                      borderTop: "1px dashed #999",
-                      padding: "3px 7px",
-                    })}
-                  >
-                    <div style={{ fontWeight: "bold", fontSize: dynFont + 2 }}>
-                      Open Balance: ₹ {fmt2(form.openBalance || 0)}
-                    </div>
-                    <div style={{ fontWeight: "bold", fontSize: dynFont + 2 }}>
-                      Closing Balance: ₹ {fmt2(closingBalance)}
-                    </div>
-                  </td>
-                </tr>
-              )}
+              <tr>
+                <td
+                  colSpan={8}
+                  style={dc({
+                    borderTop: "1px dashed #999",
+                    padding: "3px 7px",
+                  })}
+                >
+                  <div style={{ fontWeight: "bold", fontSize: dynFont + 2 }}>
+                    Open Balance: ₹ {fmt2(form.openBalance || 0)}
+                  </div>
+                  <div style={{ fontWeight: "bold", fontSize: dynFont + 2 }}>
+                    Closing Balance: ₹ {fmt2(closingBalance)}
+                  </div>
+                </td>
+              </tr>
               <tr>
                 <td
                   colSpan={7}
@@ -2327,7 +2417,25 @@ export default function TaxInvoice() {
                   {fmt2(sgstAmt)}
                 </td>
               </tr>
-             
+              {roundOff !== 0 && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    style={dc({
+                      textAlign: "right",
+                      fontStyle: "italic",
+                      fontWeight: "bold",
+                    })}
+                  >
+                    ROUNDING OFF
+                  </td>
+                  <td style={dc({ textAlign: "right", fontWeight: "bold" })}>
+                    {roundOff > 0 ? "+" : ""}
+                    {fmt2(roundOff)}
+                  </td>
+                </tr>
+              )}
+
               <tr style={{ background: "#f0f0f0" }}>
                 <td style={dc({ borderTop: B, borderBottom: B })}></td>
                 <td
@@ -2371,7 +2479,7 @@ export default function TaxInvoice() {
           </table>
         </div>
 
-        {/* ── AMOUNT IN WORDS ── */}
+        {/* AMOUNT IN WORDS */}
         <table
           style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}
         >
@@ -2400,18 +2508,13 @@ export default function TaxInvoice() {
                   textAlign: "right",
                 }}
               >
-                <div style={{ fontSize: 2, fontWeight: "bold" }}>
-                  {" "}
-                  {/* ← Changed from 17 to 20 */}₹ {fmt2(netAmount)}
-                </div>
-                <div style={{ fontSize: 10 }}>E. &amp; O.E</div>{" "}
-                {/* ← Changed from 9 to 10 */}
+                <div style={{ fontSize: 10 }}>E. &amp; O.E</div>
               </td>
             </tr>
           </tbody>
         </table>
 
-        {/* ── HSN TAX TABLE ── */}
+        {/* HSN TAX TABLE */}
         <table
           style={{
             width: "100%",
@@ -2529,13 +2632,13 @@ export default function TaxInvoice() {
           </tbody>
         </table>
 
-        {/* ── TAX IN WORDS ── */}
+        {/* TAX IN WORDS */}
         <div style={{ padding: "2px 7px", borderBottom: B, fontSize: 10 }}>
           <strong>Tax Amount (in words):</strong>&nbsp;
           <em style={{ fontWeight: "bold" }}>{amountInWords(totalTax)}</em>
         </div>
 
-        {/* ── FOOTER ── */}
+        {/* FOOTER */}
         <div style={{ marginTop: "auto" }}>
           <table
             style={{ width: "100%", borderCollapse: "collapse" }}
@@ -2627,22 +2730,8 @@ export default function TaxInvoice() {
           </table>
         </div>
       </div>
-      {/* end invoice */}
 
-      <div className="no-print d-flex justify-content-center gap-3 pb-4">
-        <button className="at-btn at-btn--ghost" onClick={handleEdit}>
-          <i className="bi bi-pencil"></i> Edit
-        </button>
-        <button
-          className="at-btn at-btn--primary"
-          onClick={() => window.print()}
-        >
-          <i className="bi bi-printer"></i> Confirm &amp; Print
-        </button>
-        <button className="at-btn at-btn--ghost" onClick={handleNewInvoice}>
-          <i className="bi bi-file-earmark-plus"></i> New Invoice
-        </button>
-      </div>
+      {actionBar("pb-4")}
     </>
   );
 }

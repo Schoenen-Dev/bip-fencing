@@ -23,6 +23,12 @@ const emptyForm = () => ({
   items: [emptyItem()],
 });
 
+// Phone key used to identify the same party: last 10 digits only.
+const phoneKey = (p) =>
+  String(p || "")
+    .replace(/\D/g, "")
+    .slice(-10);
+
 // Read the logged-in user saved at login time.
 // NOTE: change "user" if your app stores it under a different key.
 const getStoredUser = () => {
@@ -90,6 +96,32 @@ export default function PurchaseBill() {
   useEffect(() => {
     fetchBills();
   }, []);
+
+  // Existing parties (from Tax Invoices / earlier bills) — used to link by phone
+  const [parties, setParties] = useState([]);
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await apiFetch("/client.php");
+        const data = await res.json();
+        if (data.success) setParties(data.clients || []);
+      } catch (_) {}
+    })();
+  }, []);
+
+  // Same phone number = same party, whatever the invoice number is
+  const supplierKey = phoneKey(form.supplier_phone);
+  const linkedParty =
+    supplierKey.length === 10
+      ? parties.find((p) => phoneKey(p.phone) === supplierKey)
+      : null;
+
+  useEffect(() => {
+    if (linkedParty && !form.company_name.trim()) {
+      setForm((prev) => ({ ...prev, company_name: linkedParty.name || "" }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkedParty?.id]);
 
   const handleFilterChange = (e) =>
     setFilters({ ...filters, [e.target.name]: e.target.value });
@@ -163,8 +195,9 @@ export default function PurchaseBill() {
     e.preventDefault();
     setFormError("");
 
-    if (!form.company_name || !form.invoice_no || !form.bill_date) {
-      setFormError("Company name, invoice no and date are required");
+    // Invoice number is optional — the phone number links the customer
+    if (!form.company_name || !form.bill_date) {
+      setFormError("Company name and date are required");
       return;
     }
     for (let i = 0; i < form.items.length; i++) {
@@ -259,7 +292,7 @@ export default function PurchaseBill() {
   const handleDelete = async (bill) => {
     if (
       !window.confirm(
-        `Delete bill ${bill.invoice_no} (${bill.company_name})?\nStock added by this bill will be reversed.`,
+        `Delete bill ${bill.invoice_no || "(no invoice no.)"} (${bill.company_name})?\nStock added by this bill will be reversed.`,
       )
     )
       return;
@@ -331,7 +364,15 @@ export default function PurchaseBill() {
   const inr = (v) => `₹${Number(v || 0).toLocaleString("en-IN")}`;
 
   return (
-    <div className="at-root">
+    <div
+      className="at-root"
+      onKeyDown={(e) => {
+        // Enter → next field is handled app-wide (hooks/useEnterNavigation)
+        if (e.key === "Escape") {
+          e.target.blur();
+        }
+      }}
+    >
       <style>{screenStyles}</style>
 
       {/* ── Header ───────────────────────────────────────────── */}
@@ -414,23 +455,36 @@ export default function PurchaseBill() {
                 value={form.supplier_phone}
                 onChange={handleHeaderChange}
               />
-              <small style={{ color: "#6b7280", fontSize: 12 }}>
-                Enter the same number used on their tax invoice to net the
-                balances together on the Client page.
-              </small>
+              {linkedParty ? (
+                <small
+                  style={{ color: "#008b3e", fontSize: 12, fontWeight: 600 }}
+                >
+                  <i className="bi bi-link-45deg"></i> Linked to existing
+                  customer: {linkedParty.name} (
+                  {linkedParty.total_invoices || 0} invoice
+                  {Number(linkedParty.total_invoices) === 1 ? "" : "s"})
+                </small>
+              ) : (
+                <small style={{ color: "#6b7280", fontSize: 12 }}>
+                  Enter the same number used on their tax invoice to net the
+                  balances together on the Client page.
+                </small>
+              )}
             </div>
             <div className="at-fg">
               <label className="at-label">
-                Invoice No. <span className="req">*</span>
+                Invoice No.{" "}
+                <span style={{ color: "#6b7280", fontWeight: 400 }}>
+                  (optional)
+                </span>
               </label>
               <input
                 type="text"
                 name="invoice_no"
-                placeholder="INV-001"
+                placeholder="INV-001 (leave empty if none)"
                 className="at-input"
                 value={form.invoice_no}
                 onChange={handleHeaderChange}
-                required
               />
             </div>
             <div className="at-fg">
@@ -833,7 +887,7 @@ export default function PurchaseBill() {
                           )}
                         </strong>
                         <span className="bill-invoice">
-                          Invoice: {bill.invoice_no}
+                          Invoice: {bill.invoice_no || "—"}
                         </span>
                       </div>
                       <div className="bill-header-right">

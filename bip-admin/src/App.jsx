@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminLayout from "./components/AdminLayout";
+import useEnterNavigation from "./hooks/useEnterNavigation";
 
 // Auth
 import Login from "./pages/Login";
@@ -28,13 +29,16 @@ import Salary from "./pages/Salary";
 import Clients from "./pages/Clients";
 
 function AppRoutes() {
+  // Enter → next field, on every page (Login included)
+  useEnterNavigation();
+
   // Add this helper at the top
-// const user = JSON.parse(localStorage.getItem('user') || '{}');
-// i will add this funtion on four lines bellow
-function AdminRoute({ children }) {
-  const role = localStorage.getItem('role');
-  return role === 'admin' ? children : <Navigate to="/dashboard" replace />;
-}
+  // const user = JSON.parse(localStorage.getItem('user') || '{}');
+  // i will add this funtion on four lines bellow
+  function AdminRoute({ children }) {
+    const role = localStorage.getItem("role");
+    return role === "admin" ? children : <Navigate to="/dashboard" replace />;
+  }
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
