@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import Select from "react-select";
 import { apiFetch } from "../utils/api";
 
 const SESSION_KEY = "bip_tax_invoice_form";
@@ -153,6 +154,35 @@ const toISO = (txt) => {
 const ALL_BRANCH = "all";
 const stockBranchOf = (p) =>
   p.branchId === ALL_BRANCH ? p.productBranchId : p.branchId;
+
+// Compact styling so the searchable dropdown matches the table inputs
+const productSelectStyles = {
+  container: (b) => ({ ...b, width: "100%", minWidth: 170 }),
+  control: (b, state) => ({
+    ...b,
+    minHeight: 34,
+    fontSize: 13,
+    borderColor: state.isFocused ? "#008b3e" : "#cbd5e1",
+    boxShadow: state.isFocused ? "0 0 0 2px rgba(0,139,62,.15)" : "none",
+    "&:hover": { borderColor: "#008b3e" },
+  }),
+  valueContainer: (b) => ({ ...b, padding: "0 6px" }),
+  dropdownIndicator: (b) => ({ ...b, padding: 4 }),
+  clearIndicator: (b) => ({ ...b, padding: 4 }),
+  indicatorSeparator: () => ({ display: "none" }),
+  menu: (b) => ({ ...b, fontSize: 13, zIndex: 9999 }),
+  menuPortal: (b) => ({ ...b, zIndex: 9999 }),
+  option: (b, state) => ({
+    ...b,
+    padding: "6px 10px",
+    backgroundColor: state.isSelected
+      ? "#008b3e"
+      : state.isFocused
+        ? "#e8f5ee"
+        : "#fff",
+    color: state.isSelected ? "#fff" : "#1e293b",
+  }),
+};
 
 const emptyProduct = () => ({
   branchId: null,
@@ -812,7 +842,19 @@ export default function TaxInvoice() {
 
   const handleProductSelect = (idx, productId) => {
     if (!productId) {
-      handleProduct(idx, "desc", "");
+      // "x" clicked in the search box → empty the row's product
+      setProducts((prev) => {
+        const updated = [...prev];
+        updated[idx] = {
+          ...updated[idx],
+          productId: null,
+          productBranchId: null,
+          desc: "",
+          hsn: "",
+          rateIncl: "",
+        };
+        return updated;
+      });
       return;
     }
     // All Branch rows use "branchId:productId" as the option value
@@ -1697,27 +1739,47 @@ export default function TaxInvoice() {
                         </td>
                         <td>
                           {p.branchId ? (
-                            <select
-                              className={`at-select-t${errors[`desc_${i}`] ? " error-field" : ""}`}
-                              value={selectedValue}
-                              onChange={(e) =>
-                                handleProductSelect(i, e.target.value)
+                            <Select
+                              inputId={`product_${i}`}
+                              options={branchProducts.map((sp) => ({
+                                value: String(sp.optionValue),
+                                label: sp.label,
+                              }))}
+                              value={
+                                selectedValue
+                                  ? {
+                                      value: String(selectedValue),
+                                      label:
+                                        branchProducts.find(
+                                          (sp) =>
+                                            String(sp.optionValue) ===
+                                            String(selectedValue),
+                                        )?.label || p.desc,
+                                    }
+                                  : null
                               }
-                            >
-                              <option value="">
-                                {!p.productId && p.desc
+                              onChange={(opt) =>
+                                handleProductSelect(i, opt ? opt.value : "")
+                              }
+                              placeholder={
+                                !p.productId && p.desc
                                   ? p.desc
-                                  : "— Select Product —"}
-                              </option>
-                              {branchProducts.map((sp) => (
-                                <option
-                                  key={sp.optionValue}
-                                  value={sp.optionValue}
-                                >
-                                  {sp.label}
-                                </option>
-                              ))}
-                            </select>
+                                  : "Type to search…"
+                              }
+                              isClearable
+                              isSearchable
+                              noOptionsMessage={() => "No matching product"}
+                              menuPortalTarget={
+                                typeof document !== "undefined"
+                                  ? document.body
+                                  : null
+                              }
+                              menuPosition="fixed"
+                              styles={productSelectStyles}
+                              className={
+                                errors[`desc_${i}`] ? "error-field" : undefined
+                              }
+                            />
                           ) : (
                             <input
                               className="at-input-t"
