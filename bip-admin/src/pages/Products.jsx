@@ -3,17 +3,7 @@ import { apiFetch } from "../utils/api";
 
 const todayDate = () => new Date().toISOString().slice(0, 10);
 
-const UNITS = [
-  "Pcs",
-  "Kg",
-  "Meter",
-  "Roll",
-  "Box",
-  "Set",
-  "Liter",
-  "Ton",
-  "Nos",
-];
+const UNITS = ["Pcs", "Kg", "Meter", "Roll", "Box", "Set", "Liter", "Ton", "Nos"];
 
 const emptyForm = {
   productName: "",
@@ -1090,8 +1080,7 @@ export default function Products() {
                                           : openStockOut(p.id)
                                       }
                                     >
-                                      <i className="bi bi-dash-lg"></i> Stock
-                                      Out
+                                      <i className="bi bi-dash-lg"></i> Stock Out
                                     </button>
                                     <button
                                       className="at-act-btn at-act-btn--edit"
