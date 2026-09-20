@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { apiFetch } from "../utils/api";
+import { BRANCH_LABELS } from "../utils/branchNames";
 
 // ─── COMPANY & BANK DETAILS ──────────────────────────────────────────────────
 const COMPANY = {
@@ -25,7 +26,7 @@ const DECLARATION =
 
 // ─── LOGO (Base64) ─────────────────────────────────────────────────────────
 const BIP_LOGO_B64 =
-  "data:image/jpeg;base64,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";
+  "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAB4AHgDASIAAhEBAxEB/8QAHAAAAgMBAQEBAAAAAAAAAAAABgcABAUIAQMC/8QAQRAAAgEDAwIDBwEDCgQHAAAAAQIDBAURAAYhEjETQVEHFCIyYXGBkRUjQggkM1JicqGisdEWgsHwJVRjg5KU4f/EABkBAAMBAQEAAAAAAAAAAAAAAAABAwQCBf/EADERAAEEAAQBCwMFAQAAAAAAAAEAAgMRBBIhMQUGE0FRYXGRobHR8BQiMjNCgeHxwf/aAAwDAQACEQMRAD8A6m1NTU0IXuql0uNFaqGWsudVBSUkQy807hEX7k6H95bwgsSPTUqx1NzCByjv0RU6E4EkzgHpUngKAXc8KDzhFbu3rR0V5iqty1dZXVsUqiTwY1ElGrEZKRnKU3HYfHMfNk7aRIG6m+QN0GpTXvHtN+JYrFbXk8Qfuqi4FqdZB6xwhWnkH1CBT/W1hVV23hcSfHuVRRo38EEcVCv+YTTf4KftooorVQ0cLNbvCSOYCTxUyzTgjIZnOWbIOeSe+sG73i02ySSOsrEikQoGQKWI689JwB24PPlrQ2NgGaR1BZXvmPZ3fP8AgXkOy7lcoY5a689SOvUPGqq2f9czIv8Al19X9mKx4b32kx/X9zkAH58fP+OrNjv9LeLPG9rqJJKeB5I2x8IYqVOOORkP9CcarXy7wWW3y3K6VZWihiE0ksmW+PjCEc57HC6Qja7Vp0TodJN9591+ZNoXSgYR0F7jEh5EcVbWQMfx4si/5dVW3Duex3T9ny3QVNUqBzTVKRVvwnscw+FMPv0P9tatJdY6ujZaSWJxOqugHHVI5JVgPsUP040ob+brN7QrzdjdqC2UdTVtClZLKMr4ahVRQRntzxqcrebrtXTQTeQnT+fXVOu0e0qmeNjfKQ0kUZxJWUrmppoz/wCoQokh/wDcRR9dHlLUwVdNHUUk0c8Eq9SSxMGVx6gjgjSXuFUh2tQ3OtqKOW5UsbN7xSS4lmHYeHN1AjzyPiz2we2sHY27EkFXcdq1Rp1hbqq4pYOiEgnHVUQJwnVg/wA4hA5HxocHXJ0NFUEpb+fiPmi6LOvdYe19x01+p3Co1NXwBfeKSRgXj6hlWBHDo3dXXKsPqCBt6Fde6mvNTQhTWBvC9/si3N4DKtS4+FihcRgnHV0jljkgKg5ZiBwMkb+ufvbNu6d6mSKzB2lKt4LoceGgyjT5/rN8SR+i9bjlgdImhanI4jQblC+9dxrHZbyLdVyxXKmqY45KhSJTBLKHDN1DHXPhMNKOE+SMADOkjXU9wZlZJBU9Ckl4zyvPOR82fuO+imBDT7NvI4CvVUhT1H9IMEfwn7+XPnrBiimkcPFG5RGC9QHAJ7c+WdTcAaK5a3KE+fZB7Qlb2bQ0tZHNPX2uQ0R55EZBaEt59gy/8msE2aOvqZqm4zSzTVMheRy3QTxnp4xxz29dY3szqEgvE9HdfghrljpJHbujM/7t8+eHC/gnRvWUNTa6pIKpkz1N8aHgnAGD6H6anK4Ehr1qhiDwXAbLQ2xtyG97Wu9soKmS11sdQlbS1FOegLMvUgL9PzDGAfT7jQrDJWb33PDBuC2+52uxS5uUUbGVamsBIy3JJQdOTwcA4OQeDv2Y1Bhvkig48aKVOAO4bqAH/wATrK9mMqvuv2giT4gbw2R+X51qi/FQnBBNJixywwW6Sti8LphhaZPAUENwSOnHkTj/AL50udsUtLV2q4QVtMssPvz/AAyRggEKOfp99Ft8p46O1VbURKmqkSN05KMc9RbpHn8IHHrznQ9spJFpboV6SRXP1ZBH8I7aJn5ilhm0Esd/7SrqOnSooJPeLMnWGjYktHhjk4A5B6Ryv/7o59k1JNYNlWypMLvUXipFQDGyoYoieiL5iCVC9TY5J6+2iREVvCEzCGHrmaSXPCoBIWJ9MAH9NfWqrqHcFPZKqzwGSj94QxhKJZehFIAOGwUUAfOORjjOlhGNbJmRPoK61bmpWtcsVztjiBabqciNeoUwPLsqj5oG7yRDt86YIxpn2W4rc6BJwojk7SRhg3S2AeGHDAgghhwQQfPQMsjwV9JHGQPE62J8x0jII5/3/GtXazparktEoAoKwE0nT8sTjLND/dxl09B1r2A1eeMNOZuyzwvLDlO3ojLU17qagtixd3VfulknPimHxAUMgOCi4JdgfUKGx9ca59u8loqp5qm4FwZGGIYpo/gQYCoMngBQB+NMX+UVdxa9mwxBY3etnEHS+cdOOtjwf7Kj865qtoqLvXpR2u2VFRVSdoqRiTjzPOcD6kgDWScvJpqi51OK3d1yW5tt3H9mpMf3lOJfEdct8T9ipPYcfnWLDUWiKkRF8bx2TrlYy/CZDkkBRn6AfbTIsXsZvV0tNZT1lbQ2wzSxOVMvvDp09XB6cDPPqfromt3sehojio3RUV0o+EqaZI4/scHqP666LZC0Umc1bJVUz2GSNwGqkj+HxWfvnyxx66bK1lHuS0U9T1Rzxzr0GTABEqAByc+Z4b7PpZWa+5u1xorjSW+Kmp3aB46VQ7IysRyzAnOR+mmmyUlumipaSkSKnl8MkKv8RlZC336QB+AdRmhfI2j88lbAYjK8urQaH1WFtueSz7uoYpgHg95Cdaj5QxKnkf3u2qvsucDdXtBDZIF5dWx/efRLWwUlVTRSTS+HMFEilhkDpRXye3PPfSXtN6tdbuHcMqivo2q6t6iRkqmTLuWbyGMcnH0++dXwzpIwQ8Wq4wMfRjTs3nUxZoqYsw6IzK3DZ+M4Hb6KP11Q2R0Nbrj3bFc+ME+g0Jvf6OeRGSd4giRoBJ8eFVQoGcgkgD9dW7XuWmt1inagzWV9RUvMaUgnw0wMyMw7xgc54yTjvqhLnE2FEERtvqVr2nV01B7P69qKkqKiaslajHhAsyIWZpGwP7IC5/t6Adi36mstH41wj8ZoaiGoMcyl+cnoKlMFWGMDqyo740xLlfrZPQFKn3aakp6iWNJFYFiT8UkgHfjhQB8xA7Z1kV1JbmtT00scvvIp4ppYZR1ADqUDxDyvUecAeh9M6mQ4EOHQkHsl0aURWX2mWy7XqGSpAoaOmpmeV5W5EjKxI/tD4eMcnPbjRxQ1tNU2mOF6uGFTHHJTVDMAsciqpQ57fN+oJHnpEXXZVAqypRO0BmfJAGVBXqxx6c9vtrCu9uu0FvqViqJJ0kjYLEhJPOWAA8zz+NVGIflpyToOhdq2qsFfbqepC9BkXLJ/Ubsy/ggj8amgr2IXmW97BoamqDLUdPTMpPIkX4H/AFZC3/Nqa6BsWht1qhb+UfRT3CGxQ09WKfpMzsDn4s9Az+PT66X9t2VK9pWE7iq7arnwpAhSMzkMSSW+Y8dJC54BGnb7T7KbrJZZMMUhmZXVVz1A4OPp8p0ltt3va24t8PaIdnmWTxJmknralpwnTnJ6T9QB5agwP515O2lIDfutL7cCfsSSgoLVPUNJOhleXxWLyjxCEPfviPI9Oo6Ymwn3HULBLcY65qMU9TJJNMnQAwDdHxYBzkDGjmrtklBuKuulqo6dEEXu/iOcIsaEkBRkKgA8xjP41VTftnntdelbcKCKqAliUCVW8UBSA4GTjOe2cjVgbKqWUAbCSm5yIt77rjjVQzXUY7D52Ddz9zpwUrm5JFPDPTuIHjRsTKMYlZz3PPDDSJ3NVpcd6bkqqKRZaeS5Kyup4ZQMdQz37aY+1NwwUszQvchBCepyvjMFySeTjucY1PMLIWPDuZG6QEje/IIp3BDcv2YDS0skrxwSL+6IfkwKoAwe5II0jLbFSRVlbR3qiraSeEBVLSsrk9yMdlx6Y8xp1124qIxR+FdaVsyKD+8Vvh8+GOhq8WTbFXe1rGlpppK6b+c/vo2HC8ED+HsMn/fXQIVzNGf3DxQBLSWtv6K5VkYIz8XS2Pp2Bzop2KaKGql8GpMxShMSkkqxbqJJ4Pby/GtKv2TtVpaYU7QYeToYxzoSBgnPH2768GybVSVEUdtrpIPHDBmSUNwAOO/bXVhGYEaFfmGGjlm209SqyqsDKyyIrqcJnkH0Pb08tY0G6jC8FuanR4JqiQz1DEmWQdRCksc9lVVHoB+pKNrTLVUkEV1dhBEzIGiBBHy479udYs2xq1KepmSvpnkhkdGZoWXIJzgYzj5v++NLdSgYWfOwLTbcdO07pIiSzRSFR8y9XUMqTg+eca3tvz2ivRobbI4qZYx0yysGHSeMAgAgcYz+ugiTYd896m6ZKKRgyyMcsOo84/h7DWjtbblyoq+iaoEKQyAIHWUsAMEk4xnjqJx9tcuja8UQtbXuabC6F9ltGlFa65Iw4HvLMQ5zgkLnHoMg6mr3s/jQ2mepicvFUTl0YgjIAA8/sdTTiBDAClIQXkhbd5kMVprJU+eOF3U+hCnXIthuFHNuKsWrrKNgiu8cc8M0CswcYHVLIY24yex9fLXY2hneezqLd9nqbXdqidqKoGHQRxE8HIIJQkEHsQdUXC409plYU3lcJbZNIaILGoennApC/hKDhF+HPUTnHGQdUqvZsC7ejrhVSPWyUpriRE/SsYfo5lzjrzz04xjXR1u/k27UtyViU9wuhWqiMMhlWCQhT/VLRnpP9oYP10Nbu2/bNqOm3LfJ7/TQoGmNZDGxJOCFbCgMR3zjzHpqckgjbZWvBYOTGy81Fv27Lnuz2Ca4RtXy2asqaaSBnEyRTFOoYyQyjHGD54/TXxp4rH40YZISpOCBM4z/AJtdLbWq9x/staKwTiloICVSngVI0XJLHC8ADJz9zrNj2LJbqlK+OzWenmgcSrOtPCpjYHIbI7YPOdTE4IsNK2ycHdG8xvlYD3n2XPVBRwVddUx0Ecsv70qkcZZjjyAz5fXWlFsi+3GO8z2qGoqUtEypWCFyTGpUnOM8n4cYGTny02IqWkNc9RHa7e1VM5ZmWlUM7Hucrg5PPIOdNJ7fQbN9nlPX2GaroJ6xUCwCpeVQ3J+AseAMscjOR+DoZiGPBI6FzieBz4eRkbqJeaFf4ufrB7It4VVskqJtu3J5JHzCGq/BHhkAgj5ue/fGsLde2K3adRFT7jpqu1zTKXjWW4v8YHcgiMg6ftiv25bxdqeigulR1ytgtnsPM6+ntgNJVXyK11CU9ygokHFXCsvQ5Azgtk5xjJ+3ppfUMLc9aJu5PzDEDDfaXEX06Dt0XL9XUQJTJJT1lQWLhMpWO+eeRzGBnGPPWjPFcaeot6Grq197RmhQScsAcA4z5ntnT2tmz6q62KOGjsFBNbPFaVYVoUKB8YLYxjJAxn0Gqt62aLPBFNctv2mEFuiMSUMYY/YY7caOebWbKaXI4EHS8yJI821Wd/BJdFvXiXeKC4VrT0JIl6JiexAAGDySTjA89Nnbfsy3pPcIpZYNxpb1gSaNaqrgBaQEfAwWUfuypOcYb6jRx7IbbYqu/PT1O2rKZVTxo6qOjRJEYfUD7/XjTzp6Glp+IKeOP+6MapGWvbmAWHGcPODlMMgFjqXwsNvhtVnpKKmiMMcSACMuX6SeSMkknknzOpq/qaqoKa915qnX3BKJkV4KuXqBOYKd5APv0jjQkSBqV5e7jDabVVV9SQIoIy5z5+g/J1y/cK2S4V1RWVLhpp3Mjc+Z8v8AproO+Nbb1GkdfRXto056Ep50U/cAYOgbfFtttjutno7fbwwropZGef3mRk6OnA6Ist/F6cazTwmWqOi9jhfGsPwxr3vaXE14f6hKnptqtTxmpulQs3SOoCjdxn79Y/01XukG2oqRzbq2oqKk8IppTEAfUkuePpjRlfLXR2nZNNd2t8M1XPUxxKitUogV2wD0NiTP0x9tX9sbbpbhTV9RcKBUjp0ygRKynYtgnnxcZHHlrg4ckVp4LSzlHAJQbkJ3rMK9NkvdpRTyXujSOLxIZpVR42QMsq5yVwe/b8dzwDrd9rd9S57j9yp3X3S3jwlCngv/ABH8cD8avWHdlDS2Ck/8Ehtt4uEkCKRJJmemlcKXilyXBXzXPB51q3Xb9NU7tqLFYaGAT01OtVUVFfUzEHrJACKpye3JJ40fTkR5AVNnKbDyYsYt0ewoAb69em9Wsz2Zww2e03LctaB4dPGRFn+JvID/AL8xoEj8e83jLt11NVKWYjk5JydNzdFCtn2LbvfaKEypVRQvBBWStCfEkCls8FiB2z27aoXlrXtDfNJFHaJpqCCkFbUVKTOz048Qp1lM4ZAcEjGR38tDsNYa29Auo+UsUD5Z3NOd9V2DoHuqw9lVy6RiuhUeSmZ+PpwuNer7Jq5nHi11Nj1LO5/0H+uiSLfzf8HXS+e7Qz+BcHoqZYnISUdYRGZj2B6gSdaW3NwV8u4KuzXx7b79FD4ypRpODjjPzrhgMj4gec9tW5iPqXmjlBinEASnXu9l+9m7Mo9tdcqSGoqmHT4hXpVR59K5PfA5JJ48hxop1k/t6H/yV0/+jL/tq3QVyVvX0Q1UXRj+ngaLOfTqHOqgACgsj5jK4uc6yVb1NTU00lNTVW7FltVYUZkcQOQynBB6TyD66C5Lrcj7j/PZsluSAvPwHvxz+dCEfcaVu/8AdFRQ7upv2TZjUVVvgk/ns1LM6hn6cxx9JAJx3PPp66LdvVlVPLXtUzvIVeBVDYwoOc4AHnnQbX3642zct7MFZL0CrYCNz1qAI04APbue2kVKWN0jcrTSyLvuu7X6jSjutso5qZnRysluqx0MCcE9LZyMA8euqNkv1ztdTVCistLAssMas7UtY4fqPxLhnOMDJJ0f7e31NV1VHR19KDJMEXxomwMscZKny+2iO6VM5qaSlSd4RPOyGRSAQBz5/wC3poWU4J5OYv17v7ShN5q5rdb6KWyWz3a3ur0kZttWTERk5U9WRjA4J5yNeXu+V98mgmutmoJqmMFVljoayN1XpBI61ZSR1Fhjtxnz0zqWvrpBABVuplERHUqnl2cD746M/XPca0rbcKieAeMysXhjnRgMEBj2YdtFJHBOIov8v7SZXcd3ahjsx23b47TAI54VFDU9IkDK3YNnIJY+ecfXV6fed9/ayXH9i0klY6e5yTC3VJIg5cjHVyM48u5Oiv2hXi40u9tuW+lq5IaSZJpZEQ462UHGT349O2jSw1E1TZoZp3LSkMC3rgkf9NJMYJ4H6nkkvRbguFNaZ7TT7etyW+fqklpzbakxsWCk8Fu/Pby6Tjtr52zcFbtuqNZbNuQzuOmJitLVmVoixyqNI7dAAVTjGORph7umrIt0bdENdUrT1EbzzUyyFUkaEKy8jkAmTkDhulc6uw7kuE+6LfbI6anWnqY3maVnJZVj+cADuSWTB4x8Wc8adKQwrr/PbTb51oitFfDdbbT1tMkqxzL1BZYyjr6hlPII7auDQduueUX/AG8FlkUe9yqQjMAwAXAOGGfPvkapXffNZad92ewm2CqpK6NGkqll6WgLymNSVx8Qzj0xpr0xdao+1NTy1NCar3GnaroZ6dGVTKhTLKSMHg5AI8vroZO0HYoWqKTK5x0wyAZxgYHieQ/XU1NCFqWOyNbvePElhcylDmKNk+X1yzZ/w1k12zFqayrqBNTh6mYysXjduCAMfOOcAfT6ampoQpbtmJSVtNUFqNjC4YdMUitgEEYPiHnjzB1r7gsz3SlEEc0Ma+IZG8WNm58sdLKR+upqaELJOz3wvTVxAspWQ9M3xZOTj97wDgcfTWtY7M1uhqFmmjkeVs9UasvHoepmzqamhCy7ptKa63Gnr66tgkq6YFYZFp2XpB78deO2tS3W2volihSvp2pVz1RmnPUcnJw3Xx+mpqaEL83mwLcamkqFlSOeljaOJ3Rm6Q2OrgMBz0j9NVqPbk0F4p65qmnYw9ariFw3Q2MrnrI/hHOPLU1NCVBXLvZVr6iknQwCamkaRHmiMnSWxnp5GO311h3LY6XG92+71b0MlyoQPAnNNIChDFhgCQDzPBB51NTQmjTU1NTQhf/Z";
 
 // ─── UTILITIES ──────────────────────────────────────────────────────────────
 const fmt2 = (n) =>
@@ -38,13 +39,20 @@ const inr = (v) => `₹ ${fmt2(v)}`;
 
 const formatDate = (d) => {
   if (!d) return "";
-  const dt = new Date(d + "T00:00:00");
+  const dt = new Date(String(d).slice(0, 10) + "T00:00:00");
+  if (isNaN(dt)) return d;
   return dt.toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "short",
     year: "2-digit",
   });
 };
+
+// Round-off: blank → auto (nearest rupee), otherwise the typed value
+const resolveRoundOff = (manual, amount) =>
+  manual !== "" && manual != null && !isNaN(parseFloat(manual))
+    ? parseFloat(manual)
+    : Math.round(amount) - amount;
 
 const _ones = [
   "",
@@ -83,6 +91,7 @@ const _tens = [
 function numToWords(n) {
   const num = Math.round(n);
   if (num === 0) return "Zero";
+  if (num < 0) return "Minus " + numToWords(-num);
   if (num < 20) return _ones[num];
   if (num < 100)
     return (
@@ -123,24 +132,6 @@ function amountInWords(amount) {
 
 // ─── STYLES ─────────────────────────────────────────────────────────────────
 const B = "1px solid #000";
-const cell = (extra = {}) => ({
-  border: "none",
-  borderLeft: B,
-  borderRight: B,
-  padding: "2px 4px",
-  fontSize: 11,
-  verticalAlign: "middle",
-  lineHeight: "1.3",
-  ...extra,
-});
-const hCell = (extra = {}) => ({
-  ...cell(),
-  borderTop: B,
-  borderBottom: B,
-  fontWeight: "bold",
-  background: "#e8e8e8",
-  ...extra,
-});
 const sectionHead = {
   fontWeight: "bold",
   fontSize: 13,
@@ -183,7 +174,6 @@ const PRINT_STYLES = `
 }
 `;
 
-// ─── SCREEN STYLES (matches the Tax Invoice page's design system) ──────────
 const screenStyles = `
   .at-root { color: #0f172a; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
 
@@ -207,7 +197,6 @@ const screenStyles = `
 
   .at-form-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
   .at-form-grid--2 { display: grid; grid-template-columns: repeat(2,1fr); gap: 16px; }
-  .at-form-grid--5 { display: grid; grid-template-columns: repeat(5,1fr); gap: 16px; }
   .at-fg { display: flex; flex-direction: column; gap: 6px; }
   .at-fg--span2 { grid-column: span 2; }
   .at-label { font-size: 12px; font-weight: 700; color: #374151; }
@@ -216,10 +205,7 @@ const screenStyles = `
   textarea.at-input { height: auto; padding: 9px 11px; resize: vertical; }
   .at-input:focus, .at-select:focus { border-color: #008b3e; background: #fff; box-shadow: 0 0 0 3px rgba(0,139,62,.1); }
   .at-input[readonly], .at-input:disabled { background: #f1f5f9; color: #475569; font-weight: 600; cursor: not-allowed; }
-  .at-input.error-field, .at-select.error-field { border-color: #ef4444; background: #fef2f2; }
   .at-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px; cursor: pointer; }
-  .at-hint { font-size: 11px; color: #94a3b8; margin-top: 2px; }
-  .at-error-text { font-size: 11px; color: #ef4444; font-weight: 600; margin-top: 2px; }
 
   .at-alert { display: flex; align-items: flex-start; gap: 10px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; border-radius: 10px; padding: 12px 16px; font-size: 13px; margin-bottom: 18px; }
   .at-alert i { margin-top: 2px; flex-shrink: 0; }
@@ -233,8 +219,6 @@ const screenStyles = `
   .at-table tbody tr:hover td { background: #f9fdfb; }
   .at-input-t, .at-select-t { height: 34px; border: 1.5px solid #e2e8f0; border-radius: 6px; padding: 0 8px; font-size: 12.5px; color: #1e293b; background: #fafbfc; width: 100%; box-sizing: border-box; outline: none; font-family: inherit; }
   .at-input-t:focus, .at-select-t:focus { border-color: #008b3e; background: #fff; box-shadow: 0 0 0 2px rgba(0,139,62,.1); }
-  .at-input-t.error-field, .at-select-t.error-field { border-color: #ef4444; background: #fef2f2; }
-  .at-input-t:disabled { background: #f1f5f9; color: #94a3b8; }
   .at-select-t { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='3'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; padding-right: 24px; cursor: pointer; }
   .at-remove-btn { width: 30px; height: 30px; border-radius: 7px; border: 1.5px solid #fca5a5; background: #fee2e2; color: #dc2626; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
   .at-remove-btn:hover:not(:disabled) { background: #fecaca; }
@@ -247,17 +231,12 @@ const screenStyles = `
 
   .at-form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; margin-bottom: 40px; }
 
-  .at-spinner { width: 30px; height: 30px; border: 3px solid #e2e8f0; border-top-color: #008b3e; border-radius: 50%; animation: at-spin .7s linear infinite; margin: 0 auto 16px; }
-  @keyframes at-spin { to { transform: rotate(360deg); } }
-  .at-center-card { max-width: 460px; margin: 80px auto; text-align: center; }
-  .at-center-card .icon { font-size: 44px; margin-bottom: 14px; }
-
   @media (max-width: 900px) {
-    .at-form-grid, .at-form-grid--5 { grid-template-columns: 1fr 1fr; }
+    .at-form-grid { grid-template-columns: 1fr 1fr; }
     .at-fg--span2 { grid-column: span 2; }
   }
   @media (max-width: 600px) {
-    .at-form-grid, .at-form-grid--2, .at-form-grid--5 { grid-template-columns: 1fr; }
+    .at-form-grid, .at-form-grid--2 { grid-template-columns: 1fr; }
     .at-fg--span2 { grid-column: auto; }
     .at-header { align-items: flex-start; }
     .at-header > .at-btn { width: 100%; justify-content: center; }
@@ -290,6 +269,15 @@ const UNIT_MAP = {
 
 const UNITS = ["NOS", "KGS", "MTR", "SQM", "RFT", "SET", "PCS", "LTR", "FEET"];
 
+const emptyItem = () => ({
+  description: "",
+  hsn: "",
+  dueOn: "",
+  unit: "NOS",
+  qty: 1,
+  rateIncl: 0,
+});
+
 const emptyForm = () => ({
   quoteNo: "",
   quoteDate: new Date().toISOString().split("T")[0],
@@ -310,9 +298,9 @@ const emptyForm = () => ({
   shipGst: "",
   shipState: "Tamil Nadu",
   shipStateCode: "33",
-   discount: 0,
+  discount: 0,
   manualRoundOff: "",
-  priceUnit: "Nos",
+  priceUnit: "NOS",
   unitQty: "",
   isGst: true,
   taxPercent: 18,
@@ -323,10 +311,34 @@ const emptyForm = () => ({
   bankAccountNo: DEFAULT_BANK.accountNo,
   bankIfsc: DEFAULT_BANK.ifsc,
   bankBranch: DEFAULT_BANK.branch,
-  items: [
-    { description: "", hsn: "", dueOn: "", unit: "NOS", qty: 1, rateIncl: 0 },
-  ],
+  items: [emptyItem()],
 });
+
+// ─── ONE formula used by form, list & bill ─────────────────────────────────
+// rate is entered WITHOUT tax; discount then GST are applied on top.
+const calcTotals = (items, discount, tax, manualRound) => {
+  const subtotal = items.reduce(
+    (s, i) => s + (parseFloat(i.qty) || 0) * (parseFloat(i.rateIncl) || 0),
+    0,
+  );
+  const discountAmt = subtotal * ((parseFloat(discount) || 0) / 100);
+  const taxable = subtotal - discountAmt;
+  const taxAmt = taxable * ((parseFloat(tax) || 0) / 100);
+  const cgst = taxAmt / 2;
+  const sgst = taxAmt / 2;
+  const roundOff = resolveRoundOff(manualRound, taxable + taxAmt);
+  const grandTotal = taxable + taxAmt + roundOff;
+  return {
+    subtotal,
+    discountAmt,
+    taxable,
+    taxAmt,
+    cgst,
+    sgst,
+    roundOff,
+    grandTotal,
+  };
+};
 
 // ─── MAIN COMPONENT ─────────────────────────────────────────────────────────
 export default function Quotation() {
@@ -338,12 +350,13 @@ export default function Quotation() {
   const [form, setForm] = useState(emptyForm());
   const [editId, setEditId] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [deleteId, setDeleteId] = useState(null);
   const [sameAsClient, setSameAsClient] = useState(true);
   const [products, setProducts] = useState([]);
   const [previewRec, setPreviewRec] = useState(null);
-    const [gstRates, setGstRates] = useState([18, 12, 5, 28, 0]);
+  const [gstRates, setGstRates] = useState([18, 12, 5, 28, 0]);
 
   useEffect(() => {
     fetchQuotations();
@@ -354,14 +367,10 @@ export default function Quotation() {
   useEffect(() => {
     const { viewQuoteId, continueQuoteId } = location.state || {};
     if (!viewQuoteId && !continueQuoteId) return;
-
     (async () => {
       try {
-        if (continueQuoteId) {
-          await handleEdit({ id: continueQuoteId });
-        } else if (viewQuoteId) {
-          await handleViewBill({ id: viewQuoteId });
-        }
+        if (continueQuoteId) await handleEdit({ id: continueQuoteId });
+        else if (viewQuoteId) await handleViewBill({ id: viewQuoteId });
       } finally {
         navigate(location.pathname, { replace: true, state: {} });
       }
@@ -371,7 +380,9 @@ export default function Quotation() {
 
   const fetchNextQuoteNo = async () => {
     try {
-      const res = await apiFetch("/quotation_api.php");
+      const res = await apiFetch(
+        `/quotation_api.php?all_branches=1&_=${Date.now()}`,
+      );
       const data = await res.json();
       const list = Array.isArray(data) ? data : [];
       let max = 0;
@@ -387,8 +398,6 @@ export default function Quotation() {
 
   const fetchProducts = async () => {
     try {
-      // Quotations are estimates only — stock is never reduced — so show the
-      // catalog across all branches, not just the branch currently in view.
       const res = await apiFetch("/products.php?all_branches=1");
       const data = await res.json();
       if (Array.isArray(data)) setProducts(data);
@@ -398,7 +407,7 @@ export default function Quotation() {
   const fetchQuotations = async () => {
     setLoading(true);
     try {
-      const res = await apiFetch("/quotation_api.php");
+      const res = await apiFetch(`/quotation_api.php?_=${Date.now()}`);
       const data = await res.json();
       setRecords(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -409,90 +418,116 @@ export default function Quotation() {
   };
 
   const fetchSingleQuotation = async (id) => {
-    const res = await apiFetch(`/quotation_api.php?id=${id}`);
+    const res = await apiFetch(`/quotation_api.php?id=${id}&_=${Date.now()}`);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     return data;
   };
 
-  const calcTotals = (items, discount, tax, manualRound) => {
-    const subtotal = items.reduce(
-      (s, i) => s + (parseFloat(i.qty) || 0) * (parseFloat(i.rateIncl) || 0),
-      0,
-    );
-    const discountAmt = subtotal * (discount / 100);
-    const taxable = subtotal - discountAmt;
-    const taxAmt = taxable * (tax / 100);
-    const cgst = taxAmt / 2;
-    const sgst = taxAmt / 2;
-    const roundOff = parseFloat(manualRound) || 0;
-    const grandTotal = taxable + taxAmt + roundOff;
-    return {
-      subtotal,
-      discountAmt,
-      taxable,
-      taxAmt,
-      cgst,
-      sgst,
-      roundOff,
-      grandTotal,
-    };
-  };
-
   const T = calcTotals(
     form.items,
-    Number(form.discount),
-    form.isGst ? Number(form.taxPercent) : 0,
+    form.discount,
+    form.isGst ? form.taxPercent : 0,
     form.manualRoundOff,
   );
 
-  const handleChange = (e) =>
-    setForm({ ...form, [e.target.name]: e.target.value });
+  // ── Central customer database: phone is the key ─────────────
+  const [customerStatus, setCustomerStatus] = useState({ state: "", name: "" });
+  const [savingCustomer, setSavingCustomer] = useState(false);
 
-  const handleItemChange = (i, field, value) => {
-    const items = [...form.items];
-    items[i] = { ...items[i], [field]: value };
-    setForm({ ...form, items });
-  };
-
-  // Selection is keyed by product id (not name) so picking an item from the
-  // all-branches catalog can't resolve to the wrong branch's price/HSN when
-  // two branches happen to sell a product with the same name.
-  const handleProductSelect = (i, product) => {
-    if (!product) {
-      const items = [...form.items];
-      items[i] = { ...items[i], description: "" };
-      setForm({ ...form, items });
+  const lookupCustomerByPhone = async (phone) => {
+    const key = String(phone || "")
+      .replace(/\D/g, "")
+      .slice(-10);
+    if (key.length !== 10) {
+      setCustomerStatus({ state: "", name: "" });
       return;
     }
-    const items = [...form.items];
-    items[i] = {
-      ...items[i],
-      description: product.product_name,
-      hsn: product.sku || "",
-      unit: UNIT_MAP[product.unit] || "NOS",
-      rateIncl: parseFloat(product.selling_price) || 0,
-    };
-    setForm({ ...form, items });
+    try {
+      const res = await apiFetch(`/client.php?phone=${key}`);
+      const data = await res.json();
+      if (data.found && data.client) {
+        const c = data.client;
+        setForm((prev) => ({
+          ...prev,
+          clientName: c.name || prev.clientName,
+          clientAddress: c.address || prev.clientAddress,
+          clientGst: c.gst || prev.clientGst,
+          clientState: c.state || prev.clientState,
+          clientStateCode: c.state_code || prev.clientStateCode,
+          clientEmail: c.email || prev.clientEmail,
+        }));
+        setCustomerStatus({ state: "found", name: c.name || "" });
+      } else {
+        setCustomerStatus({ state: "new", name: "" });
+      }
+    } catch (_) {
+      setCustomerStatus({ state: "", name: "" });
+    }
   };
 
-  const addItem = () =>
-    setForm({
-      ...form,
-      items: [
-        ...form.items,
-        {
-          description: "",
-          hsn: "",
-          dueOn: "",
-          unit: "NOS",
-          qty: 1,
-          rateIncl: 0,
-        },
-      ],
+  const saveClientAsCustomer = async () => {
+    if (!form.clientName.trim()) {
+      alert("⚠️ Enter the customer name first.");
+      return;
+    }
+    setSavingCustomer(true);
+    try {
+      const res = await apiFetch("/client.php?action=save_customer", {
+        method: "POST",
+        body: JSON.stringify({
+          name: form.clientName,
+          phone: form.clientPhone,
+          address: form.clientAddress,
+          gst: form.clientGst,
+          state: form.clientState,
+          state_code: form.clientStateCode,
+          email: form.clientEmail,
+        }),
+      });
+      const data = await res.json();
+      if (data.success)
+        setCustomerStatus({ state: "found", name: form.clientName });
+      else alert("⚠️ " + (data.message || "Could not save the customer."));
+    } catch (_) {
+      alert("⚠️ Server error while saving the customer.");
+    } finally {
+      setSavingCustomer(false);
+    }
+  };
+
+  const handleChange = (e) =>
+    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+
+  const handleItemChange = (i, field, value) =>
+    setForm((prev) => {
+      const items = [...prev.items];
+      items[i] = { ...items[i], [field]: value };
+      return { ...prev, items };
     });
+
+  const handleProductSelect = (i, product) =>
+    setForm((prev) => {
+      const items = [...prev.items];
+      items[i] = product
+        ? {
+            ...items[i],
+            description: product.product_name,
+            hsn: product.hsn || product.sku || "",
+            unit: UNIT_MAP[product.unit] || "NOS",
+            rateIncl: parseFloat(product.selling_price) || 0,
+          }
+        : { ...items[i], description: "" };
+      return { ...prev, items };
+    });
+
+  const addItem = () =>
+    setForm((prev) => ({ ...prev, items: [...prev.items, emptyItem()] }));
   const removeItem = (i) =>
-    setForm({ ...form, items: form.items.filter((_, idx) => idx !== i) });
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.filter((_, idx) => idx !== i),
+    }));
 
   const resetForm = () => {
     setForm(emptyForm());
@@ -501,14 +536,14 @@ export default function Quotation() {
   };
 
   const copyClientToShip = () => {
-    setForm({
-      ...form,
-      shipName: form.clientName,
-      shipAddress: form.clientAddress,
-      shipGst: form.clientGst,
-      shipState: form.clientState,
-      shipStateCode: form.clientStateCode,
-    });
+    setForm((prev) => ({
+      ...prev,
+      shipName: prev.clientName,
+      shipAddress: prev.clientAddress,
+      shipGst: prev.clientGst,
+      shipState: prev.clientState,
+      shipStateCode: prev.clientStateCode,
+    }));
     setSameAsClient(false);
   };
 
@@ -523,6 +558,7 @@ export default function Quotation() {
       alert("Fill all required fields");
       return;
     }
+    setSaving(true);
     try {
       const method = editId ? "PUT" : "POST";
       const payload = editId ? { ...form, id: editId } : form;
@@ -530,18 +566,28 @@ export default function Quotation() {
         method,
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
+      let data = {};
+      try {
+        data = await res.json();
+      } catch (_) {
+        data = { message: `Server returned ${res.status}` };
+      }
       if (res.ok) {
-        alert(data.message);
+        alert(data.message || "Saved");
+        const savedId = editId || data.id;
         resetForm();
-        setView("table");
-        fetchQuotations();
+        await fetchQuotations();
+        // Show the fresh bill straight away so the update is visible
+        if (savedId) await handleViewBill({ id: savedId });
+        else setView("table");
       } else {
         alert(data.message || "Save failed");
       }
     } catch (err) {
       console.error(err);
-      alert("Server error");
+      alert("Server error: " + err.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -549,9 +595,12 @@ export default function Quotation() {
     try {
       const data = await fetchSingleQuotation(rec.id);
       setForm({
+        ...emptyForm(),
         quoteNo: data.quote_no,
-        quoteDate: data.quote_date,
-        validUntil: data.valid_until || "",
+        quoteDate: String(data.quote_date || "").slice(0, 10),
+        validUntil: data.valid_until
+          ? String(data.valid_until).slice(0, 10)
+          : "",
         poNo: data.po_no || "",
         dispatchedThrough: data.dispatched_through || "",
         vehicleNo: data.vehicle_no || "",
@@ -568,38 +617,31 @@ export default function Quotation() {
         shipGst: data.ship_gst || "",
         shipState: data.ship_state || "Tamil Nadu",
         shipStateCode: data.ship_state_code || "33",
-        discount: data.discount_percent,
+        discount: data.discount_percent ?? 0,
         isGst: data.is_gst == null ? true : !!Number(data.is_gst),
-        taxPercent: data.tax_percent,
+        taxPercent: data.tax_percent ?? 18,
+        manualRoundOff: data.round_off ?? "",
         notes: data.notes || "",
-               declaration: data.declaration || DECLARATION,
+        declaration: data.declaration || DECLARATION,
         unitQty: data.unit_qty ?? "",
-        priceUnit: data.price_unit || "Nos",
-        bankHolderName: data.bank_holder_name || DEFAULT_BANK.holderName,
-        bankName: data.bank_name || DEFAULT_BANK.bankName,
-        bankAccountNo: data.bank_account_no || DEFAULT_BANK.accountNo,
-        bankIfsc: data.bank_ifsc || DEFAULT_BANK.ifsc,
-        bankBranch: data.bank_branch || DEFAULT_BANK.branch,
-        items: data.items.length
+        priceUnit: data.price_unit || "NOS",
+        items: data.items?.length
           ? data.items.map((i) => ({
               description: i.description,
               hsn: i.hsn || "",
               dueOn: i.due_on || "",
               unit: i.unit || "NOS",
-              qty: i.quantity,
-              rateIncl: i.rate,
+              qty: parseFloat(i.quantity) || 0,
+              rateIncl: parseFloat(i.rate) || 0,
             }))
-          : [
-              {
-                description: "",
-                hsn: "",
-                dueOn: "",
-                unit: "NOS",
-                qty: 1,
-                rateIncl: 0,
-              },
-            ],
+          : [emptyItem()],
       });
+      if (data.tax_percent != null) {
+        const t = parseFloat(data.tax_percent);
+        setGstRates((r) =>
+          r.includes(t) ? r : [...r, t].sort((a, b) => a - b),
+        );
+      }
       setSameAsClient(!data.ship_name && !data.ship_address);
       setEditId(rec.id);
       setView("form");
@@ -631,6 +673,7 @@ export default function Quotation() {
       const data = await fetchSingleQuotation(rec.id);
       setPreviewRec(data);
       setView("preview");
+      window.scrollTo(0, 0);
     } catch (err) {
       alert("Could not load bill");
     }
@@ -638,56 +681,56 @@ export default function Quotation() {
 
   const filtered = records.filter(
     (r) =>
-      r.client_name.toLowerCase().includes(search.toLowerCase()) ||
-      r.quote_no.toLowerCase().includes(search.toLowerCase()),
+      (r.client_name || "").toLowerCase().includes(search.toLowerCase()) ||
+      (r.quote_no || "").toLowerCase().includes(search.toLowerCase()),
   );
 
   const summary = filtered.reduce(
     (a, r) => {
-      a.subtotal += r.subtotal || 0;
-      a.discount += r.discount_amount || 0;
-      a.revenue += r.grand_total || 0;
+      a.subtotal += Number(r.subtotal) || 0;
+      a.discount += Number(r.discount_amount) || 0;
+      a.revenue += Number(r.grand_total) || 0;
       return a;
     },
     { subtotal: 0, discount: 0, revenue: 0 },
   );
 
-  // ─── RENDER: PREVIEW ──────────────────────────────────────────────────────────
+  // ─── RENDER: PREVIEW ──────────────────────────────────────────────────────
   if (view === "preview" && previewRec) {
     const d = previewRec;
     const isGst = d.is_gst == null ? true : !!Number(d.is_gst);
-    const items = d.items || [];
     const disc = parseFloat(d.discount_percent) || 0;
-    const tax = isGst ? parseFloat(d.tax_percent) || 18 : 0;
-    const rows = items.map((i) => ({
+    const tax = isGst ? parseFloat(d.tax_percent) || 0 : 0;
+    const rows = (d.items || []).map((i) => ({
       ...i,
       qty: parseFloat(i.quantity) || 0,
-      rateIncl: parseFloat(i.rate) || 0,
+      rate: parseFloat(i.rate) || 0,
     }));
-    const sub = rows.reduce(
-      (s, r) => s + r.qty * (r.rateIncl / (1 + tax / 100)),
-      0,
+
+    // Same formula as the form and the list
+    const P = calcTotals(
+      rows.map((r) => ({ qty: r.qty, rateIncl: r.rate })),
+      disc,
+      tax,
+      d.round_off,
     );
-    const discAmt = sub * (disc / 100);
-    const taxable = sub - discAmt;
+    const taxable = P.taxable;
     const cgstRate = tax / 2;
     const sgstRate = tax / 2;
-    const cgstAmt = taxable * (cgstRate / 100);
-    const sgstAmt = taxable * (sgstRate / 100);
-    const totalTax = cgstAmt + sgstAmt;
-    const roundOff = Math.round(taxable + totalTax) - (taxable + totalTax);
-    const netAmount = taxable + totalTax + roundOff;
-    const totalQty = rows.reduce((s, r) => s + r.qty, 0);
+    const cgstAmt = P.cgst;
+    const sgstAmt = P.sgst;
+    const totalTax = P.taxAmt;
+    const roundOff = P.roundOff;
+    const netAmount = P.grandTotal;
 
     const hsnGroups = {};
     rows.forEach((r) => {
       const key = r.hsn || "–";
+      const t = r.qty * r.rate * (1 - disc / 100);
       if (!hsnGroups[key]) hsnGroups[key] = { taxable: 0, cgst: 0, sgst: 0 };
-      hsnGroups[key].taxable += r.qty * r.rateIncl * (1 - disc / 100);
-      hsnGroups[key].cgst +=
-        r.qty * r.rateIncl * (1 - disc / 100) * (cgstRate / 100);
-      hsnGroups[key].sgst +=
-        r.qty * r.rateIncl * (1 - disc / 100) * (sgstRate / 100);
+      hsnGroups[key].taxable += t;
+      hsnGroups[key].cgst += t * (cgstRate / 100);
+      hsnGroups[key].sgst += t * (sgstRate / 100);
     });
 
     const dynFont =
@@ -698,8 +741,7 @@ export default function Quotation() {
           : rows.length <= 30
             ? 11
             : 10;
-    const dynPad =
-      rows.length <= 10 ? "3px 6px" : rows.length <= 20 ? "3px 6px" : "2px 5px";
+    const dynPad = rows.length <= 20 ? "3px 6px" : "2px 5px";
 
     const dc = (extra = {}) => ({
       border: "none",
@@ -722,48 +764,83 @@ export default function Quotation() {
 
     const MIN_ROWS = rows.length >= 15 ? 0 : Math.max(0, 15 - rows.length);
 
+    const topBtn = {
+      padding: "8px 20px",
+      borderRadius: 8,
+      border: "1px solid #d0d7de",
+      background: "#fff",
+      fontWeight: 600,
+      cursor: "pointer",
+    };
+    const printBtn = {
+      padding: "8px 20px",
+      borderRadius: 8,
+      border: "none",
+      background: "#1a1a2e",
+      color: "#fff",
+      fontWeight: 600,
+      cursor: "pointer",
+    };
+    const actionBar = (extra) => (
+      <div
+        className="qt-no-print"
+        style={{ display: "flex", justifyContent: "center", gap: 12, ...extra }}
+      >
+        <button onClick={() => setView("table")} style={topBtn}>
+          ← Back to List
+        </button>
+        <button onClick={() => handleEdit({ id: d.id })} style={topBtn}>
+          ✏️ Edit
+        </button>
+        <button onClick={() => window.print()} style={printBtn}>
+          🖨️ Print Quotation
+        </button>
+        <button onClick={() => sendWhatsApp(d)} style={waBtn}>
+          🟢 WhatsApp
+        </button>
+      </div>
+    );
+    const waBtn = {
+      padding: "8px 20px",
+      borderRadius: 8,
+      border: "none",
+      background: "#25D366",
+      color: "#fff",
+      fontWeight: 600,
+      cursor: "pointer",
+    };
+
+    const sendWhatsApp = async (d) => {
+      const phone = (d.client_phone || "").replace(/\D/g, "");
+      const html2canvas = (await import("html2canvas")).default;
+      const node = document.getElementById("qt-print-area");
+      const canvas = await html2canvas(node, { scale: 2 });
+      canvas.toBlob(async (blob) => {
+        const file = new File([blob], `${d.quote_no}.png`, {
+          type: "image/png",
+        });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            text: `Quotation ${d.quote_no}`,
+          });
+        } else {
+          window.open(
+            `https://wa.me/${phone}?text=Quotation ${d.quote_no}`,
+            "_blank",
+          );
+        }
+      });
+    };
+
+    const uq = Number(d.unit_qty ?? 0);
+    const pu = d.price_unit || "NOS";
+
     return (
       <>
         <style>{PRINT_STYLES}</style>
 
-        <div
-          className="qt-no-print"
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            gap: 12,
-            padding: "16px 0",
-            background: "#f6f8fa",
-          }}
-        >
-          <button
-            onClick={() => setView("table")}
-            style={{
-              padding: "8px 20px",
-              borderRadius: 8,
-              border: "1px solid #d0d7de",
-              background: "#fff",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            ← Back to List
-          </button>
-          <button
-            onClick={() => window.print()}
-            style={{
-              padding: "8px 20px",
-              borderRadius: 8,
-              border: "none",
-              background: "#1a1a2e",
-              color: "#fff",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            🖨️ Print Quotation
-          </button>
-        </div>
+        {actionBar({ padding: "16px 0", background: "#f6f8fa" })}
 
         <div
           id="qt-print-area"
@@ -793,7 +870,7 @@ export default function Quotation() {
             ESTIMATE
           </div>
 
-          {/* ─── HEADER ─── */}
+          {/* HEADER */}
           <table
             style={{
               width: "100%",
@@ -851,22 +928,13 @@ export default function Quotation() {
                       {COMPANY.stateCode}
                     </div>
                   )}
-                  <div
-                    style={{
-                      fontSize: 10,
-                      display: "flex",
-                      justifyContent: "center",
-                      gap: 24,
-                    }}
-                  >
-                    <span>Ph: {COMPANY.phone}</span>
-                  </div>
+                  <div style={{ fontSize: 10 }}>Ph: {COMPANY.phone}</div>
                 </td>
               </tr>
             </tbody>
           </table>
 
-          {/* ─── CONSIGNEE + META ─── */}
+          {/* CONSIGNEE + META */}
           <table
             style={{
               width: "100%",
@@ -902,12 +970,12 @@ export default function Quotation() {
                     ["Date", formatDate(d.quote_date)],
                     [
                       "Valid Until",
-                      d.valid_until ? formatDate(d.valid_until) : "—",
+                      d.valid_until ? formatDate(d.valid_until) : "",
                     ],
-                    ["PO/Order No.", d.po_no || "—"],
-                    ["Dispatched Through", d.dispatched_through || "—"],
+                    ["PO/Order No.", d.po_no],
+                    ["Dispatched Through", d.dispatched_through],
                   ]
-                    .filter(([_, v]) => v && v !== "—")
+                    .filter(([, v]) => v)
                     .map(([label, value]) => (
                       <div
                         key={label}
@@ -915,7 +983,6 @@ export default function Quotation() {
                       >
                         <span
                           style={{
-                            fontWeight: "normal",
                             minWidth: 130,
                             whiteSpace: "nowrap",
                             fontSize: 13,
@@ -934,7 +1001,7 @@ export default function Quotation() {
             </tbody>
           </table>
 
-          {/* ─── BUYER + PAYMENT ─── */}
+          {/* BUYER + PAYMENT */}
           <table
             style={{
               width: "100%",
@@ -977,13 +1044,11 @@ export default function Quotation() {
                   {[
                     ["Payment", "Credit"],
                     ["Transport", d.dispatched_through],
-                    ["Delivery To", d.destination],
-                    ["E-Way Bill No.", d.ewayNumber],
-                    ["Bill of Lading/LR-RR No.", d.billOfLading],
                     ["Vehicle No.", d.vehicle_no],
                     ["Other Ref.", d.other_ref],
+                    ["Discount", disc ? `${disc}%` : ""],
                   ]
-                    .filter(([_, v]) => v)
+                    .filter(([, v]) => v)
                     .map(([label, value]) => (
                       <div
                         key={label}
@@ -991,7 +1056,6 @@ export default function Quotation() {
                       >
                         <span
                           style={{
-                            fontWeight: "normal",
                             minWidth: 95,
                             whiteSpace: "nowrap",
                             fontSize: 14,
@@ -1010,7 +1074,7 @@ export default function Quotation() {
             </tbody>
           </table>
 
-          {/* ─── PRODUCT TABLE ─── */}
+          {/* PRODUCT TABLE */}
           <div style={{ flex: 1 }}>
             <table
               style={{
@@ -1047,30 +1111,24 @@ export default function Quotation() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r, i) => {
-                  const rateExcl = r.rateIncl / (1 + tax / 100);
-                  const taxableAmt = rateExcl * r.qty * (1 - disc / 100);
-                  return (
-                    <tr key={i} className="inv-product-row">
-                      <td style={dc({ textAlign: "center" })}>{i + 1}</td>
-                      <td style={dc({ fontWeight: "bold", fontSize: 14 })}>
-                        {r.description}
-                      </td>
-                      <td style={dc({ textAlign: "right" })}>
-                        {fmt2(taxableAmt)}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {rows.map((r, i) => (
+                  <tr key={i} className="inv-product-row">
+                    <td style={dc({ textAlign: "center" })}>{i + 1}</td>
+                    <td style={dc({ fontWeight: "bold", fontSize: 14 })}>
+                      {r.description}
+                    </td>
+                    <td style={dc({ textAlign: "right" })}>
+                      {fmt2(r.qty * r.rate * (1 - disc / 100))}
+                    </td>
+                  </tr>
+                ))}
                 {Array.from({ length: MIN_ROWS }).map((_, i) => (
                   <tr key={`blank_${i}`} style={{ height: 18 }}>
-                    {Array(3)
-                      .fill(null)
-                      .map((__, j) => (
-                        <td key={j} style={dc()}>
-                          &nbsp;
-                        </td>
-                      ))}
+                    {[0, 1, 2].map((j) => (
+                      <td key={j} style={dc()}>
+                        &nbsp;
+                      </td>
+                    ))}
                   </tr>
                 ))}
                 <tr>
@@ -1137,23 +1195,24 @@ export default function Quotation() {
                     </tr>
                   </>
                 )}
-                <tr>
-                  <td
-                    colSpan={2}
-                    style={dc({
-                      textAlign: "right",
-                      fontStyle: "italic",
-                      fontWeight: "bold",
-                    })}
-                  >
-                    ROUNDING OFF
-                  </td>
-                  <td style={dc({ textAlign: "right", fontWeight: "bold" })}>
-                    {roundOff >= 0
-                      ? `(+) ${fmt2(Math.abs(roundOff))}`
-                      : `(-) ${fmt2(Math.abs(roundOff))}`}
-                  </td>
-                </tr>
+                {Math.abs(roundOff) >= 0.005 && (
+                  <tr>
+                    <td
+                      colSpan={2}
+                      style={dc({
+                        textAlign: "right",
+                        fontStyle: "italic",
+                        fontWeight: "bold",
+                      })}
+                    >
+                      ROUNDING OFF
+                    </td>
+                    <td style={dc({ textAlign: "right", fontWeight: "bold" })}>
+                      {roundOff >= 0 ? "(+) " : "(-) "}
+                      {fmt2(Math.abs(roundOff))}
+                    </td>
+                  </tr>
+                )}
                 <tr style={{ background: "#f0f0f0" }}>
                   <td style={dc({ borderTop: B, borderBottom: B })}></td>
                   <td
@@ -1182,39 +1241,21 @@ export default function Quotation() {
             </table>
           </div>
 
-          {/* ─── UNIT PRICE LINE ─── */}
-          <div
-            style={{
-              padding: "8px 8px 0px",
-              margin: 0,
-              fontSize: 18,
-              fontWeight: "normal",
-              color: "#333",
-              textAlign: "left",
-              borderLeft: !isGst ? "4px solid #000" : "none",
-              paddingLeft: !isGst ? "12px" : "8px",
-              marginLeft: !isGst ? "4px" : "0px",
-              background: !isGst ? "#f9f9f9" : "transparent",
-              borderRadius: !isGst ? "4px" : "0px",
-              border: !isGst ? "1px solid #ddd" : "none",
-              borderLeftWidth: !isGst ? "6px" : "0px",
-              borderLeftStyle: !isGst ? "solid" : "none",
-              borderLeftColor: !isGst ? "#000" : "transparent",
-            }}
-          >
-            {(() => {
-              const uq = Number(d.unitQty ?? d.unit_qty ?? 0);
-              const pu = d.priceUnit || d.price_unit || "Nos";
-              if (uq <= 0) return null;
-              return (
-                <div style={{ fontWeight: "bold" }}>
-                  {uq} {pu} — ₹{fmt2(netAmount / uq)} per {pu}
-                </div>
-              );
-            })()}
-          </div>
+          {/* UNIT PRICE LINE */}
+          {uq > 0 && (
+            <div
+              style={{
+                padding: "8px 8px 0",
+                fontSize: 18,
+                fontWeight: "bold",
+                color: "#333",
+              }}
+            >
+              {uq} {pu} — ₹{fmt2(netAmount / uq)} per {pu}
+            </div>
+          )}
 
-          {/* ─── AMOUNT IN WORDS ─── */}
+          {/* AMOUNT IN WORDS */}
           <table
             style={{
               width: "100%",
@@ -1256,7 +1297,7 @@ export default function Quotation() {
             </tbody>
           </table>
 
-          {/* ─── HSN TAX TABLE ─── */}
+          {/* HSN TAX TABLE */}
           {isGst && (
             <table
               style={{
@@ -1380,7 +1421,6 @@ export default function Quotation() {
             </table>
           )}
 
-          {/* ─── TAX IN WORDS ─── */}
           {isGst && (
             <div style={{ padding: "2px 7px", borderBottom: B, fontSize: 10 }}>
               <strong>Tax Amount (in words):</strong>&nbsp;
@@ -1388,7 +1428,7 @@ export default function Quotation() {
             </div>
           )}
 
-          {/* ─── FOOTER ─── */}
+          {/* FOOTER */}
           <div style={{ marginTop: "auto" }}>
             <table
               style={{ width: "100%", borderCollapse: "collapse" }}
@@ -1432,6 +1472,11 @@ export default function Quotation() {
                     ))}
                   </td>
                   <td style={{ padding: "4px 7px", verticalAlign: "top" }}>
+                    {d.notes && (
+                      <div style={{ fontSize: 10, marginBottom: 4 }}>
+                        <strong>Terms:</strong> {d.notes}
+                      </div>
+                    )}
                     <div style={{ fontSize: 9, marginBottom: 4 }}>
                       <strong>Declaration:</strong>{" "}
                       {d.declaration || DECLARATION}
@@ -1485,48 +1530,12 @@ export default function Quotation() {
           </div>
         </div>
 
-        <div
-          className="qt-no-print"
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            gap: 12,
-            paddingBottom: 30,
-          }}
-        >
-          <button
-            onClick={() => setView("table")}
-            style={{
-              padding: "8px 20px",
-              borderRadius: 8,
-              border: "1px solid #d0d7de",
-              background: "#fff",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            ← Back to List
-          </button>
-          <button
-            onClick={() => window.print()}
-            style={{
-              padding: "8px 20px",
-              borderRadius: 8,
-              border: "none",
-              background: "#1a1a2e",
-              color: "#fff",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            🖨️ Print Quotation
-          </button>
-        </div>
+        {actionBar({ paddingBottom: 30 })}
       </>
     );
   }
 
-  // ─── RENDER: TABLE (matches Tax Invoice at-* design) ───────────────────────
+  // ─── RENDER: TABLE ───────────────────────────────────────────────────────
   if (view === "table") {
     return (
       <>
@@ -1791,29 +1800,11 @@ export default function Quotation() {
     );
   }
 
-  // ─── RENDER: FORM (matches Tax Invoice at-* design) ─────────────────────────
+  // ─── RENDER: FORM ────────────────────────────────────────────────────────
   return (
     <>
       <style>{screenStyles}</style>
-      <div
-        className="at-root"
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            const tag = e.target.tagName;
-            if (tag === "BUTTON" || tag === "TEXTAREA") return;
-            e.preventDefault();
-            const fields = Array.from(
-              e.currentTarget.querySelectorAll(
-                "input:not([disabled]):not([readonly]), select:not([disabled])",
-              ),
-            ).filter((el) => el.offsetParent !== null);
-            const i = fields.indexOf(e.target);
-            if (i > -1 && i + 1 < fields.length) fields[i + 1].focus();
-          } else if (e.key === "Escape") {
-            e.target.blur();
-          }
-        }}
-      >
+      <div className="at-root">
         <div className="at-header">
           <div className="at-header__left">
             <div className="at-header__icon">
@@ -1858,7 +1849,6 @@ export default function Quotation() {
                   onChange={handleChange}
                   className="at-input"
                   required
-                  placeholder="QT-001"
                 />
               </div>
               <div className="at-fg">
@@ -1930,6 +1920,7 @@ export default function Quotation() {
                   className="at-input"
                   min="0"
                   step="any"
+                  onWheel={(e) => e.target.blur()}
                 />
               </div>
               <div className="at-fg">
@@ -1937,7 +1928,7 @@ export default function Quotation() {
                 <select
                   value={form.isGst ? "yes" : "no"}
                   onChange={(e) =>
-                    setForm({ ...form, isGst: e.target.value === "yes" })
+                    setForm((p) => ({ ...p, isGst: e.target.value === "yes" }))
                   }
                   className="at-select"
                 >
@@ -1970,12 +1961,11 @@ export default function Quotation() {
                       onKeyDown={(e) => {
                         if (e.key !== "Enter") return;
                         e.preventDefault();
-                        e.stopPropagation();
                         const v = parseFloat(e.target.value);
                         if (isNaN(v) || v < 0) return;
                         if (!gstRates.includes(v))
                           setGstRates([...gstRates, v].sort((a, b) => a - b));
-                        setForm({ ...form, taxPercent: v });
+                        setForm((p) => ({ ...p, taxPercent: v }));
                         e.target.value = "";
                       }}
                       onWheel={(e) => e.target.blur()}
@@ -2010,9 +2000,43 @@ export default function Quotation() {
                 <input
                   name="clientPhone"
                   value={form.clientPhone}
-                  onChange={handleChange}
+                  onChange={(e) => {
+                    handleChange(e);
+                    const key = e.target.value.replace(/\D/g, "").slice(-10);
+                    if (key.length === 10) lookupCustomerByPhone(key);
+                    else setCustomerStatus({ state: "", name: "" });
+                  }}
+                  onBlur={(e) => lookupCustomerByPhone(e.target.value)}
                   className="at-input"
                 />
+                {customerStatus.state === "found" && (
+                  <small
+                    style={{ color: "#008b3e", fontSize: 12, fontWeight: 600 }}
+                  >
+                    <i className="bi bi-check-circle"></i> Saved customer
+                    {customerStatus.name ? `: ${customerStatus.name}` : ""}
+                  </small>
+                )}
+                {customerStatus.state === "new" && (
+                  <small style={{ color: "#6b7280", fontSize: 12 }}>
+                    New number —{" "}
+                    <button
+                      type="button"
+                      onClick={saveClientAsCustomer}
+                      disabled={savingCustomer}
+                      style={{
+                        border: "none",
+                        background: "none",
+                        padding: 0,
+                        color: "#008b3e",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {savingCustomer ? "saving…" : "save as customer"}
+                    </button>
+                  </small>
+                )}
               </div>
               <div className="at-fg">
                 <label className="at-label">Email</label>
@@ -2068,11 +2092,7 @@ export default function Quotation() {
           <div className="at-card">
             <div
               className="at-card__head"
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
+              style={{ justifyContent: "space-between" }}
             >
               <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <i className="bi bi-truck"></i>Consignee (Ship to)
@@ -2093,14 +2113,14 @@ export default function Quotation() {
                   style={{ padding: "6px 14px", fontSize: 12 }}
                   onClick={() => {
                     setSameAsClient(true);
-                    setForm({
-                      ...form,
+                    setForm((p) => ({
+                      ...p,
                       shipName: "",
                       shipAddress: "",
                       shipGst: "",
                       shipState: "Tamil Nadu",
                       shipStateCode: "33",
-                    });
+                    }));
                   }}
                 >
                   Clear Ship-to
@@ -2167,44 +2187,29 @@ export default function Quotation() {
 
           {/* Items */}
           <div className="at-card">
-            <div
-              className="at-card__head"
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <i className="bi bi-box-seam"></i>Items
-              </span>
+            <div className="at-card__head">
+              <i className="bi bi-box-seam"></i>
+              <span>Items</span>
             </div>
 
-            {products.length > 0 ? (
-              <div className="at-alert">
-                <i className="bi bi-info-circle-fill"></i>
-                <div>
-                  <strong>{products.length} products</strong> in catalog — pick
-                  from the dropdown to auto-fill HSN, unit &amp; rate. Stock is
-                  not reduced.
-                </div>
+            <div className="at-alert">
+              <i className="bi bi-info-circle-fill"></i>
+              <div>
+                {products.length > 0 ? (
+                  <>
+                    <strong>{products.length} products</strong> in catalog —
+                    pick from the dropdown to auto-fill HSN, unit &amp; rate.
+                    Enter rate <strong>without GST</strong>; GST is added on
+                    top. Stock is not reduced.
+                  </>
+                ) : (
+                  <>
+                    No products in catalog yet. Add products in Stock → Products
+                    to enable quick-fill.
+                  </>
+                )}
               </div>
-            ) : (
-              <div
-                className="at-alert"
-                style={{
-                  background: "#f8fafc",
-                  borderColor: "#e2e8f0",
-                  color: "#64748b",
-                }}
-              >
-                <i className="bi bi-info-circle-fill"></i>
-                <div>
-                  No products in catalog yet. Add products in Stock → Products
-                  to enable quick-fill.
-                </div>
-              </div>
-            )}
+            </div>
 
             <div className="at-table-wrap">
               <table className="at-table" style={{ minWidth: 900 }}>
@@ -2265,18 +2270,25 @@ export default function Quotation() {
                 )}
                 <div
                   className="muted"
-                  style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    justifyContent: "flex-end",
+                  }}
                 >
                   <span>Round Off:</span>
                   <input
                     type="number"
                     step="any"
                     className="at-input"
-                    style={{ width: 90, height: 30, textAlign: "right" }}
-                    placeholder="auto"
+                    style={{ width: 120, height: 30, textAlign: "right" }}
+                    placeholder={`auto (${T.roundOff >= 0 ? "+" : ""}${fmt2(
+                      Math.round(T.taxable + T.taxAmt) - (T.taxable + T.taxAmt),
+                    )})`}
                     value={form.manualRoundOff}
                     onChange={(e) =>
-                      setForm({ ...form, manualRoundOff: e.target.value })
+                      setForm((p) => ({ ...p, manualRoundOff: e.target.value }))
                     }
                     onWheel={(e) => e.target.blur()}
                   />
@@ -2292,14 +2304,14 @@ export default function Quotation() {
               <i className="bi bi-rulers"></i>
               <span>Unit Price</span>
             </div>
-            <div className="at-form-grid--2">
+            <div className="at-form-grid">
               <div className="at-fg">
                 <label className="at-label">Select Unit</label>
                 <select
                   className="at-select"
                   value={form.priceUnit}
                   onChange={(e) =>
-                    setForm({ ...form, priceUnit: e.target.value })
+                    setForm((p) => ({ ...p, priceUnit: e.target.value }))
                   }
                 >
                   {UNITS.map((u) => (
@@ -2317,7 +2329,7 @@ export default function Quotation() {
                   placeholder="e.g. 500"
                   value={form.unitQty}
                   onChange={(e) =>
-                    setForm({ ...form, unitQty: e.target.value })
+                    setForm((p) => ({ ...p, unitQty: e.target.value }))
                   }
                   onWheel={(e) => e.target.blur()}
                 />
@@ -2372,11 +2384,16 @@ export default function Quotation() {
               type="button"
               className="at-btn at-btn--ghost"
               onClick={resetForm}
+              disabled={saving}
             >
               <i className="bi bi-arrow-clockwise"></i> Reset
             </button>
-            <button type="submit" className="at-btn at-btn--primary at-btn--lg">
-              {editId ? "Update" : "Save"} Quotation{" "}
+            <button
+              type="submit"
+              className="at-btn at-btn--primary at-btn--lg"
+              disabled={saving}
+            >
+              {saving ? "Saving…" : `${editId ? "Update" : "Save"} Quotation`}{" "}
               <i className="bi bi-check2"></i>
             </button>
           </div>
@@ -2386,8 +2403,8 @@ export default function Quotation() {
   );
 }
 
-// ─── ITEM ROW (matches Tax Invoice's at-input-t / at-select-t table cells) ──
-const BRANCH_NAMES = { 1: "Branch A", 2: "Branch B", 3: "Branch C" };
+// ─── ITEM ROW ────────────────────────────────────────────────────────────────
+const BRANCH_NAMES = BRANCH_LABELS; // display names only
 
 function ItemRow({
   item,
@@ -2399,22 +2416,15 @@ function ItemRow({
   canRemove,
   units,
 }) {
-  const isMatched = products.some((p) => p.product_name === item.description);
-
   const handleDropdown = (e) => {
     const id = e.target.value;
-    if (!id) {
-      onChange(idx, "description", "");
-      onProductSelect(idx, null);
-    } else {
-      onProductSelect(idx, products.find((p) => String(p.id) === id) || null);
-    }
+    onProductSelect(
+      idx,
+      id ? products.find((p) => String(p.id) === id) || null : null,
+    );
   };
 
-  const handleManual = (e) => {
-    const v = e.target.value;
-    onChange(idx, "description", v);
-  };
+  const amount = (parseFloat(item.qty) || 0) * (parseFloat(item.rateIncl) || 0);
 
   return (
     <tr>
@@ -2426,7 +2436,7 @@ function ItemRow({
               className="at-select-t"
               value=""
               onChange={handleDropdown}
-              style={{ fontSize: 12, color: isMatched ? "#1e293b" : "#94a3b8" }}
+              style={{ fontSize: 12 }}
             >
               <option value="">— Select from catalog —</option>
               {products.map((p) => (
@@ -2446,7 +2456,7 @@ function ItemRow({
           <input
             className="at-input-t"
             value={item.description}
-            onChange={handleManual}
+            onChange={(e) => onChange(idx, "description", e.target.value)}
             placeholder={
               products.length > 0
                 ? "Or type custom description…"
@@ -2489,9 +2499,7 @@ function ItemRow({
           value={item.qty}
           min="0"
           step="any"
-          onChange={(e) =>
-            onChange(idx, "qty", parseFloat(e.target.value) || 0)
-          }
+          onChange={(e) => onChange(idx, "qty", e.target.value)}
           onWheel={(e) => e.target.blur()}
         />
       </td>
@@ -2502,18 +2510,11 @@ function ItemRow({
           value={item.rateIncl}
           min="0"
           step="any"
-          onChange={(e) =>
-            onChange(idx, "rateIncl", parseFloat(e.target.value) || 0)
-          }
+          onChange={(e) => onChange(idx, "rateIncl", e.target.value)}
           onWheel={(e) => e.target.blur()}
         />
       </td>
-      <td style={{ textAlign: "right", fontWeight: 700 }}>
-        ₹{" "}
-        {(
-          (parseFloat(item.qty) || 0) * (parseFloat(item.rateIncl) || 0)
-        ).toFixed(2)}
-      </td>
+      <td style={{ textAlign: "right", fontWeight: 700 }}>₹ {fmt2(amount)}</td>
       <td style={{ textAlign: "center" }}>
         <button
           type="button"
