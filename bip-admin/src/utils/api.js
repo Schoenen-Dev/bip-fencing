@@ -1,8 +1,5 @@
 //const API_BASE = "https://backend.bipfencing.in/backend";
-const API_BASES = [
-  "https://bipbackend.teamwaves.in/backend",
-  "https://backend.bipfencing.in/backend",
-];
+const API_BASE = "https://bipbackend.teamwaves.in/backend";
 
 export const apiFetch = (path, options = {}) => {
   const { branchId, ...restOptions } = options;
