@@ -2544,6 +2544,17 @@ export default function Clients() {
                   }
                 </span>
               </div>
+              <button
+                type="button"
+                className="cl-btn cl-btn--primary"
+                style={{ marginLeft: "auto" }}
+                title="Bank-statement style customer statement"
+                onClick={() =>
+                  navigate(`/statements?type=customer&client_id=${selected.id}`)
+                }
+              >
+                <i className="bi bi-journal-text"></i> Statement
+              </button>
               {isAdmin && (
                 <div className="cl-actions">
                   <button
@@ -2694,7 +2705,7 @@ export default function Clients() {
                     className="cl-btn cl-btn--primary cl-btn--block"
                     onClick={() => setShowPayModal(true)}
                   >
-                    <i className="bi bi-plus-circle"></i> Received Payment
+                    <i className="bi bi-plus-circle"></i> Recieve Payment
                   </button>
 
                   {Number(clientDetail.net_balance) < 0 && (

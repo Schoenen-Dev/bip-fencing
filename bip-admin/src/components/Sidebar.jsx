@@ -221,6 +221,20 @@ export default function Sidebar() {
           </NavLink>
         </DropdownItem>
 
+        <div className="sb-section">Reports</div>
+        <NavLink
+          to="/statements"
+          onClick={handleSubNavClick}
+          className={({ isActive }) =>
+            `nav-item-link${isActive ? " active" : ""}`
+          }
+        >
+          <div className="nav-icon-wrap">
+            <i className="bi bi-journal-text"></i>
+          </div>
+          <span>Statements</span>
+        </NavLink>
+
         {role === "admin" && (
           <>
             <div className="sb-section">CRM</div>

@@ -1,9 +1,20 @@
 import { useState, useEffect, Fragment } from "react";
 import { apiFetch } from "../utils/api";
+import { branchLabel } from "../utils/branchNames";
 
 const todayDate = () => new Date().toISOString().slice(0, 10);
 
-const UNITS = ["Pcs", "Kg", "Meter", "Roll", "Box", "Set", "Liter", "Ton", "Nos"];
+const UNITS = [
+  "Pcs",
+  "Kg",
+  "Meter",
+  "Roll",
+  "Box",
+  "Set",
+  "Liter",
+  "Ton",
+  "Nos",
+];
 
 const emptyForm = {
   productName: "",
@@ -45,6 +56,33 @@ const getStockStatus = (qty, min) => {
   if (min > 0 && qty <= min) return "low";
   return "ok";
 };
+
+// Display only: branches that carry a product with this name (from the loaded list)
+function branchesForName(list, name) {
+  const key = String(name || "")
+    .trim()
+    .toLowerCase();
+  const ids = [
+    ...new Set(
+      list
+        .filter(
+          (x) =>
+            String(x.productName || "")
+              .trim()
+              .toLowerCase() === key,
+        )
+        .map((x) =>
+          x.branchId === null || x.branchId === undefined
+            ? ""
+            : String(x.branchId),
+        ),
+    ),
+  ];
+  return ids
+    .sort()
+    .map((id) => (id === "" ? "All Branches" : branchLabel(id)))
+    .join(", ");
+}
 
 function mapFromDB(p) {
   return {
@@ -1056,6 +1094,31 @@ export default function Products() {
                                 <b>Selling Price</b>
                                 &#8377;{Number(p.sellingPrice || 0).toFixed(2)}
                               </div>
+                              <div className="at-bubble-stat">
+                                <b>Branch</b>
+                                <span
+                                  style={{ color: "#047857", fontWeight: 700 }}
+                                >
+                                  {p.branchId
+                                    ? branchLabel(p.branchId)
+                                    : "All Branches"}
+                                </span>
+                              </div>
+                              {(() => {
+                                const all = branchesForName(
+                                  products,
+                                  p.productName,
+                                );
+                                const own = p.branchId
+                                  ? branchLabel(p.branchId)
+                                  : "All Branches";
+                                return all && all !== own ? (
+                                  <div className="at-bubble-stat">
+                                    <b>Available In</b>
+                                    {all}
+                                  </div>
+                                ) : null;
+                              })()}
                             </div>
                             <div className="at-bubble-foot">
                               <span></span>
@@ -1080,7 +1143,8 @@ export default function Products() {
                                           : openStockOut(p.id)
                                       }
                                     >
-                                      <i className="bi bi-dash-lg"></i> Stock Out
+                                      <i className="bi bi-dash-lg"></i> Stock
+                                      Out
                                     </button>
                                     <button
                                       className="at-act-btn at-act-btn--edit"

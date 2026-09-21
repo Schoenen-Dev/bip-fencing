@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../utils/api";
 import { branchLabel } from "../utils/branchNames";
 
@@ -24,6 +25,7 @@ const getStoredUser = () => {
 };
 
 export default function PurchaseInventory() {
+  const navigate = useNavigate();
   const storedUser = getStoredUser();
   const isAdmin = storedUser?.role === "admin";
 
@@ -710,6 +712,16 @@ export default function PurchaseInventory() {
                               }
                             >
                               <i className="bi bi-bell"></i> Set Alert
+                            </button>
+                            <button
+                              className="at-act-btn"
+                              onClick={() =>
+                                navigate(
+                                  `/statements?type=product&product=${encodeURIComponent(p.product_name)}`,
+                                )
+                              }
+                            >
+                              <i className="bi bi-journal-text"></i> Statement
                             </button>
                             {isAdmin && (
                               <button

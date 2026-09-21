@@ -28,17 +28,19 @@ import Salary from "./pages/Salary";
 // CRM
 import Clients from "./pages/Clients";
 
+// Reports
+import Statements from "./pages/Statements";
+
+// Only admins can open these pages
+function AdminRoute({ children }) {
+  const role = localStorage.getItem("role");
+  return role === "admin" ? children : <Navigate to="/dashboard" replace />;
+}
+
 function AppRoutes() {
   // Enter → next field, on every page (Login included)
   useEnterNavigation();
 
-  // Add this helper at the top
-  // const user = JSON.parse(localStorage.getItem('user') || '{}');
-  // i will add this funtion on four lines bellow
-  function AdminRoute({ children }) {
-    const role = localStorage.getItem("role");
-    return role === "admin" ? children : <Navigate to="/dashboard" replace />;
-  }
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
@@ -77,6 +79,9 @@ function AppRoutes() {
         />
         <Route path="employee-details" element={<Employee_details />} />
         <Route path="salary" element={<Salary />} />
+
+        {/* Reports */}
+        <Route path="statements" element={<Statements />} />
 
         {/* CRM */}
         <Route
