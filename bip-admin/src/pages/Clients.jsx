@@ -2694,7 +2694,7 @@ export default function Clients() {
                     className="cl-btn cl-btn--primary cl-btn--block"
                     onClick={() => setShowPayModal(true)}
                   >
-                    <i className="bi bi-plus-circle"></i> Recieve Payment
+                    <i className="bi bi-plus-circle"></i> Received Payment
                   </button>
 
                   {Number(clientDetail.net_balance) < 0 && (
