@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { apiFetch } from "../utils/api";
+import PhoneInput from "../components/PhoneInput";
 import { branchLabel } from "../utils/branchNames";
 
 // ── Helpers ─────────────────────────────────────────────────
@@ -531,10 +532,8 @@ export default function PurchaseBill() {
             </div>
             <div className="at-fg">
               <label className="at-label">Supplier Phone</label>
-              <input
-                type="tel"
+              <PhoneInput
                 name="supplier_phone"
-                placeholder="10-digit mobile number"
                 className="at-input"
                 value={form.supplier_phone}
                 onChange={handleHeaderChange}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { apiFetch } from "../utils/api";
+import PhoneInput from "../components/PhoneInput";
 
 const getHeaders = () => {
   const headers = {
@@ -414,16 +415,27 @@ const Employee_details = () => {
                     {f.label}
                     {f.req && <span className="ep-req">*</span>}
                   </label>
-                  <input
-                    type={f.type}
-                    name={f.name}
-                    value={formData[f.name]}
-                    onChange={handleChange}
-                    required={f.req}
-                    disabled={!isBranchSelected && userRole === "admin"}
-                    className="ep-input"
-                    placeholder={`Enter ${f.label.toLowerCase()}`}
-                  />
+                  {f.name === "whatsapp_number" ? (
+                    <PhoneInput
+                      name={f.name}
+                      value={formData[f.name]}
+                      onChange={handleChange}
+                      required={f.req}
+                      disabled={!isBranchSelected && userRole === "admin"}
+                      className="ep-input"
+                    />
+                  ) : (
+                    <input
+                      type={f.type}
+                      name={f.name}
+                      value={formData[f.name]}
+                      onChange={handleChange}
+                      required={f.req}
+                      disabled={!isBranchSelected && userRole === "admin"}
+                      className="ep-input"
+                      placeholder={`Enter ${f.label.toLowerCase()}`}
+                    />
+                  )}
                   {f.hint && <span className="ep-hint">{f.hint}</span>}
                 </div>
               ))}

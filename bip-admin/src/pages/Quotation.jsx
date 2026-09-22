@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { apiFetch } from "../utils/api";
+import PhoneInput from "../components/PhoneInput";
+import SignedAmountInput from "../components/SignedAmountInput";
+import SharePrompt, { shareImage } from "../components/SharePrompt";
 import { BRANCH_LABELS } from "../utils/branchNames";
 
 // ─── COMPANY & BANK DETAILS ──────────────────────────────────────────────────
@@ -342,6 +345,7 @@ const calcTotals = (items, discount, tax, manualRound) => {
 
 // ─── MAIN COMPONENT ─────────────────────────────────────────────────────────
 export default function Quotation() {
+  const [pendingShare, setPendingShare] = useState(null); // WhatsApp share waiting for a tap
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -784,7 +788,14 @@ export default function Quotation() {
     const actionBar = (extra) => (
       <div
         className="qt-no-print"
-        style={{ display: "flex", justifyContent: "center", gap: 12, ...extra }}
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          justifyContent: "center",
+          gap: 12,
+          padding: "0 12px",
+          ...extra,
+        }}
       >
         <button onClick={() => setView("table")} style={topBtn}>
           ← Back to List
@@ -810,27 +821,63 @@ export default function Quotation() {
       cursor: "pointer",
     };
 
+    // Full quotation details (same figures as the preview)
+    const quotationText = () => {
+      const m = (n) => `₹${fmt2(n)}`;
+      const L = [
+        `*BIP FENCING — Quotation ${d.quote_no}*`,
+        `Date: ${d.quote_date || "-"}`,
+        `Customer: ${d.client_name || "-"}`,
+      ];
+      const ph = String(d.client_phone || "")
+        .replace(/\D/g, "")
+        .slice(-10);
+      if (ph) L.push(`Phone: +91 ${ph}`);
+      L.push("", "*Items*");
+      rows.forEach((r, i) =>
+        L.push(
+          `${i + 1}. ${r.description || r.product_name || "-"} — ${r.qty} × ${m(r.rate)} = ${m(r.qty * r.rate)}`,
+        ),
+      );
+      L.push("");
+      if (disc) L.push(`Discount: ${disc}%`);
+      L.push(`Taxable Value: ${m(taxable)}`);
+      if (totalTax) L.push(`GST (${tax}%): ${m(totalTax)}`);
+      if (roundOff)
+        L.push(
+          `Round Off: ${roundOff > 0 ? "+" : "-"}${m(Math.abs(roundOff))}`,
+        );
+      L.push(`*Grand Total: ${m(netAmount)}*`, "", "Thank you,", "BIP Fencing");
+      return L.join("\n");
+    };
+
     const sendWhatsApp = async (d) => {
-      const phone = (d.client_phone || "").replace(/\D/g, "");
-      const html2canvas = (await import("html2canvas")).default;
-      const node = document.getElementById("qt-print-area");
-      const canvas = await html2canvas(node, { scale: 2 });
-      canvas.toBlob(async (blob) => {
-        const file = new File([blob], `${d.quote_no}.png`, {
-          type: "image/png",
+      try {
+        const html2canvas = (await import("html2canvas")).default;
+        const node = document.getElementById("qt-print-area");
+        const canvas = await html2canvas(node, {
+          scale: 2,
+          backgroundColor: "#fff",
+          windowWidth: node.scrollWidth + 40,
+          onclone: (doc) =>
+            doc
+              .querySelectorAll(".qt-preview-scroll")
+              .forEach((n) => (n.style.overflow = "visible")),
         });
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({
-            files: [file],
-            text: `Quotation ${d.quote_no}`,
-          });
-        } else {
-          window.open(
-            `https://wa.me/${phone}?text=Quotation ${d.quote_no}`,
-            "_blank",
-          );
-        }
-      });
+        const blob = await new Promise((r) => canvas.toBlob(r, "image/png"));
+        if (!blob) throw new Error("no image");
+        const job = {
+          blob,
+          fileName: `${d.quote_no}.png`,
+          phone: d.client_phone,
+          text: quotationText(),
+        };
+        const result = await shareImage(job);
+        if (result === "needs-tap") setPendingShare(job);
+      } catch (err) {
+        console.error(err);
+        alert("Could not prepare the quotation for WhatsApp.");
+      }
     };
 
     const uq = Number(d.unit_qty ?? 0);
@@ -839,694 +886,730 @@ export default function Quotation() {
     return (
       <>
         <style>{PRINT_STYLES}</style>
+        <style>{`
+          @media screen and (max-width: 900px) {
+            .qt-preview-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 0 6px; }
+          }
+          @media print { .qt-preview-scroll { overflow: visible !important; padding: 0 !important; } }
+        `}</style>
+        <SharePrompt
+          pending={pendingShare}
+          onClose={() => setPendingShare(null)}
+        />
 
         {actionBar({ padding: "16px 0", background: "#f6f8fa" })}
 
-        <div
-          id="qt-print-area"
-          style={{
-            width: "210mm",
-            minHeight: "297mm",
-            margin: "0 auto 30px",
-            padding: "8mm",
-            fontFamily: "'Times New Roman', Times, serif",
-            color: "#000",
-            background: "#fff",
-            border: "2px solid #000",
-            boxSizing: "border-box",
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
+        <div className="qt-preview-scroll">
           <div
+            id="qt-print-area"
             style={{
-              textAlign: "center",
-              padding: "2px 8px",
-              fontWeight: "bold",
-              fontSize: 14,
-              borderBottom: B,
+              width: "210mm",
+              minHeight: "297mm",
+              margin: "0 auto 30px",
+              padding: "8mm",
+              fontFamily: "'Times New Roman', Times, serif",
+              color: "#000",
+              background: "#fff",
+              border: "2px solid #000",
+              boxSizing: "border-box",
+              display: "flex",
+              flexDirection: "column",
             }}
           >
-            ESTIMATE
-          </div>
+            <div
+              style={{
+                textAlign: "center",
+                padding: "2px 8px",
+                fontWeight: "bold",
+                fontSize: 14,
+                borderBottom: B,
+              }}
+            >
+              ESTIMATE
+            </div>
 
-          {/* HEADER */}
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              borderBottom: B,
-            }}
-          >
-            <tbody>
-              <tr>
-                <td
-                  style={{
-                    width: 80,
-                    borderRight: B,
-                    padding: "4px",
-                    textAlign: "center",
-                    verticalAlign: "middle",
-                  }}
-                >
-                  <img
-                    src={BIP_LOGO_B64}
-                    alt="BIP Fencing"
-                    style={{
-                      width: 68,
-                      height: 68,
-                      objectFit: "contain",
-                      display: "block",
-                      margin: "0 auto",
-                    }}
-                  />
-                </td>
-                <td
-                  style={{
-                    padding: "4px 10px",
-                    textAlign: "center",
-                    verticalAlign: "middle",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 24,
-                      fontWeight: "bold",
-                      letterSpacing: 1.5,
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    {COMPANY.name}
-                  </div>
-                  <div style={{ fontSize: 10, marginTop: 1 }}>
-                    {COMPANY.address}
-                  </div>
-                  {isGst && (
-                    <div style={{ fontSize: 10 }}>
-                      GSTIN/UIN: <strong>{COMPANY.gst}</strong>
-                      &nbsp;&nbsp;State: {COMPANY.state}, Code:{" "}
-                      {COMPANY.stateCode}
-                    </div>
-                  )}
-                  <div style={{ fontSize: 10 }}>Ph: {COMPANY.phone}</div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-
-          {/* CONSIGNEE + META */}
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              borderBottom: B,
-            }}
-          >
-            <tbody>
-              <tr>
-                <td
-                  style={{
-                    width: "50%",
-                    borderRight: B,
-                    padding: "6px 7px",
-                    verticalAlign: "top",
-                  }}
-                >
-                  <div style={sectionHead}>Consignee (Ship to)</div>
-                  <div style={{ fontWeight: "bold", fontSize: 16 }}>
-                    {d.ship_name || d.client_name}
-                  </div>
-                  <div style={{ fontSize: 14 }}>
-                    {d.ship_address || d.client_address}
-                  </div>
-                  <div style={{ fontSize: 14 }}>
-                    State Name: {d.ship_state || d.client_state || "Tamil Nadu"}
-                    , Code: {d.ship_state_code || d.client_state_code || "33"}
-                  </div>
-                </td>
-                <td style={{ padding: "6px 7px", verticalAlign: "top" }}>
-                  {[
-                    ["Quotation No.", d.quote_no],
-                    ["Date", formatDate(d.quote_date)],
-                    [
-                      "Valid Until",
-                      d.valid_until ? formatDate(d.valid_until) : "",
-                    ],
-                    ["PO/Order No.", d.po_no],
-                    ["Dispatched Through", d.dispatched_through],
-                  ]
-                    .filter(([, v]) => v)
-                    .map(([label, value]) => (
-                      <div
-                        key={label}
-                        style={{ display: "flex", marginBottom: 2 }}
-                      >
-                        <span
-                          style={{
-                            minWidth: 130,
-                            whiteSpace: "nowrap",
-                            fontSize: 13,
-                          }}
-                        >
-                          {label}
-                        </span>
-                        <span style={{ fontWeight: "bold", fontSize: 13 }}>
-                          {" "}
-                          : {value}
-                        </span>
-                      </div>
-                    ))}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-
-          {/* BUYER + PAYMENT */}
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              borderBottom: B,
-            }}
-          >
-            <tbody>
-              <tr>
-                <td
-                  style={{
-                    width: "50%",
-                    borderRight: B,
-                    padding: "6px 7px",
-                    verticalAlign: "top",
-                  }}
-                >
-                  <div style={sectionHead}>Buyer (Bill to)</div>
-                  <div style={{ fontWeight: "bold", fontSize: 16 }}>
-                    {d.client_name}
-                  </div>
-                  <div style={{ fontSize: 14 }}>{d.client_address}</div>
-                  {d.client_phone && (
-                    <div style={{ fontSize: 14 }}>Ph: {d.client_phone}</div>
-                  )}
-                  {d.client_email && (
-                    <div style={{ fontSize: 14 }}>Email: {d.client_email}</div>
-                  )}
-                  {isGst && d.client_gst && (
-                    <div style={{ fontSize: 14 }}>
-                      GSTIN/UIN: {d.client_gst}
-                    </div>
-                  )}
-                  <div style={{ fontSize: 14 }}>
-                    State Name: {d.client_state || "Tamil Nadu"}, Code:{" "}
-                    {d.client_state_code || "33"}
-                  </div>
-                </td>
-                <td style={{ padding: "6px 7px", verticalAlign: "top" }}>
-                  {[
-                    ["Payment", "Credit"],
-                    ["Transport", d.dispatched_through],
-                    ["Vehicle No.", d.vehicle_no],
-                    ["Other Ref.", d.other_ref],
-                    ["Discount", disc ? `${disc}%` : ""],
-                  ]
-                    .filter(([, v]) => v)
-                    .map(([label, value]) => (
-                      <div
-                        key={label}
-                        style={{ display: "flex", marginBottom: 2 }}
-                      >
-                        <span
-                          style={{
-                            minWidth: 95,
-                            whiteSpace: "nowrap",
-                            fontSize: 14,
-                          }}
-                        >
-                          {label}
-                        </span>
-                        <span style={{ fontWeight: "bold", fontSize: 14 }}>
-                          {" "}
-                          : {value}
-                        </span>
-                      </div>
-                    ))}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-
-          {/* PRODUCT TABLE */}
-          <div style={{ flex: 1 }}>
+            {/* HEADER */}
             <table
               style={{
                 width: "100%",
                 borderCollapse: "collapse",
-                tableLayout: "fixed",
-                borderTop: B,
                 borderBottom: B,
               }}
             >
-              <colgroup>
-                <col style={{ width: "10%" }} />
-                <col style={{ width: "70%" }} />
-                <col style={{ width: "20%" }} />
-              </colgroup>
-              <thead className="inv-thead">
-                <tr>
-                  {[
-                    ["Sl\nNo.", "center"],
-                    ["Description of Goods", "left"],
-                    ["Amount", "right"],
-                  ].map(([label, align]) => (
-                    <th
-                      key={label}
-                      style={dhc({
-                        textAlign: align,
-                        whiteSpace: "pre-line",
-                        padding: dynPad,
-                      })}
-                    >
-                      {label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
               <tbody>
-                {rows.map((r, i) => (
-                  <tr key={i} className="inv-product-row">
-                    <td style={dc({ textAlign: "center" })}>{i + 1}</td>
-                    <td style={dc({ fontWeight: "bold", fontSize: 14 })}>
-                      {r.description}
-                    </td>
-                    <td style={dc({ textAlign: "right" })}>
-                      {fmt2(r.qty * r.rate * (1 - disc / 100))}
-                    </td>
-                  </tr>
-                ))}
-                {Array.from({ length: MIN_ROWS }).map((_, i) => (
-                  <tr key={`blank_${i}`} style={{ height: 18 }}>
-                    {[0, 1, 2].map((j) => (
-                      <td key={j} style={dc()}>
-                        &nbsp;
-                      </td>
+                <tr>
+                  <td
+                    style={{
+                      width: 80,
+                      borderRight: B,
+                      padding: "4px",
+                      textAlign: "center",
+                      verticalAlign: "middle",
+                    }}
+                  >
+                    <img
+                      src={BIP_LOGO_B64}
+                      alt="BIP Fencing"
+                      style={{
+                        width: 68,
+                        height: 68,
+                        objectFit: "contain",
+                        display: "block",
+                        margin: "0 auto",
+                      }}
+                    />
+                  </td>
+                  <td
+                    style={{
+                      padding: "4px 10px",
+                      textAlign: "center",
+                      verticalAlign: "middle",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 24,
+                        fontWeight: "bold",
+                        letterSpacing: 1.5,
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      {COMPANY.name}
+                    </div>
+                    <div style={{ fontSize: 10, marginTop: 1 }}>
+                      {COMPANY.address}
+                    </div>
+                    {isGst && (
+                      <div style={{ fontSize: 10 }}>
+                        GSTIN/UIN: <strong>{COMPANY.gst}</strong>
+                        &nbsp;&nbsp;State: {COMPANY.state}, Code:{" "}
+                        {COMPANY.stateCode}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 10 }}>Ph: {COMPANY.phone}</div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            {/* CONSIGNEE + META */}
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                borderBottom: B,
+              }}
+            >
+              <tbody>
+                <tr>
+                  <td
+                    style={{
+                      width: "50%",
+                      borderRight: B,
+                      padding: "6px 7px",
+                      verticalAlign: "top",
+                    }}
+                  >
+                    <div style={sectionHead}>Consignee (Ship to)</div>
+                    <div style={{ fontWeight: "bold", fontSize: 16 }}>
+                      {d.ship_name || d.client_name}
+                    </div>
+                    <div style={{ fontSize: 14 }}>
+                      {d.ship_address || d.client_address}
+                    </div>
+                    <div style={{ fontSize: 14 }}>
+                      State Name:{" "}
+                      {d.ship_state || d.client_state || "Tamil Nadu"}, Code:{" "}
+                      {d.ship_state_code || d.client_state_code || "33"}
+                    </div>
+                  </td>
+                  <td style={{ padding: "6px 7px", verticalAlign: "top" }}>
+                    {[
+                      ["Quotation No.", d.quote_no],
+                      ["Date", formatDate(d.quote_date)],
+                      [
+                        "Valid Until",
+                        d.valid_until ? formatDate(d.valid_until) : "",
+                      ],
+                      ["PO/Order No.", d.po_no],
+                      ["Dispatched Through", d.dispatched_through],
+                    ]
+                      .filter(([, v]) => v)
+                      .map(([label, value]) => (
+                        <div
+                          key={label}
+                          style={{ display: "flex", marginBottom: 2 }}
+                        >
+                          <span
+                            style={{
+                              minWidth: 130,
+                              whiteSpace: "nowrap",
+                              fontSize: 13,
+                            }}
+                          >
+                            {label}
+                          </span>
+                          <span style={{ fontWeight: "bold", fontSize: 13 }}>
+                            {" "}
+                            : {value}
+                          </span>
+                        </div>
+                      ))}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            {/* BUYER + PAYMENT */}
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                borderBottom: B,
+              }}
+            >
+              <tbody>
+                <tr>
+                  <td
+                    style={{
+                      width: "50%",
+                      borderRight: B,
+                      padding: "6px 7px",
+                      verticalAlign: "top",
+                    }}
+                  >
+                    <div style={sectionHead}>Buyer (Bill to)</div>
+                    <div style={{ fontWeight: "bold", fontSize: 16 }}>
+                      {d.client_name}
+                    </div>
+                    <div style={{ fontSize: 14 }}>{d.client_address}</div>
+                    {d.client_phone && (
+                      <div style={{ fontSize: 14 }}>Ph: {d.client_phone}</div>
+                    )}
+                    {d.client_email && (
+                      <div style={{ fontSize: 14 }}>
+                        Email: {d.client_email}
+                      </div>
+                    )}
+                    {isGst && d.client_gst && (
+                      <div style={{ fontSize: 14 }}>
+                        GSTIN/UIN: {d.client_gst}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 14 }}>
+                      State Name: {d.client_state || "Tamil Nadu"}, Code:{" "}
+                      {d.client_state_code || "33"}
+                    </div>
+                  </td>
+                  <td style={{ padding: "6px 7px", verticalAlign: "top" }}>
+                    {[
+                      ["Payment", "Credit"],
+                      ["Transport", d.dispatched_through],
+                      ["Vehicle No.", d.vehicle_no],
+                      ["Other Ref.", d.other_ref],
+                      ["Discount", disc ? `${disc}%` : ""],
+                    ]
+                      .filter(([, v]) => v)
+                      .map(([label, value]) => (
+                        <div
+                          key={label}
+                          style={{ display: "flex", marginBottom: 2 }}
+                        >
+                          <span
+                            style={{
+                              minWidth: 95,
+                              whiteSpace: "nowrap",
+                              fontSize: 14,
+                            }}
+                          >
+                            {label}
+                          </span>
+                          <span style={{ fontWeight: "bold", fontSize: 14 }}>
+                            {" "}
+                            : {value}
+                          </span>
+                        </div>
+                      ))}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            {/* PRODUCT TABLE */}
+            <div style={{ flex: 1 }}>
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  tableLayout: "fixed",
+                  borderTop: B,
+                  borderBottom: B,
+                }}
+              >
+                <colgroup>
+                  <col style={{ width: "10%" }} />
+                  <col style={{ width: "70%" }} />
+                  <col style={{ width: "20%" }} />
+                </colgroup>
+                <thead className="inv-thead">
+                  <tr>
+                    {[
+                      ["Sl\nNo.", "center"],
+                      ["Description of Goods", "left"],
+                      ["Amount", "right"],
+                    ].map(([label, align]) => (
+                      <th
+                        key={label}
+                        style={dhc({
+                          textAlign: align,
+                          whiteSpace: "pre-line",
+                          padding: dynPad,
+                        })}
+                      >
+                        {label}
+                      </th>
                     ))}
                   </tr>
-                ))}
-                <tr>
-                  <td
-                    colSpan={2}
-                    style={dc({
-                      textAlign: "right",
-                      fontWeight: "bold",
-                      borderTop: B,
-                    })}
-                  >
-                    Total Taxable Amount
-                  </td>
-                  <td
-                    style={dc({
-                      textAlign: "right",
-                      fontWeight: "bold",
-                      borderTop: B,
-                    })}
-                  >
-                    {fmt2(taxable)}
-                  </td>
-                </tr>
-                {isGst && (
-                  <>
-                    <tr>
-                      <td
-                        colSpan={2}
-                        style={dc({
-                          textAlign: "right",
-                          fontStyle: "italic",
-                          fontWeight: "bold",
-                          borderTop: B,
-                        })}
-                      >
-                        CGST TAX
+                </thead>
+                <tbody>
+                  {rows.map((r, i) => (
+                    <tr key={i} className="inv-product-row">
+                      <td style={dc({ textAlign: "center" })}>{i + 1}</td>
+                      <td style={dc({ fontWeight: "bold", fontSize: 14 })}>
+                        {r.description}
                       </td>
-                      <td
-                        style={dc({
-                          textAlign: "right",
-                          fontWeight: "bold",
-                          borderTop: B,
-                        })}
-                      >
-                        {fmt2(cgstAmt)}
+                      <td style={dc({ textAlign: "right" })}>
+                        {fmt2(r.qty * r.rate * (1 - disc / 100))}
                       </td>
                     </tr>
-                    <tr>
-                      <td
-                        colSpan={2}
-                        style={dc({
-                          textAlign: "right",
-                          fontStyle: "italic",
-                          fontWeight: "bold",
-                        })}
-                      >
-                        SGST TAX
-                      </td>
-                      <td
-                        style={dc({ textAlign: "right", fontWeight: "bold" })}
-                      >
-                        {fmt2(sgstAmt)}
-                      </td>
+                  ))}
+                  {Array.from({ length: MIN_ROWS }).map((_, i) => (
+                    <tr key={`blank_${i}`} style={{ height: 18 }}>
+                      {[0, 1, 2].map((j) => (
+                        <td key={j} style={dc()}>
+                          &nbsp;
+                        </td>
+                      ))}
                     </tr>
-                  </>
-                )}
-                {Math.abs(roundOff) >= 0.005 && (
+                  ))}
                   <tr>
                     <td
                       colSpan={2}
                       style={dc({
                         textAlign: "right",
-                        fontStyle: "italic",
                         fontWeight: "bold",
+                        borderTop: B,
                       })}
                     >
-                      ROUNDING OFF
+                      Total Taxable Amount
                     </td>
-                    <td style={dc({ textAlign: "right", fontWeight: "bold" })}>
-                      {roundOff >= 0 ? "(+) " : "(-) "}
-                      {fmt2(Math.abs(roundOff))}
+                    <td
+                      style={dc({
+                        textAlign: "right",
+                        fontWeight: "bold",
+                        borderTop: B,
+                      })}
+                    >
+                      {fmt2(taxable)}
                     </td>
                   </tr>
-                )}
-                <tr style={{ background: "#f0f0f0" }}>
-                  <td style={dc({ borderTop: B, borderBottom: B })}></td>
-                  <td
-                    style={dc({
-                      fontWeight: "bold",
-                      borderTop: B,
-                      borderBottom: B,
-                      fontSize: dynFont + 1,
-                    })}
-                  >
-                    Total
-                  </td>
-                  <td
-                    style={dc({
-                      textAlign: "right",
-                      fontWeight: "bold",
-                      borderTop: B,
-                      borderBottom: B,
-                      fontSize: dynFont + 3,
-                    })}
-                  >
-                    ₹ {fmt2(netAmount)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          {/* UNIT PRICE LINE */}
-          {uq > 0 && (
-            <div
-              style={{
-                padding: "8px 8px 0",
-                fontSize: 18,
-                fontWeight: "bold",
-                color: "#333",
-              }}
-            >
-              {uq} {pu} — ₹{fmt2(netAmount / uq)} per {pu}
+                  {isGst && (
+                    <>
+                      <tr>
+                        <td
+                          colSpan={2}
+                          style={dc({
+                            textAlign: "right",
+                            fontStyle: "italic",
+                            fontWeight: "bold",
+                            borderTop: B,
+                          })}
+                        >
+                          CGST TAX
+                        </td>
+                        <td
+                          style={dc({
+                            textAlign: "right",
+                            fontWeight: "bold",
+                            borderTop: B,
+                          })}
+                        >
+                          {fmt2(cgstAmt)}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td
+                          colSpan={2}
+                          style={dc({
+                            textAlign: "right",
+                            fontStyle: "italic",
+                            fontWeight: "bold",
+                          })}
+                        >
+                          SGST TAX
+                        </td>
+                        <td
+                          style={dc({ textAlign: "right", fontWeight: "bold" })}
+                        >
+                          {fmt2(sgstAmt)}
+                        </td>
+                      </tr>
+                    </>
+                  )}
+                  {Math.abs(roundOff) >= 0.005 && (
+                    <tr>
+                      <td
+                        colSpan={2}
+                        style={dc({
+                          textAlign: "right",
+                          fontStyle: "italic",
+                          fontWeight: "bold",
+                        })}
+                      >
+                        ROUNDING OFF
+                      </td>
+                      <td
+                        style={dc({ textAlign: "right", fontWeight: "bold" })}
+                      >
+                        {roundOff >= 0 ? "(+) " : "(-) "}
+                        {fmt2(Math.abs(roundOff))}
+                      </td>
+                    </tr>
+                  )}
+                  <tr style={{ background: "#f0f0f0" }}>
+                    <td style={dc({ borderTop: B, borderBottom: B })}></td>
+                    <td
+                      style={dc({
+                        fontWeight: "bold",
+                        borderTop: B,
+                        borderBottom: B,
+                        fontSize: dynFont + 1,
+                      })}
+                    >
+                      Total
+                    </td>
+                    <td
+                      style={dc({
+                        textAlign: "right",
+                        fontWeight: "bold",
+                        borderTop: B,
+                        borderBottom: B,
+                        fontSize: dynFont + 3,
+                      })}
+                    >
+                      ₹ {fmt2(netAmount)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-          )}
 
-          {/* AMOUNT IN WORDS */}
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              borderBottom: B,
-            }}
-          >
-            <tbody>
-              <tr>
-                <td
-                  style={{
-                    width: "58%",
-                    borderRight: B,
-                    padding: "3px 7px",
-                    verticalAlign: "middle",
-                    fontSize: 10,
-                  }}
-                >
-                  <span style={{ fontWeight: "bold" }}>
-                    Amount Chargeable (in words):{" "}
-                  </span>
-                  <em style={{ fontWeight: "bold" }}>
-                    {amountInWords(netAmount)}
-                  </em>
-                </td>
-                <td
-                  style={{
-                    padding: "3px 7px",
-                    verticalAlign: "middle",
-                    textAlign: "right",
-                  }}
-                >
-                  <div style={{ fontSize: 20, fontWeight: "bold" }}>
-                    ₹ {fmt2(netAmount)}
-                  </div>
-                  <div style={{ fontSize: 10 }}>E. &amp; O.E</div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+            {/* UNIT PRICE LINE */}
+            {uq > 0 && (
+              <div
+                style={{
+                  padding: "8px 8px 0",
+                  fontSize: 18,
+                  fontWeight: "bold",
+                  color: "#333",
+                }}
+              >
+                {uq} {pu} — ₹{fmt2(netAmount / uq)} per {pu}
+              </div>
+            )}
 
-          {/* HSN TAX TABLE */}
-          {isGst && (
+            {/* AMOUNT IN WORDS */}
             <table
               style={{
                 width: "100%",
                 borderCollapse: "collapse",
-                tableLayout: "fixed",
                 borderBottom: B,
               }}
-              className="inv-footer"
-            >
-              <colgroup>
-                <col style={{ width: "14%" }} />
-                <col style={{ width: "16%" }} />
-                <col style={{ width: "10%" }} />
-                <col style={{ width: "14%" }} />
-                <col style={{ width: "14%" }} />
-                <col style={{ width: "16%" }} />
-                <col style={{ width: "16%" }} />
-              </colgroup>
-              <thead>
-                <tr>
-                  {[
-                    ["HSN/SAC", "center"],
-                    ["Taxable\nValue", "right"],
-                    ["CGST\nRate", "center"],
-                    ["CGST\nAmount", "right"],
-                    ["SGST/UTGST\nRate", "center"],
-                    ["SGST/UTGST\nAmount", "right"],
-                    ["Total Tax\nAmount", "right"],
-                  ].map(([label, align]) => (
-                    <th
-                      key={label}
-                      style={dhc({
-                        textAlign: align,
-                        whiteSpace: "pre-line",
-                        padding: "2px 6px",
-                        fontSize: 10,
-                      })}
-                    >
-                      {label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(hsnGroups).map(([hsn, g]) => (
-                  <tr key={hsn}>
-                    <td style={dc({ textAlign: "center", fontSize: 11 })}>
-                      {hsn}
-                    </td>
-                    <td style={dc({ textAlign: "right", fontSize: 11 })}>
-                      {fmt2(g.taxable)}
-                    </td>
-                    <td style={dc({ textAlign: "center", fontSize: 10 })}>
-                      {cgstRate}%
-                    </td>
-                    <td style={dc({ textAlign: "right", fontSize: 10 })}>
-                      {fmt2(g.cgst)}
-                    </td>
-                    <td style={dc({ textAlign: "center", fontSize: 10 })}>
-                      {sgstRate}%
-                    </td>
-                    <td style={dc({ textAlign: "right", fontSize: 10 })}>
-                      {fmt2(g.sgst)}
-                    </td>
-                    <td style={dc({ textAlign: "right", fontSize: 10 })}>
-                      {fmt2(g.cgst + g.sgst)}
-                    </td>
-                  </tr>
-                ))}
-                <tr style={{ background: "#f5f5f5", fontWeight: "bold" }}>
-                  <td
-                    style={dc({ borderTop: B, borderBottom: B, fontSize: 10 })}
-                  >
-                    Total
-                  </td>
-                  <td
-                    style={dc({
-                      textAlign: "right",
-                      borderTop: B,
-                      borderBottom: B,
-                      fontSize: 10,
-                    })}
-                  >
-                    {fmt2(taxable)}
-                  </td>
-                  <td style={dc({ borderTop: B, borderBottom: B })}></td>
-                  <td
-                    style={dc({
-                      textAlign: "right",
-                      borderTop: B,
-                      borderBottom: B,
-                      fontSize: 10,
-                    })}
-                  >
-                    {fmt2(cgstAmt)}
-                  </td>
-                  <td style={dc({ borderTop: B, borderBottom: B })}></td>
-                  <td
-                    style={dc({
-                      textAlign: "right",
-                      borderTop: B,
-                      borderBottom: B,
-                      fontSize: 10,
-                    })}
-                  >
-                    {fmt2(sgstAmt)}
-                  </td>
-                  <td
-                    style={dc({
-                      textAlign: "right",
-                      borderTop: B,
-                      borderBottom: B,
-                      fontSize: 10,
-                    })}
-                  >
-                    {fmt2(totalTax)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          )}
-
-          {isGst && (
-            <div style={{ padding: "2px 7px", borderBottom: B, fontSize: 10 }}>
-              <strong>Tax Amount (in words):</strong>&nbsp;
-              <em style={{ fontWeight: "bold" }}>{amountInWords(totalTax)}</em>
-            </div>
-          )}
-
-          {/* FOOTER */}
-          <div style={{ marginTop: "auto" }}>
-            <table
-              style={{ width: "100%", borderCollapse: "collapse" }}
-              className="inv-footer"
             >
               <tbody>
                 <tr>
                   <td
                     style={{
-                      width: "44%",
+                      width: "58%",
                       borderRight: B,
-                      padding: "4px 7px",
-                      verticalAlign: "top",
+                      padding: "3px 7px",
+                      verticalAlign: "middle",
                       fontSize: 10,
                     }}
                   >
-                    <div
-                      style={{
-                        fontWeight: "bold",
-                        marginBottom: 2,
-                        fontSize: 15,
-                      }}
-                    >
-                      Company's Bank Details
-                    </div>
-                    {[
-                      [
-                        "A/c Holder's Name",
-                        d.bank_holder_name || DEFAULT_BANK.holderName,
-                      ],
-                      ["Bank Name", d.bank_name || DEFAULT_BANK.bankName],
-                      ["A/c No.", d.bank_account_no || DEFAULT_BANK.accountNo],
-                      [
-                        "Branch & IFS Code",
-                        `${d.bank_branch || DEFAULT_BANK.branch} & ${d.bank_ifsc || DEFAULT_BANK.ifsc}`,
-                      ],
-                    ].map(([k, v]) => (
-                      <div key={k} style={{ marginBottom: 2, fontSize: 12 }}>
-                        <strong>{k}</strong>: {v}
-                      </div>
-                    ))}
+                    <span style={{ fontWeight: "bold" }}>
+                      Amount Chargeable (in words):{" "}
+                    </span>
+                    <em style={{ fontWeight: "bold" }}>
+                      {amountInWords(netAmount)}
+                    </em>
                   </td>
-                  <td style={{ padding: "4px 7px", verticalAlign: "top" }}>
-                    {d.notes && (
-                      <div style={{ fontSize: 10, marginBottom: 4 }}>
-                        <strong>Terms:</strong> {d.notes}
-                      </div>
-                    )}
-                    <div style={{ fontSize: 9, marginBottom: 4 }}>
-                      <strong>Declaration:</strong>{" "}
-                      {d.declaration || DECLARATION}
+                  <td
+                    style={{
+                      padding: "3px 7px",
+                      verticalAlign: "middle",
+                      textAlign: "right",
+                    }}
+                  >
+                    <div style={{ fontSize: 20, fontWeight: "bold" }}>
+                      ₹ {fmt2(netAmount)}
                     </div>
-                    <div
-                      style={{
-                        textAlign: "right",
-                        fontWeight: "bold",
-                        fontSize: 10,
-                        marginBottom: 2,
-                      }}
-                    >
-                      for {COMPANY.name}
-                    </div>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        marginTop: 28,
-                      }}
-                    >
-                      <div style={{ textAlign: "center", width: "42%" }}>
-                        <div
-                          style={{ borderTop: B, paddingTop: 2, fontSize: 10 }}
-                        >
-                          Receiver's Signature
-                        </div>
-                      </div>
-                      <div style={{ textAlign: "center", width: "42%" }}>
-                        <div
-                          style={{ borderTop: B, paddingTop: 2, fontSize: 10 }}
-                        >
-                          Authorised Signatory
-                        </div>
-                      </div>
-                    </div>
-                    <div
-                      style={{
-                        textAlign: "center",
-                        marginTop: 4,
-                        fontSize: 9,
-                        color: "#666",
-                      }}
-                    >
-                      This is a Computer Generated Quotation
-                    </div>
+                    <div style={{ fontSize: 10 }}>E. &amp; O.E</div>
                   </td>
                 </tr>
               </tbody>
             </table>
+
+            {/* HSN TAX TABLE */}
+            {isGst && (
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  tableLayout: "fixed",
+                  borderBottom: B,
+                }}
+                className="inv-footer"
+              >
+                <colgroup>
+                  <col style={{ width: "14%" }} />
+                  <col style={{ width: "16%" }} />
+                  <col style={{ width: "10%" }} />
+                  <col style={{ width: "14%" }} />
+                  <col style={{ width: "14%" }} />
+                  <col style={{ width: "16%" }} />
+                  <col style={{ width: "16%" }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    {[
+                      ["HSN/SAC", "center"],
+                      ["Taxable\nValue", "right"],
+                      ["CGST\nRate", "center"],
+                      ["CGST\nAmount", "right"],
+                      ["SGST/UTGST\nRate", "center"],
+                      ["SGST/UTGST\nAmount", "right"],
+                      ["Total Tax\nAmount", "right"],
+                    ].map(([label, align]) => (
+                      <th
+                        key={label}
+                        style={dhc({
+                          textAlign: align,
+                          whiteSpace: "pre-line",
+                          padding: "2px 6px",
+                          fontSize: 10,
+                        })}
+                      >
+                        {label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(hsnGroups).map(([hsn, g]) => (
+                    <tr key={hsn}>
+                      <td style={dc({ textAlign: "center", fontSize: 11 })}>
+                        {hsn}
+                      </td>
+                      <td style={dc({ textAlign: "right", fontSize: 11 })}>
+                        {fmt2(g.taxable)}
+                      </td>
+                      <td style={dc({ textAlign: "center", fontSize: 10 })}>
+                        {cgstRate}%
+                      </td>
+                      <td style={dc({ textAlign: "right", fontSize: 10 })}>
+                        {fmt2(g.cgst)}
+                      </td>
+                      <td style={dc({ textAlign: "center", fontSize: 10 })}>
+                        {sgstRate}%
+                      </td>
+                      <td style={dc({ textAlign: "right", fontSize: 10 })}>
+                        {fmt2(g.sgst)}
+                      </td>
+                      <td style={dc({ textAlign: "right", fontSize: 10 })}>
+                        {fmt2(g.cgst + g.sgst)}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr style={{ background: "#f5f5f5", fontWeight: "bold" }}>
+                    <td
+                      style={dc({
+                        borderTop: B,
+                        borderBottom: B,
+                        fontSize: 10,
+                      })}
+                    >
+                      Total
+                    </td>
+                    <td
+                      style={dc({
+                        textAlign: "right",
+                        borderTop: B,
+                        borderBottom: B,
+                        fontSize: 10,
+                      })}
+                    >
+                      {fmt2(taxable)}
+                    </td>
+                    <td style={dc({ borderTop: B, borderBottom: B })}></td>
+                    <td
+                      style={dc({
+                        textAlign: "right",
+                        borderTop: B,
+                        borderBottom: B,
+                        fontSize: 10,
+                      })}
+                    >
+                      {fmt2(cgstAmt)}
+                    </td>
+                    <td style={dc({ borderTop: B, borderBottom: B })}></td>
+                    <td
+                      style={dc({
+                        textAlign: "right",
+                        borderTop: B,
+                        borderBottom: B,
+                        fontSize: 10,
+                      })}
+                    >
+                      {fmt2(sgstAmt)}
+                    </td>
+                    <td
+                      style={dc({
+                        textAlign: "right",
+                        borderTop: B,
+                        borderBottom: B,
+                        fontSize: 10,
+                      })}
+                    >
+                      {fmt2(totalTax)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            )}
+
+            {isGst && (
+              <div
+                style={{ padding: "2px 7px", borderBottom: B, fontSize: 10 }}
+              >
+                <strong>Tax Amount (in words):</strong>&nbsp;
+                <em style={{ fontWeight: "bold" }}>
+                  {amountInWords(totalTax)}
+                </em>
+              </div>
+            )}
+
+            {/* FOOTER */}
+            <div style={{ marginTop: "auto" }}>
+              <table
+                style={{ width: "100%", borderCollapse: "collapse" }}
+                className="inv-footer"
+              >
+                <tbody>
+                  <tr>
+                    <td
+                      style={{
+                        width: "44%",
+                        borderRight: B,
+                        padding: "4px 7px",
+                        verticalAlign: "top",
+                        fontSize: 10,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontWeight: "bold",
+                          marginBottom: 2,
+                          fontSize: 15,
+                        }}
+                      >
+                        Company's Bank Details
+                      </div>
+                      {[
+                        [
+                          "A/c Holder's Name",
+                          d.bank_holder_name || DEFAULT_BANK.holderName,
+                        ],
+                        ["Bank Name", d.bank_name || DEFAULT_BANK.bankName],
+                        [
+                          "A/c No.",
+                          d.bank_account_no || DEFAULT_BANK.accountNo,
+                        ],
+                        [
+                          "Branch & IFS Code",
+                          `${d.bank_branch || DEFAULT_BANK.branch} & ${d.bank_ifsc || DEFAULT_BANK.ifsc}`,
+                        ],
+                      ].map(([k, v]) => (
+                        <div key={k} style={{ marginBottom: 2, fontSize: 12 }}>
+                          <strong>{k}</strong>: {v}
+                        </div>
+                      ))}
+                    </td>
+                    <td style={{ padding: "4px 7px", verticalAlign: "top" }}>
+                      {d.notes && (
+                        <div style={{ fontSize: 10, marginBottom: 4 }}>
+                          <strong>Terms:</strong> {d.notes}
+                        </div>
+                      )}
+                      <div style={{ fontSize: 9, marginBottom: 4 }}>
+                        <strong>Declaration:</strong>{" "}
+                        {d.declaration || DECLARATION}
+                      </div>
+                      <div
+                        style={{
+                          textAlign: "right",
+                          fontWeight: "bold",
+                          fontSize: 10,
+                          marginBottom: 2,
+                        }}
+                      >
+                        for {COMPANY.name}
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          marginTop: 28,
+                        }}
+                      >
+                        <div style={{ textAlign: "center", width: "42%" }}>
+                          <div
+                            style={{
+                              borderTop: B,
+                              paddingTop: 2,
+                              fontSize: 10,
+                            }}
+                          >
+                            Receiver's Signature
+                          </div>
+                        </div>
+                        <div style={{ textAlign: "center", width: "42%" }}>
+                          <div
+                            style={{
+                              borderTop: B,
+                              paddingTop: 2,
+                              fontSize: 10,
+                            }}
+                          >
+                            Authorised Signatory
+                          </div>
+                        </div>
+                      </div>
+                      <div
+                        style={{
+                          textAlign: "center",
+                          marginTop: 4,
+                          fontSize: 9,
+                          color: "#666",
+                        }}
+                      >
+                        This is a Computer Generated Quotation
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
@@ -1997,7 +2080,7 @@ export default function Quotation() {
               </div>
               <div className="at-fg">
                 <label className="at-label">Phone</label>
-                <input
+                <PhoneInput
                   name="clientPhone"
                   value={form.clientPhone}
                   onChange={(e) => {
@@ -2278,11 +2361,9 @@ export default function Quotation() {
                   }}
                 >
                   <span>Round Off:</span>
-                  <input
-                    type="number"
-                    step="any"
+                  <SignedAmountInput
                     className="at-input"
-                    style={{ width: 120, height: 30, textAlign: "right" }}
+                    style={{ width: 160, height: 30 }}
                     placeholder={`auto (${T.roundOff >= 0 ? "+" : ""}${fmt2(
                       Math.round(T.taxable + T.taxAmt) - (T.taxable + T.taxAmt),
                     )})`}
@@ -2290,7 +2371,6 @@ export default function Quotation() {
                     onChange={(e) =>
                       setForm((p) => ({ ...p, manualRoundOff: e.target.value }))
                     }
-                    onWheel={(e) => e.target.blur()}
                   />
                 </div>
                 <div className="net">Grand Total: ₹ {fmt2(T.grandTotal)}</div>

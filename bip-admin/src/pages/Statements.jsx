@@ -11,6 +11,7 @@ import { applyPlugin } from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { apiFetch } from "../utils/api";
 import { branchLabel } from "../utils/branchNames";
+import { waLink } from "../utils/phone";
 
 // adds doc.autoTable() (works with every bundler build of the plugin)
 applyPlugin(jsPDF);
@@ -724,15 +725,11 @@ export default function Statements() {
   };
 
   const sendWhatsApp = () => {
-    const text = encodeURIComponent(whatsappText());
-    const digits = String(customer?.phone || "")
-      .replace(/\D/g, "")
-      .slice(-10);
-    const url =
-      type === "customer" && digits.length === 10
-        ? `https://wa.me/91${digits}?text=${text}`
-        : `https://wa.me/?text=${text}`;
-    window.open(url, "_blank");
+    // customer statement → the customer's chat with +91; others → pick a contact
+    window.open(
+      waLink(type === "customer" ? customer?.phone : "", whatsappText()),
+      "_blank",
+    );
   };
 
   // ── UI ─────────────────────────────────────────────────────

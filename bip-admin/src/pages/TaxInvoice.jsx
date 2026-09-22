@@ -6,6 +6,9 @@ import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Select from "react-select";
 import { apiFetch } from "../utils/api";
+import PhoneInput from "../components/PhoneInput";
+import SignedAmountInput from "../components/SignedAmountInput";
+import SharePrompt, { shareImage } from "../components/SharePrompt";
 import { BRANCH_LABELS } from "../utils/branchNames";
 
 const SESSION_KEY = "bip_tax_invoice_form";
@@ -554,6 +557,7 @@ export default function TaxInvoice() {
   const [step, setStep] = useState(1);
   const [productsByBranch, setProductsByBranch] = useState({});
   const [stockReduced, setStockReduced] = useState(false);
+  const [pendingShare, setPendingShare] = useState(null); // WhatsApp share waiting for a tap
   const [stockReducing, setStockReducing] = useState(false);
   const [isAdmin, setIsAdmin] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1608,6 +1612,55 @@ export default function TaxInvoice() {
             </div>
           </div>
 
+          {/* Consignee */}
+          <div className="at-card">
+            <div className="at-card__head">
+              <i className="bi bi-truck"></i>
+              <span>Consignee (Ship To)</span>
+            </div>
+            <div className="at-form-grid">
+              <div className="at-fg at-fg--span2">
+                <label className="at-label">Name</label>
+                <ClientNameInput
+                  className="at-input"
+                  name="consigneeName"
+                  value={form.consigneeName}
+                  onChange={handleForm}
+                  onPick={pickConsignee}
+                  clients={clientsList}
+                  placeholder="Type to search customers, or leave blank to copy from Buyer"
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">Address</label>
+                <input
+                  className="at-input"
+                  name="consigneeAddress"
+                  value={form.consigneeAddress}
+                  onChange={handleForm}
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">State</label>
+                <input
+                  className="at-input"
+                  name="consigneeState"
+                  value={form.consigneeState}
+                  onChange={handleForm}
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">State Code</label>
+                <input
+                  className="at-input"
+                  name="consigneeStateCode"
+                  value={form.consigneeStateCode}
+                  onChange={handleForm}
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Buyer */}
           <div className="at-card">
             <div className="at-card__head">
@@ -1643,7 +1696,7 @@ export default function TaxInvoice() {
               </div>
               <div className="at-fg">
                 <label className="at-label">Phone</label>
-                <input
+                <PhoneInput
                   className={`at-input${errors.buyerPhone ? " error-field" : ""}`}
                   name="buyerPhone"
                   value={form.buyerPhone}
@@ -1720,55 +1773,6 @@ export default function TaxInvoice() {
                   className="at-input"
                   name="buyerStateCode"
                   value={form.buyerStateCode}
-                  onChange={handleForm}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Consignee */}
-          <div className="at-card">
-            <div className="at-card__head">
-              <i className="bi bi-truck"></i>
-              <span>Consignee (Ship To)</span>
-            </div>
-            <div className="at-form-grid">
-              <div className="at-fg at-fg--span2">
-                <label className="at-label">Name</label>
-                <ClientNameInput
-                  className="at-input"
-                  name="consigneeName"
-                  value={form.consigneeName}
-                  onChange={handleForm}
-                  onPick={pickConsignee}
-                  clients={clientsList}
-                  placeholder="Type to search customers, or leave blank to copy from Buyer"
-                />
-              </div>
-              <div className="at-fg">
-                <label className="at-label">Address</label>
-                <input
-                  className="at-input"
-                  name="consigneeAddress"
-                  value={form.consigneeAddress}
-                  onChange={handleForm}
-                />
-              </div>
-              <div className="at-fg">
-                <label className="at-label">State</label>
-                <input
-                  className="at-input"
-                  name="consigneeState"
-                  value={form.consigneeState}
-                  onChange={handleForm}
-                />
-              </div>
-              <div className="at-fg">
-                <label className="at-label">State Code</label>
-                <input
-                  className="at-input"
-                  name="consigneeStateCode"
-                  value={form.consigneeStateCode}
                   onChange={handleForm}
                 />
               </div>
@@ -2023,16 +2027,13 @@ export default function TaxInvoice() {
                   }}
                 >
                   <span>Round Off:</span>
-                  <input
-                    type="number"
-                    step="0.01"
+                  <SignedAmountInput
                     name="roundOffManual"
                     className="at-input-t"
-                    style={{ width: 110, textAlign: "right" }}
+                    style={{ width: 150 }}
                     placeholder={`auto (${autoRoundOff > 0 ? "+" : ""}${fmt2(autoRoundOff)})`}
                     value={form.roundOffManual}
                     onChange={handleForm}
-                    onWheel={(e) => e.target.blur()}
                   />
                 </div>
                 <div className="net">Net Amount: ₹ {fmt2(netAmount)}</div>
@@ -2212,7 +2213,47 @@ export default function TaxInvoice() {
       : null,
   ].filter(Boolean);
 
-  // Snapshot the invoice → share as image (mobile) or download + open WhatsApp chat (desktop)
+  // Full invoice details for the WhatsApp message (same figures as the invoice)
+  const invoiceWhatsAppText = () => {
+    const L = [];
+    L.push(`*BIP FENCING — Tax Invoice ${form.invoiceNo || ""}*`);
+    L.push(`Date: ${formatDate(form.invoiceDate)}`);
+    L.push(`Customer: ${form.buyerName || "-"}`);
+    if (form.buyerPhone)
+      L.push(
+        `Phone: +91 ${String(form.buyerPhone).replace(/\D/g, "").slice(-10)}`,
+      );
+    L.push("");
+    L.push("*Items*");
+    rows.forEach((r, i) => {
+      if (!r.desc && !r.qty) return;
+      L.push(
+        `${i + 1}. ${r.desc || "-"} — ${r.qty} ${r.per || ""} × ₹${fmt2(r.rateIncl)} = ₹${fmt2(r.rateIncl * r.qty)}`,
+      );
+    });
+    L.push("");
+    L.push(`Taxable Value: ₹${fmt2(subtotal)}`);
+    L.push(`CGST (${cgstRate}%): ₹${fmt2(cgstAmt)}`);
+    L.push(`SGST (${sgstRate}%): ₹${fmt2(sgstAmt)}`);
+    if (roundOff)
+      L.push(
+        `Round Off: ${roundOff > 0 ? "+" : "-"}₹${fmt2(Math.abs(roundOff))}`,
+      );
+    L.push(`*Invoice Total: ₹${fmt2(netAmount)}*`);
+    L.push(`Payment: ${form.paymentMode || "-"}`);
+    if (form.openBalance !== "" && form.openBalance != null)
+      L.push(`Open Balance: ₹${fmt2(form.openBalance || 0)}`);
+    if (paidAmount) L.push(`Paid Amount: ₹${fmt2(paidAmount)}`);
+    if (form.openBalance || paidAmount)
+      L.push(`Closing Balance: ₹${fmt2(closingBalance)}`);
+    L.push("");
+    L.push("Thank you,");
+    L.push("BIP Fencing");
+    return L.join("\n");
+  };
+
+  // Snapshot the invoice → share as image with the details (mobile),
+  // or download + open the customer's WhatsApp chat with +91 (desktop)
   const sendWhatsApp = async () => {
     try {
       const html2canvas = (await import("html2canvas")).default;
@@ -2220,31 +2261,22 @@ export default function TaxInvoice() {
       const canvas = await html2canvas(node, {
         scale: 2,
         backgroundColor: "#fff",
+        windowWidth: node.scrollWidth + 40,
+        onclone: (doc) =>
+          doc
+            .querySelectorAll(".ti-invoice-scroll")
+            .forEach((n) => (n.style.overflow = "visible")),
       });
       const blob = await new Promise((r) => canvas.toBlob(r, "image/png"));
-      const fileName = `${form.invoiceNo || "invoice"}.png`;
-      const file = new File([blob], fileName, { type: "image/png" });
-
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: fileName,
-          text: `Invoice ${form.invoiceNo}`,
-        });
-        return;
-      }
-
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = fileName;
-      a.click();
-
-      const raw = (form.buyerPhone || "").replace(/\D/g, "");
-      const phone = raw.length === 10 ? `91${raw}` : raw;
-      const text = encodeURIComponent(
-        `Dear ${form.buyerName},\n\nInvoice ${form.invoiceNo} — ₹${fmt2(netAmount)}\n\nThank you,\nBIP Fencing`,
-      );
-      window.open(`https://wa.me/${phone}?text=${text}`, "_blank");
+      if (!blob) throw new Error("Invoice image could not be created");
+      const job = {
+        blob,
+        fileName: `${form.invoiceNo || "invoice"}.png`,
+        phone: form.buyerPhone,
+        text: invoiceWhatsAppText(),
+      };
+      const result = await shareImage(job);
+      if (result === "needs-tap") setPendingShare(job);
     } catch (err) {
       console.error(err);
       alert("Could not prepare the invoice for WhatsApp.");
@@ -2253,7 +2285,7 @@ export default function TaxInvoice() {
 
   const actionBar = (extraClass) => (
     <div
-      className={`no-print d-flex justify-content-center gap-3 ${extraClass}`}
+      className={`no-print ti-actions d-flex justify-content-center gap-3 ${extraClass}`}
     >
       <button className="at-btn at-btn--ghost" onClick={handleEdit}>
         <i className="bi bi-pencil"></i> Edit
@@ -2279,6 +2311,19 @@ export default function TaxInvoice() {
       <style>{printStyles}</style>
       <style>{screenStyles}</style>
 
+      <style>{`
+        .ti-actions { flex-wrap: wrap; padding-left: 12px; padding-right: 12px; }
+        @media screen and (max-width: 900px) {
+          .ti-actions .at-btn { flex: 1 1 calc(50% - 12px); justify-content: center; }
+          .ti-invoice-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 0 6px; }
+        }
+        @media print { .ti-invoice-scroll { overflow: visible !important; padding: 0 !important; } }
+      `}</style>
+      <SharePrompt
+        pending={pendingShare}
+        onClose={() => setPendingShare(null)}
+      />
+
       {actionBar("py-3")}
 
       {stockReduced && (
@@ -2301,367 +2346,373 @@ export default function TaxInvoice() {
       )}
 
       {/* ── INVOICE ── */}
-      <div
-        id="bip-invoice-print"
-        style={{
-          width: "210mm",
-          minHeight: "297mm",
-          margin: "0 auto 30px",
-          padding: "8mm",
-          fontFamily: "'Times New Roman', Times, serif",
-          color: "#000",
-          background: "#fff",
-          border: "2px solid #000",
-          fontSize: dynFont + 2,
-          boxSizing: "border-box",
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
+      <div className="ti-invoice-scroll">
         <div
+          id="bip-invoice-print"
           style={{
-            textAlign: "right",
-            padding: "2px 8px",
-            fontStyle: "italic",
-            fontSize: 10,
-            borderBottom: "1px solid #000",
+            width: "210mm",
+            minHeight: "297mm",
+            margin: "0 auto 30px",
+            padding: "8mm",
+            fontFamily: "'Times New Roman', Times, serif",
+            color: "#000",
+            background: "#fff",
+            border: "2px solid #000",
+            fontSize: dynFont + 2,
+            boxSizing: "border-box",
+            display: "flex",
+            flexDirection: "column",
           }}
         >
-          ({form.copyType})
-        </div>
+          <div
+            style={{
+              textAlign: "right",
+              padding: "2px 8px",
+              fontStyle: "italic",
+              fontSize: 10,
+              borderBottom: "1px solid #000",
+            }}
+          >
+            ({form.copyType})
+          </div>
 
-        {/* HEADER */}
-        <table
-          style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}
-        >
-          <tbody>
-            <tr>
-              <td
-                style={{
-                  width: 80,
-                  borderRight: B,
-                  padding: "4px",
-                  textAlign: "center",
-                  verticalAlign: "middle",
-                }}
-              >
-                <img
-                  src={BIP_LOGO_B64}
-                  alt="BIP Fencing"
+          {/* HEADER */}
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              borderBottom: B,
+            }}
+          >
+            <tbody>
+              <tr>
+                <td
                   style={{
-                    width: 68,
-                    height: 68,
-                    objectFit: "contain",
-                    display: "block",
-                    margin: "0 auto",
-                  }}
-                />
-              </td>
-              <td
-                style={{
-                  padding: "4px 10px",
-                  textAlign: "center",
-                  verticalAlign: "middle",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 24,
-                    fontWeight: "bold",
-                    letterSpacing: 1.5,
-                    textTransform: "uppercase",
+                    width: 80,
+                    borderRight: B,
+                    padding: "4px",
+                    textAlign: "center",
+                    verticalAlign: "middle",
                   }}
                 >
-                  {COMPANY.name}
-                </div>
-                <div style={{ fontSize: 10, marginTop: 1 }}>
-                  {COMPANY.address}
-                </div>
-                <div style={{ fontSize: 10 }}>
-                  GSTIN/UIN: <strong>{COMPANY.gst}</strong>&nbsp;&nbsp;State:{" "}
-                  {COMPANY.state}, Code: {COMPANY.stateCode}
-                </div>
-                <div style={{ fontSize: 10 }}>Ph: {COMPANY.phone}</div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                  <img
+                    src={BIP_LOGO_B64}
+                    alt="BIP Fencing"
+                    style={{
+                      width: 68,
+                      height: 68,
+                      objectFit: "contain",
+                      display: "block",
+                      margin: "0 auto",
+                    }}
+                  />
+                </td>
+                <td
+                  style={{
+                    padding: "4px 10px",
+                    textAlign: "center",
+                    verticalAlign: "middle",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 24,
+                      fontWeight: "bold",
+                      letterSpacing: 1.5,
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {COMPANY.name}
+                  </div>
+                  <div style={{ fontSize: 10, marginTop: 1 }}>
+                    {COMPANY.address}
+                  </div>
+                  <div style={{ fontSize: 10 }}>
+                    GSTIN/UIN: <strong>{COMPANY.gst}</strong>&nbsp;&nbsp;State:{" "}
+                    {COMPANY.state}, Code: {COMPANY.stateCode}
+                  </div>
+                  <div style={{ fontSize: 10 }}>Ph: {COMPANY.phone}</div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
 
-        {/* CONSIGNEE + META */}
-        <table
-          style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}
-        >
-          <tbody>
-            <tr>
-              <td
-                style={{
-                  width: "50%",
-                  borderRight: B,
-                  padding: "6px 7px",
-                  verticalAlign: "top",
-                }}
-              >
-                <div style={sectionHead}>Consignee (Ship to)</div>
-                <div style={{ fontWeight: "bold", fontSize: 16 }}>
-                  {form.consigneeName || form.buyerName}
-                </div>
-                <div style={{ fontSize: 14 }}>
-                  {form.consigneeAddress || form.buyerAddress}
-                </div>
-                <div style={{ fontSize: 14 }}>
-                  State Name: {form.consigneeState || form.buyerState}, Code:{" "}
-                  {form.consigneeStateCode || form.buyerStateCode}
-                </div>
-              </td>
-              <td
-                style={{
-                  width: "50%",
-                  padding: "6px 7px",
-                  verticalAlign: "top",
-                }}
-              >
-                {[...leftMetaFields, ...rightMetaFields].map(
-                  ({ label, value }, idx) => (
+          {/* CONSIGNEE + META */}
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              borderBottom: B,
+            }}
+          >
+            <tbody>
+              <tr>
+                <td
+                  style={{
+                    width: "50%",
+                    borderRight: B,
+                    padding: "6px 7px",
+                    verticalAlign: "top",
+                  }}
+                >
+                  <div style={sectionHead}>Consignee (Ship to)</div>
+                  <div style={{ fontWeight: "bold", fontSize: 16 }}>
+                    {form.consigneeName || form.buyerName}
+                  </div>
+                  <div style={{ fontSize: 14 }}>
+                    {form.consigneeAddress || form.buyerAddress}
+                  </div>
+                  <div style={{ fontSize: 14 }}>
+                    State Name: {form.consigneeState || form.buyerState}, Code:{" "}
+                    {form.consigneeStateCode || form.buyerStateCode}
+                  </div>
+                </td>
+                <td
+                  style={{
+                    width: "50%",
+                    padding: "6px 7px",
+                    verticalAlign: "top",
+                  }}
+                >
+                  {[...leftMetaFields, ...rightMetaFields].map(
+                    ({ label, value }, idx) => (
+                      <div
+                        key={label + idx}
+                        style={{ display: "flex", marginBottom: 2 }}
+                      >
+                        <span
+                          style={{
+                            fontWeight: "normal",
+                            minWidth: 130,
+                            whiteSpace: "nowrap",
+                            fontSize: 13,
+                          }}
+                        >
+                          {label}
+                        </span>
+                        <span style={{ fontWeight: "bold", fontSize: 13 }}>
+                          {" "}
+                          : {value}
+                        </span>
+                      </div>
+                    ),
+                  )}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* BUYER + PAYMENT */}
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              borderBottom: B,
+            }}
+          >
+            <tbody>
+              <tr>
+                <td
+                  style={{
+                    width: "50%",
+                    borderRight: B,
+                    padding: "6px 7px",
+                    verticalAlign: "top",
+                  }}
+                >
+                  <div style={sectionHead}>Buyer (Bill to)</div>
+                  <div style={{ fontWeight: "bold", fontSize: 16 }}>
+                    {form.buyerName}
+                  </div>
+                  <div style={{ fontSize: 14 }}>{form.buyerAddress}</div>
+                  {form.buyerPhone && (
+                    <div style={{ fontSize: 14 }}>Ph: {form.buyerPhone}</div>
+                  )}
+                  {form.buyerGst && (
+                    <div style={{ fontSize: 14 }}>
+                      GSTIN/UIN: {form.buyerGst}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 14 }}>
+                    State Name: {form.buyerState}, Code: {form.buyerStateCode}
+                  </div>
+                </td>
+                <td
+                  style={{
+                    padding: "6px 7px",
+                    verticalAlign: "top",
+                    width: "50%",
+                  }}
+                >
+                  {buyerRightDetails.map(({ label, value }) => (
                     <div
-                      key={label + idx}
+                      key={label}
                       style={{ display: "flex", marginBottom: 2 }}
                     >
                       <span
                         style={{
                           fontWeight: "normal",
-                          minWidth: 130,
+                          minWidth: 95,
                           whiteSpace: "nowrap",
-                          fontSize: 13,
+                          fontSize: 14,
                         }}
                       >
                         {label}
                       </span>
-                      <span style={{ fontWeight: "bold", fontSize: 13 }}>
+                      <span style={{ fontWeight: "bold", fontSize: 14 }}>
                         {" "}
                         : {value}
                       </span>
                     </div>
-                  ),
-                )}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                  ))}
+                </td>
+              </tr>
+            </tbody>
+          </table>
 
-        {/* BUYER + PAYMENT */}
-        <table
-          style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}
-        >
-          <tbody>
-            <tr>
-              <td
-                style={{
-                  width: "50%",
-                  borderRight: B,
-                  padding: "6px 7px",
-                  verticalAlign: "top",
-                }}
-              >
-                <div style={sectionHead}>Buyer (Bill to)</div>
-                <div style={{ fontWeight: "bold", fontSize: 16 }}>
-                  {form.buyerName}
-                </div>
-                <div style={{ fontSize: 14 }}>{form.buyerAddress}</div>
-                {form.buyerPhone && (
-                  <div style={{ fontSize: 14 }}>Ph: {form.buyerPhone}</div>
-                )}
-                {form.buyerGst && (
-                  <div style={{ fontSize: 14 }}>GSTIN/UIN: {form.buyerGst}</div>
-                )}
-                <div style={{ fontSize: 14 }}>
-                  State Name: {form.buyerState}, Code: {form.buyerStateCode}
-                </div>
-              </td>
-              <td
-                style={{
-                  padding: "6px 7px",
-                  verticalAlign: "top",
-                  width: "50%",
-                }}
-              >
-                {buyerRightDetails.map(({ label, value }) => (
-                  <div key={label} style={{ display: "flex", marginBottom: 2 }}>
-                    <span
-                      style={{
-                        fontWeight: "normal",
-                        minWidth: 95,
-                        whiteSpace: "nowrap",
-                        fontSize: 14,
-                      }}
+          {/* PRODUCT TABLE */}
+          <div style={{ flex: 1 }}>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                tableLayout: "fixed",
+                borderTop: B,
+                borderBottom: B,
+              }}
+            >
+              <colgroup>
+                <col style={{ width: "4%" }} />
+                <col style={{ width: "48%" }} />
+                <col style={{ width: "8%" }} />
+                <col style={{ width: "9%" }} />
+                <col style={{ width: "11%" }} />
+                <col style={{ width: "11%" }} />
+                <col style={{ width: "5%" }} />
+                <col style={{ width: "14%" }} />
+              </colgroup>
+              <thead className="inv-thead">
+                <tr>
+                  {[
+                    ["Sl\nNo.", "center"],
+                    ["Description of Goods", "left"],
+                    ["HSN/\nSAC", "center"],
+                    ["Quantity", "center"],
+                    ["Rate\n(Incl. Tax)", "right"],
+                    ["Rate\n(Excl. Tax)", "right"],
+                    ["Per", "center"],
+                    ["Taxable\nAmount", "right"],
+                  ].map(([label, align], i) => (
+                    <th
+                      key={i}
+                      style={dhc({
+                        textAlign: align,
+                        whiteSpace: "pre-line",
+                        padding: dynPad,
+                      })}
                     >
                       {label}
-                    </span>
-                    <span style={{ fontWeight: "bold", fontSize: 14 }}>
-                      {" "}
-                      : {value}
-                    </span>
-                  </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={i} className="inv-product-row">
+                    <td style={dc({ textAlign: "center" })}>{i + 1}</td>
+                    <td style={dc({ fontWeight: "bold", fontSize: 18 })}>
+                      {r.desc}
+                    </td>
+                    <td style={dc({ textAlign: "center", fontWeight: "bold" })}>
+                      {r.hsn || "–"}
+                    </td>
+                    <td style={dc({ textAlign: "center", fontWeight: "bold" })}>
+                      {fmt2(r.qty)}
+                    </td>
+                    <td style={dc({ textAlign: "right" })}>
+                      {fmt2(r.rateIncl)}
+                    </td>
+                    <td style={dc({ textAlign: "right" })}>
+                      {fmt2(r.rateExcl)}
+                    </td>
+                    <td style={dc({ textAlign: "center" })}>{r.per}</td>
+                    <td style={dc({ textAlign: "right" })}>
+                      {fmt2(r.taxableAmt)}
+                    </td>
+                  </tr>
                 ))}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                {Array.from({ length: MIN_ROWS }).map((_, i) => (
+                  <tr key={`blank_${i}`} style={{ height: 18 }}>
+                    {Array(8)
+                      .fill(null)
+                      .map((__, j) => (
+                        <td key={j} style={dc()}>
+                          &nbsp;
+                        </td>
+                      ))}
+                  </tr>
+                ))}
 
-        {/* PRODUCT TABLE */}
-        <div style={{ flex: 1 }}>
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              tableLayout: "fixed",
-              borderTop: B,
-              borderBottom: B,
-            }}
-          >
-            <colgroup>
-              <col style={{ width: "4%" }} />
-              <col style={{ width: "48%" }} />
-              <col style={{ width: "8%" }} />
-              <col style={{ width: "9%" }} />
-              <col style={{ width: "11%" }} />
-              <col style={{ width: "11%" }} />
-              <col style={{ width: "5%" }} />
-              <col style={{ width: "14%" }} />
-            </colgroup>
-            <thead className="inv-thead">
-              <tr>
-                {[
-                  ["Sl\nNo.", "center"],
-                  ["Description of Goods", "left"],
-                  ["HSN/\nSAC", "center"],
-                  ["Quantity", "center"],
-                  ["Rate\n(Incl. Tax)", "right"],
-                  ["Rate\n(Excl. Tax)", "right"],
-                  ["Per", "center"],
-                  ["Taxable\nAmount", "right"],
-                ].map(([label, align], i) => (
-                  <th
-                    key={i}
-                    style={dhc({
-                      textAlign: align,
-                      whiteSpace: "pre-line",
-                      padding: dynPad,
+                <tr>
+                  <td
+                    colSpan={8}
+                    style={dc({
+                      borderTop: "1px dashed #999",
+                      padding: "3px 7px",
                     })}
                   >
-                    {label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, i) => (
-                <tr key={i} className="inv-product-row">
-                  <td style={dc({ textAlign: "center" })}>{i + 1}</td>
-                  <td style={dc({ fontWeight: "bold", fontSize: 18 })}>
-                    {r.desc}
-                  </td>
-                  <td style={dc({ textAlign: "center", fontWeight: "bold" })}>
-                    {r.hsn || "–"}
-                  </td>
-                  <td style={dc({ textAlign: "center", fontWeight: "bold" })}>
-                    {fmt2(r.qty)}
-                  </td>
-                  <td style={dc({ textAlign: "right" })}>{fmt2(r.rateIncl)}</td>
-                  <td style={dc({ textAlign: "right" })}>{fmt2(r.rateExcl)}</td>
-                  <td style={dc({ textAlign: "center" })}>{r.per}</td>
-                  <td style={dc({ textAlign: "right" })}>
-                    {fmt2(r.taxableAmt)}
+                    <div style={{ fontWeight: "bold", fontSize: dynFont + 2 }}>
+                      Open Balance: ₹ {fmt2(form.openBalance || 0)}
+                    </div>
+                    <div>Paid Amount: ₹ {fmt2(paidAmount)}</div>
+                    <div style={{ fontWeight: "bold", fontSize: dynFont + 2 }}>
+                      Closing Balance: ₹ {fmt2(closingBalance)}
+                    </div>
                   </td>
                 </tr>
-              ))}
-              {Array.from({ length: MIN_ROWS }).map((_, i) => (
-                <tr key={`blank_${i}`} style={{ height: 18 }}>
-                  {Array(8)
-                    .fill(null)
-                    .map((__, j) => (
-                      <td key={j} style={dc()}>
-                        &nbsp;
-                      </td>
-                    ))}
+                <tr>
+                  <td
+                    colSpan={7}
+                    style={dc({
+                      textAlign: "right",
+                      fontWeight: "bold",
+                      borderTop: B,
+                    })}
+                  >
+                    Total Taxable Amount
+                  </td>
+                  <td
+                    style={dc({
+                      textAlign: "right",
+                      fontWeight: "bold",
+                      borderTop: B,
+                    })}
+                  >
+                    {fmt2(subtotal)}
+                  </td>
                 </tr>
-              ))}
-
-              <tr>
-                <td
-                  colSpan={8}
-                  style={dc({
-                    borderTop: "1px dashed #999",
-                    padding: "3px 7px",
-                  })}
-                >
-                  <div style={{ fontWeight: "bold", fontSize: dynFont + 2 }}>
-                    Open Balance: ₹ {fmt2(form.openBalance || 0)}
-                  </div>
-                  <div>Paid Amount: ₹ {fmt2(paidAmount)}</div>
-                  <div style={{ fontWeight: "bold", fontSize: dynFont + 2 }}>
-                    Closing Balance: ₹ {fmt2(closingBalance)}
-                  </div>
-                </td>
-              </tr>
-              <tr>
-                <td
-                  colSpan={7}
-                  style={dc({
-                    textAlign: "right",
-                    fontWeight: "bold",
-                    borderTop: B,
-                  })}
-                >
-                  Total Taxable Amount
-                </td>
-                <td
-                  style={dc({
-                    textAlign: "right",
-                    fontWeight: "bold",
-                    borderTop: B,
-                  })}
-                >
-                  {fmt2(subtotal)}
-                </td>
-              </tr>
-              <tr>
-                <td
-                  colSpan={7}
-                  style={dc({
-                    textAlign: "right",
-                    fontStyle: "italic",
-                    fontWeight: "bold",
-                    borderTop: B,
-                  })}
-                >
-                  CGST TAX
-                </td>
-                <td
-                  style={dc({
-                    textAlign: "right",
-                    fontWeight: "bold",
-                    borderTop: B,
-                  })}
-                >
-                  {fmt2(cgstAmt)}
-                </td>
-              </tr>
-              <tr>
-                <td
-                  colSpan={7}
-                  style={dc({
-                    textAlign: "right",
-                    fontStyle: "italic",
-                    fontWeight: "bold",
-                  })}
-                >
-                  SGST TAX
-                </td>
-                <td style={dc({ textAlign: "right", fontWeight: "bold" })}>
-                  {fmt2(sgstAmt)}
-                </td>
-              </tr>
-              {roundOff !== 0 && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    style={dc({
+                      textAlign: "right",
+                      fontStyle: "italic",
+                      fontWeight: "bold",
+                      borderTop: B,
+                    })}
+                  >
+                    CGST TAX
+                  </td>
+                  <td
+                    style={dc({
+                      textAlign: "right",
+                      fontWeight: "bold",
+                      borderTop: B,
+                    })}
+                  >
+                    {fmt2(cgstAmt)}
+                  </td>
+                </tr>
                 <tr>
                   <td
                     colSpan={7}
@@ -2671,307 +2722,330 @@ export default function TaxInvoice() {
                       fontWeight: "bold",
                     })}
                   >
-                    ROUNDING OFF
+                    SGST TAX
                   </td>
                   <td style={dc({ textAlign: "right", fontWeight: "bold" })}>
-                    {roundOff > 0 ? "+" : ""}
-                    {fmt2(roundOff)}
+                    {fmt2(sgstAmt)}
                   </td>
                 </tr>
-              )}
+                {roundOff !== 0 && (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      style={dc({
+                        textAlign: "right",
+                        fontStyle: "italic",
+                        fontWeight: "bold",
+                      })}
+                    >
+                      ROUNDING OFF
+                    </td>
+                    <td style={dc({ textAlign: "right", fontWeight: "bold" })}>
+                      {roundOff > 0 ? "+" : ""}
+                      {fmt2(roundOff)}
+                    </td>
+                  </tr>
+                )}
 
-              <tr style={{ background: "#f0f0f0" }}>
-                <td style={dc({ borderTop: B, borderBottom: B })}></td>
-                <td
-                  style={dc({
-                    fontWeight: "bold",
-                    borderTop: B,
-                    borderBottom: B,
-                    fontSize: dynFont + 1,
-                  })}
-                >
-                  Total
-                </td>
-                <td style={dc({ borderTop: B, borderBottom: B })}></td>
-                <td
-                  style={dc({
-                    textAlign: "center",
-                    fontWeight: "bold",
-                    borderTop: B,
-                    borderBottom: B,
-                    fontSize: dynFont + 1,
-                  })}
-                >
-                  {totalQty.toFixed(2)}
-                </td>
-                <td style={dc({ borderTop: B, borderBottom: B })}></td>
-                <td style={dc({ borderTop: B, borderBottom: B })}></td>
-                <td style={dc({ borderTop: B, borderBottom: B })}></td>
-                <td
-                  style={dc({
-                    textAlign: "right",
-                    fontWeight: "bold",
-                    borderTop: B,
-                    borderBottom: B,
-                    fontSize: dynFont + 3,
-                  })}
-                >
-                  ₹ {fmt2(netAmount)}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+                <tr style={{ background: "#f0f0f0" }}>
+                  <td style={dc({ borderTop: B, borderBottom: B })}></td>
+                  <td
+                    style={dc({
+                      fontWeight: "bold",
+                      borderTop: B,
+                      borderBottom: B,
+                      fontSize: dynFont + 1,
+                    })}
+                  >
+                    Total
+                  </td>
+                  <td style={dc({ borderTop: B, borderBottom: B })}></td>
+                  <td
+                    style={dc({
+                      textAlign: "center",
+                      fontWeight: "bold",
+                      borderTop: B,
+                      borderBottom: B,
+                      fontSize: dynFont + 1,
+                    })}
+                  >
+                    {totalQty.toFixed(2)}
+                  </td>
+                  <td style={dc({ borderTop: B, borderBottom: B })}></td>
+                  <td style={dc({ borderTop: B, borderBottom: B })}></td>
+                  <td style={dc({ borderTop: B, borderBottom: B })}></td>
+                  <td
+                    style={dc({
+                      textAlign: "right",
+                      fontWeight: "bold",
+                      borderTop: B,
+                      borderBottom: B,
+                      fontSize: dynFont + 3,
+                    })}
+                  >
+                    ₹ {fmt2(netAmount)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
-        {/* AMOUNT IN WORDS */}
-        <table
-          style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}
-        >
-          <tbody>
-            <tr>
-              <td
-                style={{
-                  width: "58%",
-                  borderRight: B,
-                  padding: "3px 7px",
-                  verticalAlign: "middle",
-                  fontSize: 10,
-                }}
-              >
-                <span style={{ fontWeight: "bold" }}>
-                  Amount Chargeable (in words):{" "}
-                </span>
-                <em style={{ fontWeight: "bold" }}>
-                  {amountInWords(netAmount)}
-                </em>
-              </td>
-              <td
-                style={{
-                  padding: "3px 7px",
-                  verticalAlign: "middle",
-                  textAlign: "right",
-                }}
-              >
-                <div style={{ fontSize: 10 }}>E. &amp; O.E</div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        {/* HSN TAX TABLE */}
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            tableLayout: "fixed",
-            borderBottom: B,
-          }}
-          className="inv-footer"
-        >
-          <colgroup>
-            <col style={{ width: "14%" }} />
-            <col style={{ width: "16%" }} />
-            <col style={{ width: "10%" }} />
-            <col style={{ width: "14%" }} />
-            <col style={{ width: "14%" }} />
-            <col style={{ width: "16%" }} />
-            <col style={{ width: "16%" }} />
-          </colgroup>
-          <thead>
-            <tr>
-              {[
-                ["HSN/SAC", "center"],
-                ["Taxable\nValue", "right"],
-                ["CGST\nRate", "center"],
-                ["CGST\nAmount", "right"],
-                ["SGST/UTGST\nRate", "center"],
-                ["SGST/UTGST\nAmount", "right"],
-                ["Total Tax\nAmount", "right"],
-              ].map(([label, align]) => (
-                <th
-                  key={label}
-                  style={dhc({
-                    textAlign: align,
-                    whiteSpace: "pre-line",
-                    padding: "2px 6px",
-                    fontSize: 10,
-                  })}
-                >
-                  {label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {Object.entries(hsnGroups).map(([hsn, d]) => (
-              <tr key={hsn}>
-                <td style={dc({ textAlign: "center", fontSize: 11 })}>{hsn}</td>
-                <td style={dc({ textAlign: "right", fontSize: 11 })}>
-                  {fmt2(d.taxableValue)}
-                </td>
-                <td style={dc({ textAlign: "center", fontSize: 10 })}>
-                  {cgstRate}%
-                </td>
-                <td style={dc({ textAlign: "right", fontSize: 10 })}>
-                  {fmt2(d.cgst)}
-                </td>
-                <td style={dc({ textAlign: "center", fontSize: 10 })}>
-                  {sgstRate}%
-                </td>
-                <td style={dc({ textAlign: "right", fontSize: 10 })}>
-                  {fmt2(d.sgst)}
-                </td>
-                <td style={dc({ textAlign: "right", fontSize: 10 })}>
-                  {fmt2(d.cgst + d.sgst)}
-                </td>
-              </tr>
-            ))}
-            <tr style={{ background: "#f5f5f5", fontWeight: "bold" }}>
-              <td style={dc({ borderTop: B, borderBottom: B, fontSize: 10 })}>
-                Total
-              </td>
-              <td
-                style={dc({
-                  textAlign: "right",
-                  borderTop: B,
-                  borderBottom: B,
-                  fontSize: 10,
-                })}
-              >
-                {fmt2(subtotal)}
-              </td>
-              <td style={dc({ borderTop: B, borderBottom: B })}></td>
-              <td
-                style={dc({
-                  textAlign: "right",
-                  borderTop: B,
-                  borderBottom: B,
-                  fontSize: 10,
-                })}
-              >
-                {fmt2(cgstAmt)}
-              </td>
-              <td style={dc({ borderTop: B, borderBottom: B })}></td>
-              <td
-                style={dc({
-                  textAlign: "right",
-                  borderTop: B,
-                  borderBottom: B,
-                  fontSize: 10,
-                })}
-              >
-                {fmt2(sgstAmt)}
-              </td>
-              <td
-                style={dc({
-                  textAlign: "right",
-                  borderTop: B,
-                  borderBottom: B,
-                  fontSize: 10,
-                })}
-              >
-                {fmt2(totalTax)}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        {/* TAX IN WORDS */}
-        <div style={{ padding: "2px 7px", borderBottom: B, fontSize: 10 }}>
-          <strong>Tax Amount (in words):</strong>&nbsp;
-          <em style={{ fontWeight: "bold" }}>{amountInWords(totalTax)}</em>
-        </div>
-
-        {/* FOOTER */}
-        <div style={{ marginTop: "auto" }}>
+          {/* AMOUNT IN WORDS */}
           <table
-            style={{ width: "100%", borderCollapse: "collapse" }}
-            className="inv-footer"
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              borderBottom: B,
+            }}
           >
             <tbody>
               <tr>
                 <td
                   style={{
-                    width: "44%",
+                    width: "58%",
                     borderRight: B,
-                    padding: "4px 7px",
-                    verticalAlign: "top",
+                    padding: "3px 7px",
+                    verticalAlign: "middle",
                     fontSize: 10,
                   }}
                 >
-                  <div
-                    style={{
-                      fontWeight: "bold",
-                      marginBottom: 2,
-                      fontSize: 15,
-                    }}
-                  >
-                    Company's Bank Details
-                  </div>
-                  {[
-                    ["A/c Holder's Name", form.bankHolderName],
-                    ["Bank Name", form.bankName],
-                    ["A/c No.", form.bankAccountNo],
-                    [
-                      "Branch & IFS Code",
-                      `${form.bankBranch} & ${form.bankIfsc}`,
-                    ],
-                  ].map(([k, v]) => (
-                    <div key={k} style={{ marginBottom: 2, fontSize: 12 }}>
-                      <strong>{k}</strong>: {v}
-                    </div>
-                  ))}
+                  <span style={{ fontWeight: "bold" }}>
+                    Amount Chargeable (in words):{" "}
+                  </span>
+                  <em style={{ fontWeight: "bold" }}>
+                    {amountInWords(netAmount)}
+                  </em>
                 </td>
-                <td style={{ padding: "4px 7px", verticalAlign: "top" }}>
-                  <div style={{ fontSize: 9, marginBottom: 4 }}>
-                    <strong>Declaration:</strong> {DECLARATION}
-                  </div>
-                  <div
-                    style={{
-                      textAlign: "right",
-                      fontWeight: "bold",
-                      fontSize: 10,
-                      marginBottom: 2,
-                    }}
-                  >
-                    for {COMPANY.name}
-                  </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      marginTop: 28,
-                    }}
-                  >
-                    <div style={{ textAlign: "center", width: "42%" }}>
-                      <div
-                        style={{ borderTop: B, paddingTop: 2, fontSize: 10 }}
-                      >
-                        Receiver's Signature
-                      </div>
-                    </div>
-                    <div style={{ textAlign: "center", width: "42%" }}>
-                      <div
-                        style={{ borderTop: B, paddingTop: 2, fontSize: 10 }}
-                      >
-                        Authorised Signatory
-                      </div>
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      textAlign: "center",
-                      marginTop: 4,
-                      fontSize: 9,
-                      color: "#666",
-                    }}
-                  >
-                    This is a Computer Generated Invoice
-                  </div>
+                <td
+                  style={{
+                    padding: "3px 7px",
+                    verticalAlign: "middle",
+                    textAlign: "right",
+                  }}
+                >
+                  <div style={{ fontSize: 10 }}>E. &amp; O.E</div>
                 </td>
               </tr>
             </tbody>
           </table>
+
+          {/* HSN TAX TABLE */}
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              tableLayout: "fixed",
+              borderBottom: B,
+            }}
+            className="inv-footer"
+          >
+            <colgroup>
+              <col style={{ width: "14%" }} />
+              <col style={{ width: "16%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "14%" }} />
+              <col style={{ width: "14%" }} />
+              <col style={{ width: "16%" }} />
+              <col style={{ width: "16%" }} />
+            </colgroup>
+            <thead>
+              <tr>
+                {[
+                  ["HSN/SAC", "center"],
+                  ["Taxable\nValue", "right"],
+                  ["CGST\nRate", "center"],
+                  ["CGST\nAmount", "right"],
+                  ["SGST/UTGST\nRate", "center"],
+                  ["SGST/UTGST\nAmount", "right"],
+                  ["Total Tax\nAmount", "right"],
+                ].map(([label, align]) => (
+                  <th
+                    key={label}
+                    style={dhc({
+                      textAlign: align,
+                      whiteSpace: "pre-line",
+                      padding: "2px 6px",
+                      fontSize: 10,
+                    })}
+                  >
+                    {label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(hsnGroups).map(([hsn, d]) => (
+                <tr key={hsn}>
+                  <td style={dc({ textAlign: "center", fontSize: 11 })}>
+                    {hsn}
+                  </td>
+                  <td style={dc({ textAlign: "right", fontSize: 11 })}>
+                    {fmt2(d.taxableValue)}
+                  </td>
+                  <td style={dc({ textAlign: "center", fontSize: 10 })}>
+                    {cgstRate}%
+                  </td>
+                  <td style={dc({ textAlign: "right", fontSize: 10 })}>
+                    {fmt2(d.cgst)}
+                  </td>
+                  <td style={dc({ textAlign: "center", fontSize: 10 })}>
+                    {sgstRate}%
+                  </td>
+                  <td style={dc({ textAlign: "right", fontSize: 10 })}>
+                    {fmt2(d.sgst)}
+                  </td>
+                  <td style={dc({ textAlign: "right", fontSize: 10 })}>
+                    {fmt2(d.cgst + d.sgst)}
+                  </td>
+                </tr>
+              ))}
+              <tr style={{ background: "#f5f5f5", fontWeight: "bold" }}>
+                <td style={dc({ borderTop: B, borderBottom: B, fontSize: 10 })}>
+                  Total
+                </td>
+                <td
+                  style={dc({
+                    textAlign: "right",
+                    borderTop: B,
+                    borderBottom: B,
+                    fontSize: 10,
+                  })}
+                >
+                  {fmt2(subtotal)}
+                </td>
+                <td style={dc({ borderTop: B, borderBottom: B })}></td>
+                <td
+                  style={dc({
+                    textAlign: "right",
+                    borderTop: B,
+                    borderBottom: B,
+                    fontSize: 10,
+                  })}
+                >
+                  {fmt2(cgstAmt)}
+                </td>
+                <td style={dc({ borderTop: B, borderBottom: B })}></td>
+                <td
+                  style={dc({
+                    textAlign: "right",
+                    borderTop: B,
+                    borderBottom: B,
+                    fontSize: 10,
+                  })}
+                >
+                  {fmt2(sgstAmt)}
+                </td>
+                <td
+                  style={dc({
+                    textAlign: "right",
+                    borderTop: B,
+                    borderBottom: B,
+                    fontSize: 10,
+                  })}
+                >
+                  {fmt2(totalTax)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* TAX IN WORDS */}
+          <div style={{ padding: "2px 7px", borderBottom: B, fontSize: 10 }}>
+            <strong>Tax Amount (in words):</strong>&nbsp;
+            <em style={{ fontWeight: "bold" }}>{amountInWords(totalTax)}</em>
+          </div>
+
+          {/* FOOTER */}
+          <div style={{ marginTop: "auto" }}>
+            <table
+              style={{ width: "100%", borderCollapse: "collapse" }}
+              className="inv-footer"
+            >
+              <tbody>
+                <tr>
+                  <td
+                    style={{
+                      width: "44%",
+                      borderRight: B,
+                      padding: "4px 7px",
+                      verticalAlign: "top",
+                      fontSize: 10,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontWeight: "bold",
+                        marginBottom: 2,
+                        fontSize: 15,
+                      }}
+                    >
+                      Company's Bank Details
+                    </div>
+                    {[
+                      ["A/c Holder's Name", form.bankHolderName],
+                      ["Bank Name", form.bankName],
+                      ["A/c No.", form.bankAccountNo],
+                      [
+                        "Branch & IFS Code",
+                        `${form.bankBranch} & ${form.bankIfsc}`,
+                      ],
+                    ].map(([k, v]) => (
+                      <div key={k} style={{ marginBottom: 2, fontSize: 12 }}>
+                        <strong>{k}</strong>: {v}
+                      </div>
+                    ))}
+                  </td>
+                  <td style={{ padding: "4px 7px", verticalAlign: "top" }}>
+                    <div style={{ fontSize: 9, marginBottom: 4 }}>
+                      <strong>Declaration:</strong> {DECLARATION}
+                    </div>
+                    <div
+                      style={{
+                        textAlign: "right",
+                        fontWeight: "bold",
+                        fontSize: 10,
+                        marginBottom: 2,
+                      }}
+                    >
+                      for {COMPANY.name}
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        marginTop: 28,
+                      }}
+                    >
+                      <div style={{ textAlign: "center", width: "42%" }}>
+                        <div
+                          style={{ borderTop: B, paddingTop: 2, fontSize: 10 }}
+                        >
+                          Receiver's Signature
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "center", width: "42%" }}>
+                        <div
+                          style={{ borderTop: B, paddingTop: 2, fontSize: 10 }}
+                        >
+                          Authorised Signatory
+                        </div>
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        textAlign: "center",
+                        marginTop: 4,
+                        fontSize: 9,
+                        color: "#666",
+                      }}
+                    >
+                      This is a Computer Generated Invoice
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 

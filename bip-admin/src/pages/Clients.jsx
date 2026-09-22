@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../utils/api";
+import PhoneInput from "../components/PhoneInput";
+import SharePrompt, { shareImage } from "../components/SharePrompt";
+import { waLink, showPhone } from "../utils/phone";
 
 const BIP_LOGO_B64 =
   "data:image/jpeg;base64,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";
@@ -300,251 +303,514 @@ function TaxInvoiceView({ inv, onBack }) {
         </button>
       </div>
 
-      <div
-        id="invoice-print"
-        style={{
-          width: "210mm",
-          minHeight: "297mm",
-          margin: "0 auto 30px",
-          padding: "8mm",
-          fontFamily: "'Times New Roman', Times, serif",
-          color: "#000",
-          background: "#fff",
-          border: "2px solid #000",
-          fontSize: dynFont + 2,
-          boxSizing: "border-box",
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
+      <div className="doc-scroll">
         <div
+          id="invoice-print"
           style={{
-            textAlign: "right",
-            padding: "2px 8px",
-            fontStyle: "italic",
-            fontSize: 10,
-            borderBottom: "1px solid #000",
+            width: "210mm",
+            minHeight: "297mm",
+            margin: "0 auto 30px",
+            padding: "8mm",
+            fontFamily: "'Times New Roman', Times, serif",
+            color: "#000",
+            background: "#fff",
+            border: "2px solid #000",
+            fontSize: dynFont + 2,
+            boxSizing: "border-box",
+            display: "flex",
+            flexDirection: "column",
           }}
         >
-          ({inv.copy_type || "ORIGINAL FOR RECIPIENT"})
-        </div>
+          <div
+            style={{
+              textAlign: "right",
+              padding: "2px 8px",
+              fontStyle: "italic",
+              fontSize: 10,
+              borderBottom: "1px solid #000",
+            }}
+          >
+            ({inv.copy_type || "ORIGINAL FOR RECIPIENT"})
+          </div>
 
-        {/* HEADER */}
-        <table
-          style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}
-        >
-          <tbody>
-            <tr>
-              <td
-                style={{
-                  width: 80,
-                  borderRight: B,
-                  padding: "4px",
-                  textAlign: "center",
-                  verticalAlign: "middle",
-                }}
-              >
-                <img
-                  src={BIP_LOGO_B64}
-                  alt="BIP Fencing"
+          {/* HEADER */}
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              borderBottom: B,
+            }}
+          >
+            <tbody>
+              <tr>
+                <td
                   style={{
-                    width: 68,
-                    height: 68,
-                    objectFit: "contain",
-                    display: "block",
-                    margin: "0 auto",
-                  }}
-                />
-              </td>
-              <td
-                style={{
-                  padding: "4px 10px",
-                  textAlign: "center",
-                  verticalAlign: "middle",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 24,
-                    fontWeight: "bold",
-                    letterSpacing: 1.5,
-                    textTransform: "uppercase",
+                    width: 80,
+                    borderRight: B,
+                    padding: "4px",
+                    textAlign: "center",
+                    verticalAlign: "middle",
                   }}
                 >
-                  {COMPANY.name}
-                </div>
-                <div style={{ fontSize: 10, marginTop: 1 }}>
-                  {COMPANY.address}
-                </div>
-                <div style={{ fontSize: 10 }}>
-                  GSTIN/UIN: <strong>{COMPANY.gst}</strong>&nbsp;&nbsp;State:{" "}
-                  {COMPANY.state}, Code: {COMPANY.stateCode}
-                </div>
-                <div style={{ fontSize: 10 }}>Ph: {COMPANY.phone}</div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                  <img
+                    src={BIP_LOGO_B64}
+                    alt="BIP Fencing"
+                    style={{
+                      width: 68,
+                      height: 68,
+                      objectFit: "contain",
+                      display: "block",
+                      margin: "0 auto",
+                    }}
+                  />
+                </td>
+                <td
+                  style={{
+                    padding: "4px 10px",
+                    textAlign: "center",
+                    verticalAlign: "middle",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 24,
+                      fontWeight: "bold",
+                      letterSpacing: 1.5,
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {COMPANY.name}
+                  </div>
+                  <div style={{ fontSize: 10, marginTop: 1 }}>
+                    {COMPANY.address}
+                  </div>
+                  <div style={{ fontSize: 10 }}>
+                    GSTIN/UIN: <strong>{COMPANY.gst}</strong>&nbsp;&nbsp;State:{" "}
+                    {COMPANY.state}, Code: {COMPANY.stateCode}
+                  </div>
+                  <div style={{ fontSize: 10 }}>Ph: {COMPANY.phone}</div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
 
-        {/* CONSIGNEE + META */}
-        <table
-          style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}
-        >
-          <tbody>
-            <tr>
-              <td
-                style={{
-                  width: "50%",
-                  borderRight: B,
-                  padding: "6px 7px",
-                  verticalAlign: "top",
-                }}
-              >
-                <div style={sectionHead}>Consignee (Ship to)</div>
-                <div style={{ fontWeight: "bold", fontSize: 16 }}>
-                  {inv.consignee_name || inv.buyer_name}
-                </div>
-                <div style={{ fontSize: 14 }}>
-                  {inv.consignee_address || inv.buyer_address}
-                </div>
-                <div style={{ fontSize: 14 }}>
-                  State Name: {inv.consignee_state || inv.buyer_state}, Code:{" "}
-                  {inv.consignee_state_code || inv.buyer_state_code}
-                </div>
-              </td>
-              <td
-                style={{
-                  width: "50%",
-                  padding: "6px 7px",
-                  verticalAlign: "top",
-                }}
-              >
-                {[...leftMetaFields, ...rightMetaFields].map(
-                  ({ label, value }, idx) => (
+          {/* CONSIGNEE + META */}
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              borderBottom: B,
+            }}
+          >
+            <tbody>
+              <tr>
+                <td
+                  style={{
+                    width: "50%",
+                    borderRight: B,
+                    padding: "6px 7px",
+                    verticalAlign: "top",
+                  }}
+                >
+                  <div style={sectionHead}>Consignee (Ship to)</div>
+                  <div style={{ fontWeight: "bold", fontSize: 16 }}>
+                    {inv.consignee_name || inv.buyer_name}
+                  </div>
+                  <div style={{ fontSize: 14 }}>
+                    {inv.consignee_address || inv.buyer_address}
+                  </div>
+                  <div style={{ fontSize: 14 }}>
+                    State Name: {inv.consignee_state || inv.buyer_state}, Code:{" "}
+                    {inv.consignee_state_code || inv.buyer_state_code}
+                  </div>
+                </td>
+                <td
+                  style={{
+                    width: "50%",
+                    padding: "6px 7px",
+                    verticalAlign: "top",
+                  }}
+                >
+                  {[...leftMetaFields, ...rightMetaFields].map(
+                    ({ label, value }, idx) => (
+                      <div
+                        key={label + idx}
+                        style={{ display: "flex", marginBottom: 2 }}
+                      >
+                        <span
+                          style={{
+                            fontWeight: "normal",
+                            minWidth: 130,
+                            whiteSpace: "nowrap",
+                            fontSize: 13,
+                          }}
+                        >
+                          {label}
+                        </span>
+                        <span style={{ fontWeight: "bold", fontSize: 13 }}>
+                          {" "}
+                          : {value}
+                        </span>
+                      </div>
+                    ),
+                  )}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* BUYER + PAYMENT */}
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              borderBottom: B,
+            }}
+          >
+            <tbody>
+              <tr>
+                <td
+                  style={{
+                    width: "50%",
+                    borderRight: B,
+                    padding: "6px 7px",
+                    verticalAlign: "top",
+                  }}
+                >
+                  <div style={sectionHead}>Buyer (Bill to)</div>
+                  <div style={{ fontWeight: "bold", fontSize: 16 }}>
+                    {inv.buyer_name}
+                  </div>
+                  <div style={{ fontSize: 14 }}>{inv.buyer_address}</div>
+                  {inv.buyer_phone && (
+                    <div style={{ fontSize: 14 }}>Ph: {inv.buyer_phone}</div>
+                  )}
+                  {inv.buyer_gst && (
+                    <div style={{ fontSize: 14 }}>
+                      GSTIN/UIN: {inv.buyer_gst}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 14 }}>
+                    State Name: {inv.buyer_state}, Code: {inv.buyer_state_code}
+                  </div>
+                </td>
+                <td
+                  style={{
+                    padding: "6px 7px",
+                    verticalAlign: "top",
+                    width: "50%",
+                  }}
+                >
+                  {buyerRightDetails.map(({ label, value }) => (
                     <div
-                      key={label + idx}
+                      key={label}
                       style={{ display: "flex", marginBottom: 2 }}
                     >
                       <span
                         style={{
                           fontWeight: "normal",
-                          minWidth: 130,
+                          minWidth: 95,
                           whiteSpace: "nowrap",
-                          fontSize: 13,
+                          fontSize: 14,
                         }}
                       >
                         {label}
                       </span>
-                      <span style={{ fontWeight: "bold", fontSize: 13 }}>
+                      <span style={{ fontWeight: "bold", fontSize: 14 }}>
                         {" "}
                         : {value}
                       </span>
                     </div>
-                  ),
-                )}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                  ))}
+                </td>
+              </tr>
+            </tbody>
+          </table>
 
-        {/* BUYER + PAYMENT */}
-        <table
-          style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}
-        >
-          <tbody>
-            <tr>
-              <td
-                style={{
-                  width: "50%",
-                  borderRight: B,
-                  padding: "6px 7px",
-                  verticalAlign: "top",
-                }}
-              >
-                <div style={sectionHead}>Buyer (Bill to)</div>
-                <div style={{ fontWeight: "bold", fontSize: 16 }}>
-                  {inv.buyer_name}
-                </div>
-                <div style={{ fontSize: 14 }}>{inv.buyer_address}</div>
-                {inv.buyer_phone && (
-                  <div style={{ fontSize: 14 }}>Ph: {inv.buyer_phone}</div>
-                )}
-                {inv.buyer_gst && (
-                  <div style={{ fontSize: 14 }}>GSTIN/UIN: {inv.buyer_gst}</div>
-                )}
-                <div style={{ fontSize: 14 }}>
-                  State Name: {inv.buyer_state}, Code: {inv.buyer_state_code}
-                </div>
-              </td>
-              <td
-                style={{
-                  padding: "6px 7px",
-                  verticalAlign: "top",
-                  width: "50%",
-                }}
-              >
-                {buyerRightDetails.map(({ label, value }) => (
-                  <div key={label} style={{ display: "flex", marginBottom: 2 }}>
-                    <span
-                      style={{
-                        fontWeight: "normal",
-                        minWidth: 95,
-                        whiteSpace: "nowrap",
-                        fontSize: 14,
-                      }}
+          {/* PRODUCT TABLE */}
+          <div style={{ flex: 1 }}>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                tableLayout: "fixed",
+                borderTop: B,
+                borderBottom: B,
+              }}
+            >
+              <colgroup>
+                <col style={{ width: "4%" }} />
+                <col style={{ width: "48%" }} />
+                <col style={{ width: "8%" }} />
+                <col style={{ width: "9%" }} />
+                <col style={{ width: "11%" }} />
+                <col style={{ width: "11%" }} />
+                <col style={{ width: "5%" }} />
+                <col style={{ width: "14%" }} />
+              </colgroup>
+              <thead className="inv-thead">
+                <tr>
+                  {[
+                    ["Sl\nNo.", "center"],
+                    ["Description of Goods", "left"],
+                    ["HSN/\nSAC", "center"],
+                    ["Quantity", "center"],
+                    ["Rate\n(Incl. Tax)", "right"],
+                    ["Rate\n(Excl. Tax)", "right"],
+                    ["Per", "center"],
+                    ["Taxable\nAmount", "right"],
+                  ].map(([label, align], i) => (
+                    <th
+                      key={i}
+                      style={dhc({
+                        textAlign: align,
+                        whiteSpace: "pre-line",
+                        padding: dynPad,
+                      })}
                     >
                       {label}
-                    </span>
-                    <span style={{ fontWeight: "bold", fontSize: 14 }}>
-                      {" "}
-                      : {value}
-                    </span>
-                  </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={i} className="inv-product-row">
+                    <td style={dc({ textAlign: "center" })}>{i + 1}</td>
+                    <td style={dc({ fontWeight: "bold", fontSize: 18 })}>
+                      {r.desc}
+                    </td>
+                    <td style={dc({ textAlign: "center", fontWeight: "bold" })}>
+                      {r.hsn || "–"}
+                    </td>
+                    <td style={dc({ textAlign: "center", fontWeight: "bold" })}>
+                      {fmt2(r.qty)}
+                    </td>
+                    <td style={dc({ textAlign: "right" })}>
+                      {fmt2(r.rateIncl)}
+                    </td>
+                    <td style={dc({ textAlign: "right" })}>
+                      {fmt2(r.rateExcl)}
+                    </td>
+                    <td style={dc({ textAlign: "center" })}>{r.per}</td>
+                    <td style={dc({ textAlign: "right" })}>
+                      {fmt2(r.taxableAmt)}
+                    </td>
+                  </tr>
                 ))}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                {Array.from({ length: MIN_ROWS }).map((_, i) => (
+                  <tr key={`blank_${i}`} style={{ height: 18 }}>
+                    {Array(8)
+                      .fill(null)
+                      .map((__, j) => (
+                        <td key={j} style={dc()}>
+                          &nbsp;
+                        </td>
+                      ))}
+                  </tr>
+                ))}
 
-        {/* PRODUCT TABLE */}
-        <div style={{ flex: 1 }}>
+                {(openBalance !== 0 || netAmount !== 0) && (
+                  <tr>
+                    <td
+                      colSpan={8}
+                      style={dc({
+                        borderTop: "1px dashed #999",
+                        padding: "3px 7px",
+                      })}
+                    >
+                      <div
+                        style={{ fontWeight: "bold", fontSize: dynFont + 2 }}
+                      >
+                        Open Balance: ₹ {fmt2(openBalance)}
+                      </div>
+                      <div
+                        style={{ fontWeight: "bold", fontSize: dynFont + 2 }}
+                      >
+                        Closing Balance: ₹ {fmt2(closingBalance)}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+
+                <tr>
+                  <td
+                    colSpan={7}
+                    style={dc({
+                      textAlign: "right",
+                      fontWeight: "bold",
+                      borderTop: B,
+                    })}
+                  >
+                    Total Taxable Amount
+                  </td>
+                  <td
+                    style={dc({
+                      textAlign: "right",
+                      fontWeight: "bold",
+                      borderTop: B,
+                    })}
+                  >
+                    {fmt2(subtotal)}
+                  </td>
+                </tr>
+                <tr>
+                  <td
+                    colSpan={7}
+                    style={dc({
+                      textAlign: "right",
+                      fontStyle: "italic",
+                      fontWeight: "bold",
+                      borderTop: B,
+                    })}
+                  >
+                    CGST TAX
+                  </td>
+                  <td
+                    style={dc({
+                      textAlign: "right",
+                      fontWeight: "bold",
+                      borderTop: B,
+                    })}
+                  >
+                    {fmt2(cgstAmt)}
+                  </td>
+                </tr>
+                <tr>
+                  <td
+                    colSpan={7}
+                    style={dc({
+                      textAlign: "right",
+                      fontStyle: "italic",
+                      fontWeight: "bold",
+                    })}
+                  >
+                    SGST TAX
+                  </td>
+                  <td style={dc({ textAlign: "right", fontWeight: "bold" })}>
+                    {fmt2(sgstAmt)}
+                  </td>
+                </tr>
+
+                <tr style={{ background: "#f0f0f0" }}>
+                  <td style={dc({ borderTop: B, borderBottom: B })}></td>
+                  <td
+                    style={dc({
+                      fontWeight: "bold",
+                      borderTop: B,
+                      borderBottom: B,
+                      fontSize: dynFont + 1,
+                    })}
+                  >
+                    Total
+                  </td>
+                  <td style={dc({ borderTop: B, borderBottom: B })}></td>
+                  <td
+                    style={dc({
+                      textAlign: "center",
+                      fontWeight: "bold",
+                      borderTop: B,
+                      borderBottom: B,
+                      fontSize: dynFont + 1,
+                    })}
+                  >
+                    {totalQty.toFixed(2)}
+                  </td>
+                  <td style={dc({ borderTop: B, borderBottom: B })}></td>
+                  <td style={dc({ borderTop: B, borderBottom: B })}></td>
+                  <td style={dc({ borderTop: B, borderBottom: B })}></td>
+                  <td
+                    style={dc({
+                      textAlign: "right",
+                      fontWeight: "bold",
+                      borderTop: B,
+                      borderBottom: B,
+                      fontSize: dynFont + 3,
+                    })}
+                  >
+                    ₹ {fmt2(netAmount)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* AMOUNT IN WORDS */}
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              borderBottom: B,
+            }}
+          >
+            <tbody>
+              <tr>
+                <td
+                  style={{
+                    width: "58%",
+                    borderRight: B,
+                    padding: "3px 7px",
+                    verticalAlign: "middle",
+                    fontSize: 10,
+                  }}
+                >
+                  <span style={{ fontWeight: "bold" }}>
+                    Amount Chargeable (in words):{" "}
+                  </span>
+                  <em style={{ fontWeight: "bold" }}>
+                    {numberToWords(netAmount)}
+                  </em>
+                </td>
+                <td
+                  style={{
+                    padding: "3px 7px",
+                    verticalAlign: "middle",
+                    textAlign: "right",
+                  }}
+                >
+                  <div style={{ fontSize: 10 }}>E. &amp; O.E</div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* HSN TAX TABLE */}
           <table
             style={{
               width: "100%",
               borderCollapse: "collapse",
               tableLayout: "fixed",
-              borderTop: B,
               borderBottom: B,
             }}
+            className="inv-footer"
           >
             <colgroup>
-              <col style={{ width: "4%" }} />
-              <col style={{ width: "48%" }} />
-              <col style={{ width: "8%" }} />
-              <col style={{ width: "9%" }} />
-              <col style={{ width: "11%" }} />
-              <col style={{ width: "11%" }} />
-              <col style={{ width: "5%" }} />
               <col style={{ width: "14%" }} />
+              <col style={{ width: "16%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "14%" }} />
+              <col style={{ width: "14%" }} />
+              <col style={{ width: "16%" }} />
+              <col style={{ width: "16%" }} />
             </colgroup>
-            <thead className="inv-thead">
+            <thead>
               <tr>
                 {[
-                  ["Sl\nNo.", "center"],
-                  ["Description of Goods", "left"],
-                  ["HSN/\nSAC", "center"],
-                  ["Quantity", "center"],
-                  ["Rate\n(Incl. Tax)", "right"],
-                  ["Rate\n(Excl. Tax)", "right"],
-                  ["Per", "center"],
-                  ["Taxable\nAmount", "right"],
-                ].map(([label, align], i) => (
+                  ["HSN/SAC", "center"],
+                  ["Taxable\nValue", "right"],
+                  ["CGST\nRate", "center"],
+                  ["CGST\nAmount", "right"],
+                  ["SGST/UTGST\nRate", "center"],
+                  ["SGST/UTGST\nAmount", "right"],
+                  ["Total Tax\nAmount", "right"],
+                ].map(([label, align]) => (
                   <th
-                    key={i}
+                    key={label}
                     style={dhc({
                       textAlign: align,
                       whiteSpace: "pre-line",
-                      padding: dynPad,
+                      padding: "2px 6px",
+                      fontSize: 10,
                     })}
                   >
                     {label}
@@ -553,407 +819,177 @@ function TaxInvoiceView({ inv, onBack }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r, i) => (
-                <tr key={i} className="inv-product-row">
-                  <td style={dc({ textAlign: "center" })}>{i + 1}</td>
-                  <td style={dc({ fontWeight: "bold", fontSize: 18 })}>
-                    {r.desc}
+              {Object.entries(hsnGroups).map(([hsn, d]) => (
+                <tr key={hsn}>
+                  <td style={dc({ textAlign: "center", fontSize: 11 })}>
+                    {hsn}
                   </td>
-                  <td style={dc({ textAlign: "center", fontWeight: "bold" })}>
-                    {r.hsn || "–"}
+                  <td style={dc({ textAlign: "right", fontSize: 11 })}>
+                    {fmt2(d.taxableValue)}
                   </td>
-                  <td style={dc({ textAlign: "center", fontWeight: "bold" })}>
-                    {fmt2(r.qty)}
+                  <td style={dc({ textAlign: "center", fontSize: 10 })}>
+                    {cgstRate}%
                   </td>
-                  <td style={dc({ textAlign: "right" })}>{fmt2(r.rateIncl)}</td>
-                  <td style={dc({ textAlign: "right" })}>{fmt2(r.rateExcl)}</td>
-                  <td style={dc({ textAlign: "center" })}>{r.per}</td>
-                  <td style={dc({ textAlign: "right" })}>
-                    {fmt2(r.taxableAmt)}
+                  <td style={dc({ textAlign: "right", fontSize: 10 })}>
+                    {fmt2(d.cgst)}
+                  </td>
+                  <td style={dc({ textAlign: "center", fontSize: 10 })}>
+                    {sgstRate}%
+                  </td>
+                  <td style={dc({ textAlign: "right", fontSize: 10 })}>
+                    {fmt2(d.sgst)}
+                  </td>
+                  <td style={dc({ textAlign: "right", fontSize: 10 })}>
+                    {fmt2(d.cgst + d.sgst)}
                   </td>
                 </tr>
               ))}
-              {Array.from({ length: MIN_ROWS }).map((_, i) => (
-                <tr key={`blank_${i}`} style={{ height: 18 }}>
-                  {Array(8)
-                    .fill(null)
-                    .map((__, j) => (
-                      <td key={j} style={dc()}>
-                        &nbsp;
-                      </td>
-                    ))}
-                </tr>
-              ))}
-
-              {(openBalance !== 0 || netAmount !== 0) && (
-                <tr>
-                  <td
-                    colSpan={8}
-                    style={dc({
-                      borderTop: "1px dashed #999",
-                      padding: "3px 7px",
-                    })}
-                  >
-                    <div style={{ fontWeight: "bold", fontSize: dynFont + 2 }}>
-                      Open Balance: ₹ {fmt2(openBalance)}
-                    </div>
-                    <div style={{ fontWeight: "bold", fontSize: dynFont + 2 }}>
-                      Closing Balance: ₹ {fmt2(closingBalance)}
-                    </div>
-                  </td>
-                </tr>
-              )}
-
-              <tr>
-                <td
-                  colSpan={7}
-                  style={dc({
-                    textAlign: "right",
-                    fontWeight: "bold",
-                    borderTop: B,
-                  })}
-                >
-                  Total Taxable Amount
+              <tr style={{ background: "#f5f5f5", fontWeight: "bold" }}>
+                <td style={dc({ borderTop: B, borderBottom: B, fontSize: 10 })}>
+                  Total
                 </td>
                 <td
                   style={dc({
                     textAlign: "right",
-                    fontWeight: "bold",
                     borderTop: B,
+                    borderBottom: B,
+                    fontSize: 10,
                   })}
                 >
                   {fmt2(subtotal)}
                 </td>
-              </tr>
-              <tr>
-                <td
-                  colSpan={7}
-                  style={dc({
-                    textAlign: "right",
-                    fontStyle: "italic",
-                    fontWeight: "bold",
-                    borderTop: B,
-                  })}
-                >
-                  CGST TAX
-                </td>
+                <td style={dc({ borderTop: B, borderBottom: B })}></td>
                 <td
                   style={dc({
                     textAlign: "right",
-                    fontWeight: "bold",
                     borderTop: B,
+                    borderBottom: B,
+                    fontSize: 10,
                   })}
                 >
                   {fmt2(cgstAmt)}
                 </td>
-              </tr>
-              <tr>
+                <td style={dc({ borderTop: B, borderBottom: B })}></td>
                 <td
-                  colSpan={7}
                   style={dc({
                     textAlign: "right",
-                    fontStyle: "italic",
-                    fontWeight: "bold",
+                    borderTop: B,
+                    borderBottom: B,
+                    fontSize: 10,
                   })}
                 >
-                  SGST TAX
-                </td>
-                <td style={dc({ textAlign: "right", fontWeight: "bold" })}>
                   {fmt2(sgstAmt)}
                 </td>
-              </tr>
-
-              <tr style={{ background: "#f0f0f0" }}>
-                <td style={dc({ borderTop: B, borderBottom: B })}></td>
-                <td
-                  style={dc({
-                    fontWeight: "bold",
-                    borderTop: B,
-                    borderBottom: B,
-                    fontSize: dynFont + 1,
-                  })}
-                >
-                  Total
-                </td>
-                <td style={dc({ borderTop: B, borderBottom: B })}></td>
-                <td
-                  style={dc({
-                    textAlign: "center",
-                    fontWeight: "bold",
-                    borderTop: B,
-                    borderBottom: B,
-                    fontSize: dynFont + 1,
-                  })}
-                >
-                  {totalQty.toFixed(2)}
-                </td>
-                <td style={dc({ borderTop: B, borderBottom: B })}></td>
-                <td style={dc({ borderTop: B, borderBottom: B })}></td>
-                <td style={dc({ borderTop: B, borderBottom: B })}></td>
                 <td
                   style={dc({
                     textAlign: "right",
-                    fontWeight: "bold",
                     borderTop: B,
                     borderBottom: B,
-                    fontSize: dynFont + 3,
+                    fontSize: 10,
                   })}
                 >
-                  ₹ {fmt2(netAmount)}
+                  {fmt2(totalTax)}
                 </td>
               </tr>
             </tbody>
           </table>
-        </div>
 
-        {/* AMOUNT IN WORDS */}
-        <table
-          style={{ width: "100%", borderCollapse: "collapse", borderBottom: B }}
-        >
-          <tbody>
-            <tr>
-              <td
-                style={{
-                  width: "58%",
-                  borderRight: B,
-                  padding: "3px 7px",
-                  verticalAlign: "middle",
-                  fontSize: 10,
-                }}
-              >
-                <span style={{ fontWeight: "bold" }}>
-                  Amount Chargeable (in words):{" "}
-                </span>
-                <em style={{ fontWeight: "bold" }}>
-                  {numberToWords(netAmount)}
-                </em>
-              </td>
-              <td
-                style={{
-                  padding: "3px 7px",
-                  verticalAlign: "middle",
-                  textAlign: "right",
-                }}
-              >
-                <div style={{ fontSize: 10 }}>E. &amp; O.E</div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+          <div style={{ padding: "2px 7px", borderBottom: B, fontSize: 10 }}>
+            <strong>Tax Amount (in words):</strong>&nbsp;
+            <em style={{ fontWeight: "bold" }}>{numberToWords(totalTax)}</em>
+          </div>
 
-        {/* HSN TAX TABLE */}
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            tableLayout: "fixed",
-            borderBottom: B,
-          }}
-          className="inv-footer"
-        >
-          <colgroup>
-            <col style={{ width: "14%" }} />
-            <col style={{ width: "16%" }} />
-            <col style={{ width: "10%" }} />
-            <col style={{ width: "14%" }} />
-            <col style={{ width: "14%" }} />
-            <col style={{ width: "16%" }} />
-            <col style={{ width: "16%" }} />
-          </colgroup>
-          <thead>
-            <tr>
-              {[
-                ["HSN/SAC", "center"],
-                ["Taxable\nValue", "right"],
-                ["CGST\nRate", "center"],
-                ["CGST\nAmount", "right"],
-                ["SGST/UTGST\nRate", "center"],
-                ["SGST/UTGST\nAmount", "right"],
-                ["Total Tax\nAmount", "right"],
-              ].map(([label, align]) => (
-                <th
-                  key={label}
-                  style={dhc({
-                    textAlign: align,
-                    whiteSpace: "pre-line",
-                    padding: "2px 6px",
-                    fontSize: 10,
-                  })}
-                >
-                  {label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {Object.entries(hsnGroups).map(([hsn, d]) => (
-              <tr key={hsn}>
-                <td style={dc({ textAlign: "center", fontSize: 11 })}>{hsn}</td>
-                <td style={dc({ textAlign: "right", fontSize: 11 })}>
-                  {fmt2(d.taxableValue)}
-                </td>
-                <td style={dc({ textAlign: "center", fontSize: 10 })}>
-                  {cgstRate}%
-                </td>
-                <td style={dc({ textAlign: "right", fontSize: 10 })}>
-                  {fmt2(d.cgst)}
-                </td>
-                <td style={dc({ textAlign: "center", fontSize: 10 })}>
-                  {sgstRate}%
-                </td>
-                <td style={dc({ textAlign: "right", fontSize: 10 })}>
-                  {fmt2(d.sgst)}
-                </td>
-                <td style={dc({ textAlign: "right", fontSize: 10 })}>
-                  {fmt2(d.cgst + d.sgst)}
-                </td>
-              </tr>
-            ))}
-            <tr style={{ background: "#f5f5f5", fontWeight: "bold" }}>
-              <td style={dc({ borderTop: B, borderBottom: B, fontSize: 10 })}>
-                Total
-              </td>
-              <td
-                style={dc({
-                  textAlign: "right",
-                  borderTop: B,
-                  borderBottom: B,
-                  fontSize: 10,
-                })}
-              >
-                {fmt2(subtotal)}
-              </td>
-              <td style={dc({ borderTop: B, borderBottom: B })}></td>
-              <td
-                style={dc({
-                  textAlign: "right",
-                  borderTop: B,
-                  borderBottom: B,
-                  fontSize: 10,
-                })}
-              >
-                {fmt2(cgstAmt)}
-              </td>
-              <td style={dc({ borderTop: B, borderBottom: B })}></td>
-              <td
-                style={dc({
-                  textAlign: "right",
-                  borderTop: B,
-                  borderBottom: B,
-                  fontSize: 10,
-                })}
-              >
-                {fmt2(sgstAmt)}
-              </td>
-              <td
-                style={dc({
-                  textAlign: "right",
-                  borderTop: B,
-                  borderBottom: B,
-                  fontSize: 10,
-                })}
-              >
-                {fmt2(totalTax)}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div style={{ padding: "2px 7px", borderBottom: B, fontSize: 10 }}>
-          <strong>Tax Amount (in words):</strong>&nbsp;
-          <em style={{ fontWeight: "bold" }}>{numberToWords(totalTax)}</em>
-        </div>
-
-        {/* FOOTER */}
-        <div style={{ marginTop: "auto" }}>
-          <table
-            style={{ width: "100%", borderCollapse: "collapse" }}
-            className="inv-footer"
-          >
-            <tbody>
-              <tr>
-                <td
-                  style={{
-                    width: "44%",
-                    borderRight: B,
-                    padding: "4px 7px",
-                    verticalAlign: "top",
-                    fontSize: 10,
-                  }}
-                >
-                  <div
+          {/* FOOTER */}
+          <div style={{ marginTop: "auto" }}>
+            <table
+              style={{ width: "100%", borderCollapse: "collapse" }}
+              className="inv-footer"
+            >
+              <tbody>
+                <tr>
+                  <td
                     style={{
-                      fontWeight: "bold",
-                      marginBottom: 2,
-                      fontSize: 15,
-                    }}
-                  >
-                    Company's Bank Details
-                  </div>
-                  {[
-                    ["A/c Holder's Name", inv.bank_holder_name],
-                    ["Bank Name", inv.bank_name],
-                    ["A/c No.", inv.bank_account_no],
-                    [
-                      "Branch & IFS Code",
-                      `${inv.bank_branch || ""} & ${inv.bank_ifsc || ""}`,
-                    ],
-                  ].map(([k, v]) => (
-                    <div key={k} style={{ marginBottom: 2, fontSize: 12 }}>
-                      <strong>{k}</strong>: {v}
-                    </div>
-                  ))}
-                </td>
-                <td style={{ padding: "4px 7px", verticalAlign: "top" }}>
-                  <div style={{ fontSize: 9, marginBottom: 4 }}>
-                    <strong>Declaration:</strong> {DECLARATION}
-                  </div>
-                  <div
-                    style={{
-                      textAlign: "right",
-                      fontWeight: "bold",
+                      width: "44%",
+                      borderRight: B,
+                      padding: "4px 7px",
+                      verticalAlign: "top",
                       fontSize: 10,
-                      marginBottom: 2,
                     }}
                   >
-                    for {COMPANY.name}
-                  </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      marginTop: 28,
-                    }}
-                  >
-                    <div style={{ textAlign: "center", width: "42%" }}>
-                      <div
-                        style={{ borderTop: B, paddingTop: 2, fontSize: 10 }}
-                      >
-                        Receiver's Signature
+                    <div
+                      style={{
+                        fontWeight: "bold",
+                        marginBottom: 2,
+                        fontSize: 15,
+                      }}
+                    >
+                      Company's Bank Details
+                    </div>
+                    {[
+                      ["A/c Holder's Name", inv.bank_holder_name],
+                      ["Bank Name", inv.bank_name],
+                      ["A/c No.", inv.bank_account_no],
+                      [
+                        "Branch & IFS Code",
+                        `${inv.bank_branch || ""} & ${inv.bank_ifsc || ""}`,
+                      ],
+                    ].map(([k, v]) => (
+                      <div key={k} style={{ marginBottom: 2, fontSize: 12 }}>
+                        <strong>{k}</strong>: {v}
+                      </div>
+                    ))}
+                  </td>
+                  <td style={{ padding: "4px 7px", verticalAlign: "top" }}>
+                    <div style={{ fontSize: 9, marginBottom: 4 }}>
+                      <strong>Declaration:</strong> {DECLARATION}
+                    </div>
+                    <div
+                      style={{
+                        textAlign: "right",
+                        fontWeight: "bold",
+                        fontSize: 10,
+                        marginBottom: 2,
+                      }}
+                    >
+                      for {COMPANY.name}
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        marginTop: 28,
+                      }}
+                    >
+                      <div style={{ textAlign: "center", width: "42%" }}>
+                        <div
+                          style={{ borderTop: B, paddingTop: 2, fontSize: 10 }}
+                        >
+                          Receiver's Signature
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "center", width: "42%" }}>
+                        <div
+                          style={{ borderTop: B, paddingTop: 2, fontSize: 10 }}
+                        >
+                          Authorised Signatory
+                        </div>
                       </div>
                     </div>
-                    <div style={{ textAlign: "center", width: "42%" }}>
-                      <div
-                        style={{ borderTop: B, paddingTop: 2, fontSize: 10 }}
-                      >
-                        Authorised Signatory
-                      </div>
+                    <div
+                      style={{
+                        textAlign: "center",
+                        marginTop: 4,
+                        fontSize: 9,
+                        color: "#666",
+                      }}
+                    >
+                      This is a Computer Generated Invoice
                     </div>
-                  </div>
-                  <div
-                    style={{
-                      textAlign: "center",
-                      marginTop: 4,
-                      fontSize: 9,
-                      color: "#666",
-                    }}
-                  >
-                    This is a Computer Generated Invoice
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -1010,347 +1046,284 @@ function QuotationView({ data, onBack }) {
         </div>
       </div>
 
-      <div
-        id="quotation-print"
-        style={{
-          background: "white",
-          maxWidth: "900px",
-          margin: "0 auto",
-          border: "2px solid #000",
-          fontFamily: "Arial, sans-serif",
-          fontSize: "12px",
-        }}
-      >
+      <div className="doc-scroll">
         <div
+          id="quotation-print"
           style={{
-            textAlign: "center",
+            background: "white",
+            maxWidth: "900px",
+            margin: "0 auto",
+            border: "2px solid #000",
+            fontFamily: "Arial, sans-serif",
             fontSize: "12px",
-            fontWeight: "bold",
-            padding: "2px 8px",
-            borderBottom: "1px solid #000",
           }}
         >
-          QUOTATION
-        </div>
-
-        {/* Company Header */}
-        <div style={{ display: "flex", borderBottom: "2px solid #000" }}>
           <div
             style={{
-              width: "80px",
-              minWidth: "80px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "4px",
-              margin: "6px",
+              textAlign: "center",
+              fontSize: "12px",
+              fontWeight: "bold",
+              padding: "2px 8px",
+              borderBottom: "1px solid #000",
             }}
           >
-            <img
-              src={BIP_LOGO_B64}
-              alt="BIP Fencing"
-              style={{ width: "68px", height: "68px", objectFit: "contain" }}
-            />
+            QUOTATION
           </div>
-          <div style={{ flex: 1, textAlign: "center", padding: "8px 0" }}>
+
+          {/* Company Header */}
+          <div style={{ display: "flex", borderBottom: "2px solid #000" }}>
             <div
               style={{
-                fontSize: "16px",
-                fontWeight: "bold",
-                textTransform: "uppercase",
+                width: "80px",
+                minWidth: "80px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "4px",
+                margin: "6px",
               }}
             >
-              BIP FENCING CONTRACT WORK
+              <img
+                src={BIP_LOGO_B64}
+                alt="BIP Fencing"
+                style={{ width: "68px", height: "68px", objectFit: "contain" }}
+              />
             </div>
-            <div style={{ fontSize: "11px" }}>
-              NO: 26/A, MAIN ROAD, PAMBANKULAM, KALANTHAPANAI, PANAGUDI - 627109
-            </div>
-            {isGst && (
-              <div style={{ fontSize: "11px" }}>
-                GSTIN/UIN: <strong>33ABLPI5244C1Z1</strong>&nbsp;|&nbsp; State:
-                Tamil Nadu, Code: 33
-              </div>
-            )}
-            <div style={{ fontSize: "11px" }}>Ph: 9655072445</div>
-          </div>
-        </div>
-
-        {/* Consignee + Quotation Details */}
-        <div style={{ display: "flex", borderBottom: "1px solid #000" }}>
-          <div
-            style={{
-              flex: 1,
-              padding: "6px 8px",
-              borderRight: "1px solid #000",
-            }}
-          >
-            <div
-              style={{
-                fontWeight: "bold",
-                fontSize: "10px",
-                marginBottom: "2px",
-              }}
-            >
-              CONSIGNEE (SHIP TO)
-            </div>
-            <div style={{ fontWeight: "bold" }}>
-              {d.ship_name || d.client_name}
-            </div>
-            {(d.ship_address || d.client_address) && (
-              <div>{d.ship_address || d.client_address}</div>
-            )}
-            <div>
-              State Name: {d.ship_state || d.client_state || "Tamil Nadu"},
-              Code: {d.ship_state_code || d.client_state_code || "33"}
-            </div>
-          </div>
-          <div style={{ width: "320px", fontSize: "11px" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <tbody>
-                {[
-                  ["Quotation No.", d.quote_no],
-                  ["Date", d.quote_date],
-                  ["Valid Until", d.valid_until || "—"],
-                  ["PO/Order No.", d.po_no || "—"],
-                ].map(([label, value]) => (
-                  <tr key={label} style={{ borderBottom: "1px solid #ccc" }}>
-                    <td
-                      style={{
-                        padding: "2px 6px",
-                        color: "#555",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {label}
-                    </td>
-                    <td style={{ padding: "2px 6px" }}>: {value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div
-            style={{
-              width: "220px",
-              fontSize: "11px",
-              borderLeft: "1px solid #000",
-            }}
-          >
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <tbody>
-                {[
-                  ["Dispatched Through", d.dispatched_through || "—"],
-                  ["Vehicle No.", d.vehicle_no || "—"],
-                  ["Other Ref.", d.other_ref || "—"],
-                ].map(([label, value]) => (
-                  <tr key={label} style={{ borderBottom: "1px solid #ccc" }}>
-                    <td
-                      style={{
-                        padding: "2px 6px",
-                        color: "#555",
-                        whiteSpace: "nowrap",
-                        fontSize: "10px",
-                      }}
-                    >
-                      {label}
-                    </td>
-                    <td style={{ padding: "2px 4px", fontSize: "10px" }}>
-                      : {value}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Buyer */}
-        <div style={{ display: "flex", borderBottom: "1px solid #000" }}>
-          <div
-            style={{
-              flex: 1,
-              padding: "6px 8px",
-              borderRight: "1px solid #000",
-              fontSize: "11px",
-            }}
-          >
-            <div
-              style={{
-                fontWeight: "bold",
-                fontSize: "10px",
-                marginBottom: "2px",
-              }}
-            >
-              BUYER (BILL TO)
-            </div>
-            <div style={{ fontWeight: "bold", fontSize: "13px" }}>
-              {d.client_name}
-            </div>
-            {d.client_address && <div>{d.client_address}</div>}
-            {d.client_phone && <div>Ph: {d.client_phone}</div>}
-            {d.client_email && <div>Email: {d.client_email}</div>}
-            {isGst && d.client_gst && <div>GSTIN/UIN: {d.client_gst}</div>}
-            <div>
-              State Name: {d.client_state || "Tamil Nadu"}, Code:{" "}
-              {d.client_state_code || "33"}
-            </div>
-          </div>
-          <div style={{ width: "320px", fontSize: "11px" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <tbody>
-                {[
-                  ["Payment", "Credit"],
-                  ["Discount", `${discPct}%`],
-                ].map(([label, value]) => (
-                  <tr key={label} style={{ borderBottom: "1px solid #ccc" }}>
-                    <td
-                      style={{
-                        padding: "2px 6px",
-                        color: "#555",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {label}
-                    </td>
-                    <td style={{ padding: "2px 6px" }}>: {value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Items Table */}
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            borderBottom: "1px solid #000",
-          }}
-        >
-          <thead>
-            <tr
-              style={{ background: "#f5f5f5", borderBottom: "1px solid #000" }}
-            >
-              <th style={thStyle}>Sl No.</th>
-              <th style={{ ...thStyle, textAlign: "left" }}>
-                Description of Goods
-              </th>
-              <th style={thStyle}>
-                HSN/
-                <br />
-                SAC
-              </th>
-              <th style={thStyle}>Quantity</th>
-              <th style={thStyle}>Unit</th>
-              <th style={thStyle}>Rate</th>
-              <th style={thStyle}>Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item, idx) => (
-              <tr
-                key={item.id || idx}
-                style={{ borderBottom: "1px solid #eee" }}
-              >
-                <td style={tdCenter}>{idx + 1}</td>
-                <td style={{ ...tdStyle, textAlign: "left" }}>
-                  {item.description}
-                </td>
-                <td style={tdCenter}>{item.hsn}</td>
-                <td style={tdCenter}>{item.quantity}</td>
-                <td style={tdCenter}>{item.unit}</td>
-                <td style={tdRight}>{fmt(item.rate)}</td>
-                <td style={tdRight}>
-                  {fmt(Number(item.quantity || 0) * Number(item.rate || 0))}
-                </td>
-              </tr>
-            ))}
-            {items.length < 6 &&
-              Array(6 - items.length)
-                .fill(0)
-                .map((_, i) => (
-                  <tr
-                    key={`empty-${i}`}
-                    style={{
-                      height: "22px",
-                      borderBottom: "1px solid #f0f0f0",
-                    }}
-                  >
-                    <td colSpan={7}>&nbsp;</td>
-                  </tr>
-                ))}
-          </tbody>
-          <tfoot>
-            <tr style={{ borderTop: "1px solid #ccc" }}>
-              <td
-                colSpan={6}
+            <div style={{ flex: 1, textAlign: "center", padding: "8px 0" }}>
+              <div
                 style={{
-                  textAlign: "right",
-                  padding: "3px 8px",
-                  fontSize: "11px",
-                }}
-              >
-                Taxable Amount
-              </td>
-              <td
-                style={{
-                  textAlign: "right",
-                  padding: "3px 8px",
+                  fontSize: "16px",
                   fontWeight: "bold",
+                  textTransform: "uppercase",
                 }}
               >
-                {fmt(taxable)}
-              </td>
-            </tr>
-            {isGst && (
-              <>
-                <tr>
-                  <td
-                    colSpan={6}
-                    style={{
-                      textAlign: "right",
-                      padding: "3px 8px",
-                      fontSize: "11px",
-                    }}
-                  >
-                    CGST TAX
+                BIP FENCING CONTRACT WORK
+              </div>
+              <div style={{ fontSize: "11px" }}>
+                NO: 26/A, MAIN ROAD, PAMBANKULAM, KALANTHAPANAI, PANAGUDI -
+                627109
+              </div>
+              {isGst && (
+                <div style={{ fontSize: "11px" }}>
+                  GSTIN/UIN: <strong>33ABLPI5244C1Z1</strong>&nbsp;|&nbsp;
+                  State: Tamil Nadu, Code: 33
+                </div>
+              )}
+              <div style={{ fontSize: "11px" }}>Ph: 9655072445</div>
+            </div>
+          </div>
+
+          {/* Consignee + Quotation Details */}
+          <div style={{ display: "flex", borderBottom: "1px solid #000" }}>
+            <div
+              style={{
+                flex: 1,
+                padding: "6px 8px",
+                borderRight: "1px solid #000",
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: "bold",
+                  fontSize: "10px",
+                  marginBottom: "2px",
+                }}
+              >
+                CONSIGNEE (SHIP TO)
+              </div>
+              <div style={{ fontWeight: "bold" }}>
+                {d.ship_name || d.client_name}
+              </div>
+              {(d.ship_address || d.client_address) && (
+                <div>{d.ship_address || d.client_address}</div>
+              )}
+              <div>
+                State Name: {d.ship_state || d.client_state || "Tamil Nadu"},
+                Code: {d.ship_state_code || d.client_state_code || "33"}
+              </div>
+            </div>
+            <div style={{ width: "320px", fontSize: "11px" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <tbody>
+                  {[
+                    ["Quotation No.", d.quote_no],
+                    ["Date", d.quote_date],
+                    ["Valid Until", d.valid_until || "—"],
+                    ["PO/Order No.", d.po_no || "—"],
+                  ].map(([label, value]) => (
+                    <tr key={label} style={{ borderBottom: "1px solid #ccc" }}>
+                      <td
+                        style={{
+                          padding: "2px 6px",
+                          color: "#555",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {label}
+                      </td>
+                      <td style={{ padding: "2px 6px" }}>: {value}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div
+              style={{
+                width: "220px",
+                fontSize: "11px",
+                borderLeft: "1px solid #000",
+              }}
+            >
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <tbody>
+                  {[
+                    ["Dispatched Through", d.dispatched_through || "—"],
+                    ["Vehicle No.", d.vehicle_no || "—"],
+                    ["Other Ref.", d.other_ref || "—"],
+                  ].map(([label, value]) => (
+                    <tr key={label} style={{ borderBottom: "1px solid #ccc" }}>
+                      <td
+                        style={{
+                          padding: "2px 6px",
+                          color: "#555",
+                          whiteSpace: "nowrap",
+                          fontSize: "10px",
+                        }}
+                      >
+                        {label}
+                      </td>
+                      <td style={{ padding: "2px 4px", fontSize: "10px" }}>
+                        : {value}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Buyer */}
+          <div style={{ display: "flex", borderBottom: "1px solid #000" }}>
+            <div
+              style={{
+                flex: 1,
+                padding: "6px 8px",
+                borderRight: "1px solid #000",
+                fontSize: "11px",
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: "bold",
+                  fontSize: "10px",
+                  marginBottom: "2px",
+                }}
+              >
+                BUYER (BILL TO)
+              </div>
+              <div style={{ fontWeight: "bold", fontSize: "13px" }}>
+                {d.client_name}
+              </div>
+              {d.client_address && <div>{d.client_address}</div>}
+              {d.client_phone && <div>Ph: {d.client_phone}</div>}
+              {d.client_email && <div>Email: {d.client_email}</div>}
+              {isGst && d.client_gst && <div>GSTIN/UIN: {d.client_gst}</div>}
+              <div>
+                State Name: {d.client_state || "Tamil Nadu"}, Code:{" "}
+                {d.client_state_code || "33"}
+              </div>
+            </div>
+            <div style={{ width: "320px", fontSize: "11px" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <tbody>
+                  {[
+                    ["Payment", "Credit"],
+                    ["Discount", `${discPct}%`],
+                  ].map(([label, value]) => (
+                    <tr key={label} style={{ borderBottom: "1px solid #ccc" }}>
+                      <td
+                        style={{
+                          padding: "2px 6px",
+                          color: "#555",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {label}
+                      </td>
+                      <td style={{ padding: "2px 6px" }}>: {value}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Items Table */}
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              borderBottom: "1px solid #000",
+            }}
+          >
+            <thead>
+              <tr
+                style={{
+                  background: "#f5f5f5",
+                  borderBottom: "1px solid #000",
+                }}
+              >
+                <th style={thStyle}>Sl No.</th>
+                <th style={{ ...thStyle, textAlign: "left" }}>
+                  Description of Goods
+                </th>
+                <th style={thStyle}>
+                  HSN/
+                  <br />
+                  SAC
+                </th>
+                <th style={thStyle}>Quantity</th>
+                <th style={thStyle}>Unit</th>
+                <th style={thStyle}>Rate</th>
+                <th style={thStyle}>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item, idx) => (
+                <tr
+                  key={item.id || idx}
+                  style={{ borderBottom: "1px solid #eee" }}
+                >
+                  <td style={tdCenter}>{idx + 1}</td>
+                  <td style={{ ...tdStyle, textAlign: "left" }}>
+                    {item.description}
                   </td>
-                  <td
-                    style={{
-                      textAlign: "right",
-                      padding: "3px 8px",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    {fmt(cgstAmt)}
+                  <td style={tdCenter}>{item.hsn}</td>
+                  <td style={tdCenter}>{item.quantity}</td>
+                  <td style={tdCenter}>{item.unit}</td>
+                  <td style={tdRight}>{fmt(item.rate)}</td>
+                  <td style={tdRight}>
+                    {fmt(Number(item.quantity || 0) * Number(item.rate || 0))}
                   </td>
                 </tr>
-                <tr>
-                  <td
-                    colSpan={6}
-                    style={{
-                      textAlign: "right",
-                      padding: "3px 8px",
-                      fontSize: "11px",
-                    }}
-                  >
-                    SGST TAX
-                  </td>
-                  <td
-                    style={{
-                      textAlign: "right",
-                      padding: "3px 8px",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    {fmt(sgstAmt)}
-                  </td>
-                </tr>
-              </>
-            )}
-            {roundOff !== 0 && (
-              <tr>
+              ))}
+              {items.length < 6 &&
+                Array(6 - items.length)
+                  .fill(0)
+                  .map((_, i) => (
+                    <tr
+                      key={`empty-${i}`}
+                      style={{
+                        height: "22px",
+                        borderBottom: "1px solid #f0f0f0",
+                      }}
+                    >
+                      <td colSpan={7}>&nbsp;</td>
+                    </tr>
+                  ))}
+            </tbody>
+            <tfoot>
+              <tr style={{ borderTop: "1px solid #ccc" }}>
                 <td
                   colSpan={6}
                   style={{
@@ -1359,160 +1332,231 @@ function QuotationView({ data, onBack }) {
                     fontSize: "11px",
                   }}
                 >
-                  ROUNDING OFF
+                  Taxable Amount
                 </td>
-                <td style={{ textAlign: "right", padding: "3px 8px" }}>
-                  {roundOff > 0 ? "+" : ""}
-                  {fmt(roundOff)}
+                <td
+                  style={{
+                    textAlign: "right",
+                    padding: "3px 8px",
+                    fontWeight: "bold",
+                  }}
+                >
+                  {fmt(taxable)}
                 </td>
               </tr>
-            )}
-            <tr style={{ borderTop: "2px solid #000" }}>
-              <td
-                colSpan={3}
+              {isGst && (
+                <>
+                  <tr>
+                    <td
+                      colSpan={6}
+                      style={{
+                        textAlign: "right",
+                        padding: "3px 8px",
+                        fontSize: "11px",
+                      }}
+                    >
+                      CGST TAX
+                    </td>
+                    <td
+                      style={{
+                        textAlign: "right",
+                        padding: "3px 8px",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      {fmt(cgstAmt)}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td
+                      colSpan={6}
+                      style={{
+                        textAlign: "right",
+                        padding: "3px 8px",
+                        fontSize: "11px",
+                      }}
+                    >
+                      SGST TAX
+                    </td>
+                    <td
+                      style={{
+                        textAlign: "right",
+                        padding: "3px 8px",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      {fmt(sgstAmt)}
+                    </td>
+                  </tr>
+                </>
+              )}
+              {roundOff !== 0 && (
+                <tr>
+                  <td
+                    colSpan={6}
+                    style={{
+                      textAlign: "right",
+                      padding: "3px 8px",
+                      fontSize: "11px",
+                    }}
+                  >
+                    ROUNDING OFF
+                  </td>
+                  <td style={{ textAlign: "right", padding: "3px 8px" }}>
+                    {roundOff > 0 ? "+" : ""}
+                    {fmt(roundOff)}
+                  </td>
+                </tr>
+              )}
+              <tr style={{ borderTop: "2px solid #000" }}>
+                <td
+                  colSpan={3}
+                  style={{
+                    padding: "4px 8px",
+                    fontWeight: "bold",
+                    fontSize: "11px",
+                  }}
+                >
+                  Total &nbsp;&nbsp;
+                  {items.reduce((s, i) => s + Number(i.quantity || 0), 0)}
+                </td>
+                <td
+                  colSpan={4}
+                  style={{
+                    textAlign: "right",
+                    padding: "4px 8px",
+                    fontWeight: "bold",
+                    fontSize: "13px",
+                  }}
+                >
+                  ₹{fmt(grandTotal)}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+
+          {/* Amount in Words */}
+          <div style={{ display: "flex", borderBottom: "1px solid #000" }}>
+            <div
+              style={{
+                flex: 1,
+                padding: "6px 8px",
+                borderRight: "1px solid #000",
+              }}
+            >
+              <div style={{ fontSize: "10px", color: "#555" }}>
+                Amount Chargeable (in words)
+              </div>
+              <div
                 style={{
-                  padding: "4px 8px",
+                  fontStyle: "italic",
+                  fontSize: "12px",
                   fontWeight: "bold",
-                  fontSize: "11px",
                 }}
               >
-                Total &nbsp;&nbsp;
-                {items.reduce((s, i) => s + Number(i.quantity || 0), 0)}
-              </td>
-              <td
-                colSpan={4}
+                {numberToWords(grandTotal)}
+              </div>
+            </div>
+            <div
+              style={{
+                width: "200px",
+                textAlign: "right",
+                padding: "6px 8px",
+                fontWeight: "bold",
+                fontSize: "20px",
+              }}
+            >
+              ₹ {fmt(grandTotal)}
+            </div>
+            <div
+              style={{
+                width: "80px",
+                textAlign: "center",
+                padding: "6px 4px",
+                fontSize: "10px",
+                borderLeft: "1px solid #000",
+              }}
+            >
+              E. &amp; O.E.
+            </div>
+          </div>
+
+          {/* Bank Details + Declaration */}
+          <div style={{ display: "flex", borderBottom: "1px solid #000" }}>
+            <div
+              style={{
+                flex: 1,
+                padding: "8px",
+                borderRight: "1px solid #000",
+                fontSize: "11px",
+              }}
+            >
+              <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
+                Company's Bank Details
+              </div>
+              <div>
+                A/c Holder's Name : <strong>BIP FENCING CONTRACT WORK</strong>
+              </div>
+              <div>Bank Name : CANARA BANK</div>
+              <div>A/C No. : 120017946948</div>
+              <div>
+                Branch &amp; IFS Code: THERKU VALLIOOR &amp; CNRB0003657
+              </div>
+            </div>
+            <div style={{ flex: 1, padding: "8px", fontSize: "11px" }}>
+              <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
+                Declaration:
+              </div>
+              <div>
+                {d.declaration ||
+                  "We declare that this quotation shows the actual price of the goods described and that all particulars are true and correct."}
+              </div>
+              <div
                 style={{
                   textAlign: "right",
-                  padding: "4px 8px",
+                  marginTop: "20px",
                   fontWeight: "bold",
-                  fontSize: "13px",
                 }}
               >
-                ₹{fmt(grandTotal)}
-              </td>
-            </tr>
-          </tfoot>
-        </table>
+                for BIP FENCING CONTRACT WORK
+              </div>
+            </div>
+          </div>
 
-        {/* Amount in Words */}
-        <div style={{ display: "flex", borderBottom: "1px solid #000" }}>
-          <div
-            style={{
-              flex: 1,
-              padding: "6px 8px",
-              borderRight: "1px solid #000",
-            }}
-          >
-            <div style={{ fontSize: "10px", color: "#555" }}>
-              Amount Chargeable (in words)
+          {/* Signature Row */}
+          <div style={{ display: "flex", borderBottom: "1px solid #000" }}>
+            <div
+              style={{
+                flex: 1,
+                padding: "30px 8px 6px",
+                fontSize: "11px",
+                borderRight: "1px solid #000",
+                textAlign: "center",
+              }}
+            >
+              Receiver's Signature
             </div>
             <div
               style={{
-                fontStyle: "italic",
-                fontSize: "12px",
-                fontWeight: "bold",
+                flex: 1,
+                padding: "30px 8px 6px",
+                fontSize: "11px",
+                textAlign: "center",
               }}
             >
-              {numberToWords(grandTotal)}
+              Authorised Signatory
             </div>
           </div>
           <div
             style={{
-              width: "200px",
-              textAlign: "right",
-              padding: "6px 8px",
-              fontWeight: "bold",
-              fontSize: "20px",
-            }}
-          >
-            ₹ {fmt(grandTotal)}
-          </div>
-          <div
-            style={{
-              width: "80px",
               textAlign: "center",
-              padding: "6px 4px",
+              padding: "4px",
               fontSize: "10px",
-              borderLeft: "1px solid #000",
+              color: "#555",
             }}
           >
-            E. &amp; O.E.
+            This is a Computer Generated Quotation
           </div>
-        </div>
-
-        {/* Bank Details + Declaration */}
-        <div style={{ display: "flex", borderBottom: "1px solid #000" }}>
-          <div
-            style={{
-              flex: 1,
-              padding: "8px",
-              borderRight: "1px solid #000",
-              fontSize: "11px",
-            }}
-          >
-            <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
-              Company's Bank Details
-            </div>
-            <div>
-              A/c Holder's Name : <strong>BIP FENCING CONTRACT WORK</strong>
-            </div>
-            <div>Bank Name : CANARA BANK</div>
-            <div>A/C No. : 120017946948</div>
-            <div>Branch &amp; IFS Code: THERKU VALLIOOR &amp; CNRB0003657</div>
-          </div>
-          <div style={{ flex: 1, padding: "8px", fontSize: "11px" }}>
-            <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
-              Declaration:
-            </div>
-            <div>
-              {d.declaration ||
-                "We declare that this quotation shows the actual price of the goods described and that all particulars are true and correct."}
-            </div>
-            <div
-              style={{
-                textAlign: "right",
-                marginTop: "20px",
-                fontWeight: "bold",
-              }}
-            >
-              for BIP FENCING CONTRACT WORK
-            </div>
-          </div>
-        </div>
-
-        {/* Signature Row */}
-        <div style={{ display: "flex", borderBottom: "1px solid #000" }}>
-          <div
-            style={{
-              flex: 1,
-              padding: "30px 8px 6px",
-              fontSize: "11px",
-              borderRight: "1px solid #000",
-              textAlign: "center",
-            }}
-          >
-            Receiver's Signature
-          </div>
-          <div
-            style={{
-              flex: 1,
-              padding: "30px 8px 6px",
-              fontSize: "11px",
-              textAlign: "center",
-            }}
-          >
-            Authorised Signatory
-          </div>
-        </div>
-        <div
-          style={{
-            textAlign: "center",
-            padding: "4px",
-            fontSize: "10px",
-            color: "#555",
-          }}
-        >
-          This is a Computer Generated Quotation
         </div>
       </div>
     </div>
@@ -1574,17 +1618,24 @@ function CustomerFormFields({ form, setForm, onPhoneBlur }) {
           <label className="cl-label">
             {f.label} {f.required && <span className="cl-req">*</span>}
           </label>
-          <input
-            className="cl-input"
-            type="text"
-            value={form[f.key] || ""}
-            onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
-            onBlur={
-              f.key === "phone" && onPhoneBlur
-                ? (e) => onPhoneBlur(e.target.value)
-                : undefined
-            }
-          />
+          {f.key === "phone" ? (
+            <PhoneInput
+              className="cl-input"
+              name="phone"
+              value={form.phone || ""}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              onBlur={
+                onPhoneBlur ? (e) => onPhoneBlur(e.target.value) : undefined
+              }
+            />
+          ) : (
+            <input
+              className="cl-input"
+              type="text"
+              value={form[f.key] || ""}
+              onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+            />
+          )}
           {f.hint && (
             <small style={{ color: "#6b7280", fontSize: 12 }}>{f.hint}</small>
           )}
@@ -1616,6 +1667,7 @@ export default function Clients() {
   const [payLoading, setPayLoading] = useState(false);
 
   const [viewInvoice, setViewInvoice] = useState(null);
+  const [pendingShare, setPendingShare] = useState(null); // WhatsApp share waiting for a tap
   const [viewLoading, setViewLoading] = useState(false);
 
   // Page-level tab: Customer Directory vs Quotations
@@ -1747,6 +1799,43 @@ export default function Clients() {
     }
   };
 
+  // Full details of a saved invoice for WhatsApp (figures as stored)
+  const savedInvoiceText = (inv) => {
+    const m = (n) => `₹${fmt(n)}`;
+    const L = [];
+    L.push(`*BIP FENCING — Tax Invoice ${inv.invoice_no}*`);
+    L.push(`Date: ${inv.invoice_date || "-"}`);
+    L.push(`Customer: ${inv.buyer_name || "-"}`);
+    const ph = String(inv.buyer_phone || "")
+      .replace(/\D/g, "")
+      .slice(-10);
+    if (ph) L.push(`Phone: +91 ${ph}`);
+    L.push("");
+    L.push("*Items*");
+    (inv.items || []).forEach((it, i) => {
+      const q = Number(it.qty) || 0;
+      const r = Number(it.rate_incl) || 0;
+      L.push(
+        `${i + 1}. ${it.description || "-"} — ${q} ${it.per || ""} × ${m(r)} = ${m(q * r)}`,
+      );
+    });
+    L.push("");
+    if (inv.subtotal != null) L.push(`Taxable Value: ${m(inv.subtotal)}`);
+    if (Number(inv.total_tax)) L.push(`GST: ${m(inv.total_tax)}`);
+    if (Number(inv.round_off)) L.push(`Round Off: ${m(inv.round_off)}`);
+    L.push(`*Invoice Total: ${m(inv.net_amount)}*`);
+    if (inv.payment_mode) L.push(`Payment: ${inv.payment_mode}`);
+    if (Number(inv.open_balance))
+      L.push(`Open Balance: ${m(inv.open_balance)}`);
+    if (Number(inv.paid_amount)) L.push(`Paid Amount: ${m(inv.paid_amount)}`);
+    if (Number(inv.open_balance) || Number(inv.paid_amount))
+      L.push(`Closing Balance: ${m(inv.closing_balance)}`);
+    L.push("");
+    L.push("Thank you,");
+    L.push("BIP Fencing");
+    return L.join("\n");
+  };
+
   // Render the invoice off-screen, snapshot it, and share/download as an image.
   const handleShareInvoicePDF = async (invoice_no) => {
     try {
@@ -1760,30 +1849,29 @@ export default function Clients() {
         const html2canvas = (await import("html2canvas")).default;
         const el = document.getElementById("invoice-print");
         if (!el) return;
-        const canvas = await html2canvas(el, { scale: 2 });
+        const canvas = await html2canvas(el, {
+          scale: 2,
+          backgroundColor: "#fff",
+          windowWidth: el.scrollWidth + 40,
+          onclone: (doc) =>
+            doc
+              .querySelectorAll(".doc-scroll")
+              .forEach((n) => (n.style.overflow = "visible")),
+        });
         const blob = await new Promise((resolve) =>
           canvas.toBlob(resolve, "image/png"),
         );
-        const file = new File([blob], `${inv.invoice_no}.png`, {
-          type: "image/png",
-        });
-        if (navigator.share && navigator.canShare?.({ files: [file] })) {
-          await navigator.share({ files: [file], title: inv.invoice_no });
-        } else {
-          const link = document.createElement("a");
-          link.href = URL.createObjectURL(blob);
-          link.download = `${inv.invoice_no}.png`;
-          link.click();
-          const raw = (inv.buyer_phone || selected?.phone || "").replace(
-            /\D/g,
-            "",
-          );
-          const phone = raw.length === 10 ? `91${raw}` : raw;
-          const text = encodeURIComponent(
-            `Dear ${inv.buyer_name},\n\nInvoice ${inv.invoice_no} — ₹${fmt(inv.net_amount)}\n\nThank you,\nBIP Fencing`,
-          );
-          window.open(`https://wa.me/${phone}?text=${text}`, "_blank");
-        }
+        if (!blob)
+          return showToast("Could not create the invoice image", "error");
+        const job = {
+          blob,
+          fileName: `${inv.invoice_no}.png`,
+          phone: inv.buyer_phone || selected?.phone || "",
+          text: savedInvoiceText(inv),
+        };
+        // phones block sharing after the delay → show a "Share on WhatsApp" button
+        const result = await shareImage(job);
+        if (result === "needs-tap") setPendingShare(job);
       }, 500);
     } catch (err) {
       console.error(err);
@@ -2045,7 +2133,6 @@ export default function Clients() {
 
   const sendInvoiceWhatsApp = () => {
     if (!selected || !clientDetail) return;
-    const phone = selected.phone?.replace(/\D/g, "");
     const invoiceList = (clientDetail.invoices || [])
       .map(
         (i) => `• ${i.invoice_no} | ${i.invoice_date} | ₹${fmt(i.net_amount)}`,
@@ -2054,16 +2141,16 @@ export default function Clients() {
     const text = encodeURIComponent(
       `Dear ${selected.name},\n\nHere are your invoice details:\n${invoiceList}\n\nTotal Billed: ₹${fmt(clientDetail.total_billed)}\n\nThank you,\nBIP Fencing`,
     );
-    window.open(`https://wa.me/${phone}?text=${text}`, "_blank");
+    // waLink adds +91 (never twice) so WhatsApp can find the number
+    window.open(waLink(selected.phone, decodeURIComponent(text)), "_blank");
   };
 
   const sendPaymentReminder = () => {
     if (!selected || !clientDetail) return;
-    const phone = selected.phone?.replace(/\D/g, "");
     const text = encodeURIComponent(
       `Dear ${selected.name},\n\nThis is a gentle payment reminder:\n\nTotal Billed: ₹${fmt(clientDetail.total_billed)}\nTotal Paid:   ₹${fmt(clientDetail.total_paid)}\nPending:      ₹${fmt(clientDetail.pending)}\n\nPlease clear the pending amount at your earliest convenience.\n\nThank you,\nBIP Fencing`,
     );
-    window.open(`https://wa.me/${phone}?text=${text}`, "_blank");
+    window.open(waLink(selected.phone, decodeURIComponent(text)), "_blank");
   };
 
   const filtered = clients.filter((c) => {
@@ -2136,7 +2223,13 @@ export default function Clients() {
 
   if (viewInvoice)
     return (
-      <TaxInvoiceView inv={viewInvoice} onBack={() => setViewInvoice(null)} />
+      <>
+        <TaxInvoiceView inv={viewInvoice} onBack={() => setViewInvoice(null)} />
+        <SharePrompt
+          pending={pendingShare}
+          onClose={() => setPendingShare(null)}
+        />
+      </>
     );
 
   if (viewQuotation)
@@ -2532,7 +2625,7 @@ export default function Clients() {
               </div>
               <div className="cl-detail__info">
                 <h3>{selected.name}</h3>
-                <p>{selected.phone || "—"}</p>
+                <p>{selected.phone ? showPhone(selected.phone) : "—"}</p>
                 <span
                   className={`cl-tag ${getStatusBadge(selected.net_balance ?? selected.pending, selected.total_billed).cls}`}
                 >
@@ -2678,7 +2771,10 @@ export default function Clients() {
                   <div className="cl-detail-rows">
                     {[
                       ["Total Billed", inr(clientDetail.total_billed)],
-                      ["Phone", selected.phone || "—"],
+                      [
+                        "Phone",
+                        selected.phone ? showPhone(selected.phone) : "—",
+                      ],
                       ["Address", selected.address || "—"],
                       ["GST", selected.gst || "—"],
                       [
@@ -3181,6 +3277,11 @@ export default function Clients() {
           </div>
         </div>
       )}
+
+      <SharePrompt
+        pending={pendingShare}
+        onClose={() => setPendingShare(null)}
+      />
 
       {/* ── Add Customer Modal ── */}
       {showAddModal && (
