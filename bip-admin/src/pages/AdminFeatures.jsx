@@ -680,8 +680,8 @@ const AdminFeatures = () => {
           {!isBranchSelected && role === "admin" && (
             <div className="af-alert">
               <i className="bi bi-exclamation-triangle-fill"></i>
-              Please select a specific branch (Valioor, Naguneri or
-              Kadambakulam) from the topbar to add an amount.
+              Please select a specific branch (Vallioor, Nanguneri or
+              kadambankulam) from the topbar to add an amount.
             </div>
           )}
 

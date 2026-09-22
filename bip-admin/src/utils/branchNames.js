@@ -1,23 +1,23 @@
 // =============================================================
 //  branchNames.js — DISPLAY names only
 //  Branch IDs, database values and backend logic stay unchanged.
-//  Branch 1 → Valioor, 2 → Naguneri, 3 → Kadambakulam
+//  Branch 1 → Vallioor, 2 → Nanguneri, 3 → kadambankulam
 // =============================================================
 
 export const BRANCH_LABELS = {
-  1: "Valioor",
-  2: "Naguneri",
-  3: "Kadambakulam",
+  1: "Vallioor",
+  2: "Nanguneri",
+  3: "kadambankulam",
 };
 
 // Old names kept coming from the database / older records
 const OLD_NAMES = {
-  "branch a": "Valioor",
-  "branch b": "Naguneri",
-  "branch c": "Kadambakulam",
-  bra: "Valioor",
-  brb: "Naguneri",
-  brc: "Kadambakulam",
+  "branch a": "Vallioor",
+  "branch b": "Nanguneri",
+  "branch c": "kadambankulam",
+  bra: "Vallioor",
+  brb: "Nanguneri",
+  brc: "kadambankulam",
 };
 
 // Accepts a branch id (1 / "1") or a stored name ("Branch A") and

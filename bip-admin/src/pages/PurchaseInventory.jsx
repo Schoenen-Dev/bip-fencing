@@ -512,7 +512,8 @@ export default function PurchaseInventory() {
                   <i className="bi bi-building"></i>
                   <div>
                     Viewing all branches. Select a specific branch from the
-                    topbar (Valioor, Naguneri or Kadambakulam) to deduct stock.
+                    topbar (Vallioor, Nanguneri or kadambankulam) to deduct
+                    stock.
                   </div>
                 </div>
               )}
