@@ -1,10 +1,10 @@
 import { useState } from "react";
+import { apiFetch } from "../utils/api";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import logo from "../assets/logo.jpeg";
 
 const LOGO_SRC = "/logo.jpeg";
-const API_BASE = "https://backend.bipfencing.in/backend";
 
 export default function Login() {
   const [username, setUsername] = useState("");
@@ -20,7 +20,7 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/login.php`, {
+      const res = await apiFetch("/login.php", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
