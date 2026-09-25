@@ -10,7 +10,7 @@ import jsPDF from "jspdf";
 import { applyPlugin } from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { apiFetch } from "../utils/api";
-import { branchLabel } from "../utils/branchNames";
+import { branchLabel, BRANCH_LABELS } from "../utils/branchNames";
 import { waLink } from "../utils/phone";
 
 // adds doc.autoTable() (works with every bundler build of the plugin)
@@ -263,6 +263,14 @@ function summaryItems(type, d) {
 const hasLedgerRows = (type) =>
   ["customer", "payment", "sales", "purchase", "product"].includes(type);
 
+const BRANCH_OPTIONS = [
+  { value: "all", label: "All Branches" },
+  ...Object.entries(BRANCH_LABELS).map(([id, name]) => ({
+    value: id,
+    label: name,
+  })),
+];
+
 const TITLES = {
   customer: "Customer Statement",
   payment: "Payment Statement",
@@ -281,6 +289,7 @@ export default function Statements() {
   const [anchor, setAnchor] = useState(today);
   const [from, setFrom] = useState(periodRange("monthly", today)[0]);
   const [to, setTo] = useState(periodRange("monthly", today)[1]);
+  const [stmtBranch, setStmtBranch] = useState("all"); // "all" or branch id "1"/"2"/"3"
   const [clientId, setClientId] = useState(params.get("client_id") || "");
   const [product, setProduct] = useState(params.get("product") || "");
   const [search, setSearch] = useState("");
@@ -293,12 +302,14 @@ export default function Statements() {
 
   const typeInfo = TYPES.find((t) => t.key === type) || TYPES[0];
   const columns = COLUMNS[type];
+  // Admin: use the statement-page picker; staff: always their own branch
+  const role = localStorage.getItem("role");
   const branchName =
-    localStorage.getItem("role") === "admin"
-      ? localStorage.getItem("admin_view_branch")
-        ? branchLabel(localStorage.getItem("admin_view_branch"))
-        : "All Branches"
-      : "";
+    role === "admin"
+      ? stmtBranch === "all"
+        ? "All Branches"
+        : branchLabel(stmtBranch)
+      : branchLabel(localStorage.getItem("admin_view_branch") || "");
 
   // Pickers
   useEffect(() => {
@@ -344,6 +355,8 @@ export default function Statements() {
     setError("");
     try {
       const q = new URLSearchParams({ type, from, to });
+      // Send the selected branch; "all" means no restriction (backend returns everything)
+      q.set("branch", stmtBranch === "all" ? "all" : stmtBranch);
       if (type === "customer" || (type === "payment" && clientId))
         q.set("client_id", clientId);
       if (type === "product") q.set("product", product);
@@ -759,6 +772,7 @@ export default function Statements() {
             className={`st-type${type === t.key ? " active" : ""}`}
             onClick={() => {
               // clear the old result when switching statement type
+              setStmtBranch("all");
               setType(t.key);
               setData(null);
               setError("");
@@ -768,6 +782,27 @@ export default function Statements() {
           </button>
         ))}
       </div>
+
+      {/* Branch picker (admin only) */}
+      {localStorage.getItem("role") === "admin" && (
+        <div className="st-branch-bar">
+          {BRANCH_OPTIONS.map((b) => (
+            <button
+              key={b.value}
+              type="button"
+              className={`st-branch-btn${stmtBranch === b.value ? " active" : ""}`}
+              onClick={() => {
+                setStmtBranch(b.value);
+                setData(null);
+                setError("");
+              }}
+            >
+              {b.value !== "all" && <i className="bi bi-building"></i>}{" "}
+              {b.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="st-card">
@@ -1058,6 +1093,9 @@ export default function Statements() {
 
 const CSS = `
 .st-page { padding: 24px; max-width: 1400px; margin: 0 auto; font-family: inherit; }
+.st-branch-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.st-branch-btn { border: 1px solid #cbd5e1; background: #fff; border-radius: 999px; padding: 7px 16px; font-weight: 700; font-size: 13px; color: #475569; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.st-branch-btn.active { background: #1e293b; border-color: #1e293b; color: #fff; }
 .st-header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
 .st-header__icon { width: 48px; height: 48px; border-radius: 12px; background: #008b3e; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 22px; }
 .st-header h1 { margin: 0; font-size: 22px; font-weight: 800; color: #0f172a; }
