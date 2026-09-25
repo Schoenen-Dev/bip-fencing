@@ -1612,55 +1612,6 @@ export default function TaxInvoice() {
             </div>
           </div>
 
-          {/* Consignee */}
-          <div className="at-card">
-            <div className="at-card__head">
-              <i className="bi bi-truck"></i>
-              <span>Consignee (Ship To)</span>
-            </div>
-            <div className="at-form-grid">
-              <div className="at-fg at-fg--span2">
-                <label className="at-label">Name</label>
-                <ClientNameInput
-                  className="at-input"
-                  name="consigneeName"
-                  value={form.consigneeName}
-                  onChange={handleForm}
-                  onPick={pickConsignee}
-                  clients={clientsList}
-                  placeholder="Type to search customers, or leave blank to copy from Buyer"
-                />
-              </div>
-              <div className="at-fg">
-                <label className="at-label">Address</label>
-                <input
-                  className="at-input"
-                  name="consigneeAddress"
-                  value={form.consigneeAddress}
-                  onChange={handleForm}
-                />
-              </div>
-              <div className="at-fg">
-                <label className="at-label">State</label>
-                <input
-                  className="at-input"
-                  name="consigneeState"
-                  value={form.consigneeState}
-                  onChange={handleForm}
-                />
-              </div>
-              <div className="at-fg">
-                <label className="at-label">State Code</label>
-                <input
-                  className="at-input"
-                  name="consigneeStateCode"
-                  value={form.consigneeStateCode}
-                  onChange={handleForm}
-                />
-              </div>
-            </div>
-          </div>
-
           {/* Buyer */}
           <div className="at-card">
             <div className="at-card__head">
@@ -1773,6 +1724,55 @@ export default function TaxInvoice() {
                   className="at-input"
                   name="buyerStateCode"
                   value={form.buyerStateCode}
+                  onChange={handleForm}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Consignee */}
+          <div className="at-card">
+            <div className="at-card__head">
+              <i className="bi bi-truck"></i>
+              <span>Consignee (Ship To)</span>
+            </div>
+            <div className="at-form-grid">
+              <div className="at-fg at-fg--span2">
+                <label className="at-label">Name</label>
+                <ClientNameInput
+                  className="at-input"
+                  name="consigneeName"
+                  value={form.consigneeName}
+                  onChange={handleForm}
+                  onPick={pickConsignee}
+                  clients={clientsList}
+                  placeholder="Type to search customers, or leave blank to copy from Buyer"
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">Address</label>
+                <input
+                  className="at-input"
+                  name="consigneeAddress"
+                  value={form.consigneeAddress}
+                  onChange={handleForm}
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">State</label>
+                <input
+                  className="at-input"
+                  name="consigneeState"
+                  value={form.consigneeState}
+                  onChange={handleForm}
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">State Code</label>
+                <input
+                  className="at-input"
+                  name="consigneeStateCode"
+                  value={form.consigneeStateCode}
                   onChange={handleForm}
                 />
               </div>
