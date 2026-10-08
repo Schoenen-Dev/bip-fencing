@@ -638,7 +638,7 @@ export default function PurchaseBill() {
                       <input
                         type="text"
                         name="product_id"
-                        placeholder="HSN / Code"
+                        placeholder="Product ID / Code"
                         className="at-input-t"
                         value={item.product_id}
                         onChange={(e) => handleItemChange(idx, e)}

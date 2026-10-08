@@ -157,6 +157,9 @@ const toISO = (txt) => {
 // The row's branchId is ALL_BRANCH; the product's own branch is kept in
 // productBranchId (used only for stock deduction). Saved as branch_id = NULL.
 const ALL_BRANCH = "all";
+// Purchase Catalog products get this id prefix in the picker (Product Catalog ids stay numeric)
+const PURCHASE_PREFIX = "pc_";
+const isPurchaseId = (id) => String(id ?? "").startsWith(PURCHASE_PREFIX);
 const stockBranchOf = (p) =>
   p.branchId === ALL_BRANCH ? p.productBranchId : p.branchId;
 
@@ -770,20 +773,49 @@ export default function TaxInvoice() {
       const res = await apiFetch("/products.php", { branchId });
       if (!res.ok) return;
       const data = await res.json();
+      // Purchase Catalog items of this branch that have stock (additive)
+      let purchased = [];
+      try {
+        const pr = await apiFetch("/purchase_products.php", { branchId });
+        if (pr.ok) purchased = await pr.json();
+      } catch (_) {}
+      const ownNames = new Set(
+        data.map((p) => String(p.product_name).trim().toLowerCase()),
+      );
       setProductsByBranch((prev) => ({
         ...prev,
-        [branchId]: data.map((p) => ({
-          id: p.id,
-          productName: p.product_name,
-          hsn: p.hsn,
-          category: p.category,
-          unit: p.unit,
-          sellingPrice: p.selling_price,
-          stockQty: p.stock_qty,
-          minStock: p.min_stock,
-          description: p.description,
-          _raw: p,
-        })),
+        [branchId]: [
+          ...data.map((p) => ({
+            id: p.id,
+            productName: p.product_name,
+            hsn: p.hsn,
+            category: p.category,
+            unit: p.unit,
+            sellingPrice: p.selling_price,
+            stockQty: p.stock_qty,
+            minStock: p.min_stock,
+            description: p.description,
+            _raw: p,
+          })),
+          ...(Array.isArray(purchased) ? purchased : [])
+            .filter(
+              (p) =>
+                Number(p.stock_qty) > 0 &&
+                !ownNames.has(String(p.product_name).trim().toLowerCase()),
+            )
+            .map((p) => ({
+              id: PURCHASE_PREFIX + p.id,
+              productName: p.product_name,
+              hsn: p.hsn,
+              category: p.category,
+              unit: p.unit,
+              sellingPrice: p.selling_price,
+              stockQty: p.stock_qty,
+              minStock: p.min_stock,
+              description: p.description,
+              isPurchase: true,
+            })),
+        ],
       }));
     } catch (_) {}
   }
@@ -1088,6 +1120,27 @@ export default function TaxInvoice() {
       for (const idx of pendingIndexes) {
         const invoiceItem = products[idx];
         const usedQty = parseFloat(invoiceItem.qty);
+        if (isPurchaseId(invoiceItem.productId)) {
+          const dRes = await apiFetch(
+            `/purchase_products.php?action=sale-deduct&id=${String(invoiceItem.productId).slice(PURCHASE_PREFIX.length)}`,
+            {
+              method: "POST",
+              branchId: stockBranchOf(invoiceItem),
+              body: JSON.stringify({
+                qty: usedQty,
+                branch_id: stockBranchOf(invoiceItem),
+              }),
+            },
+          );
+          const dData = await dRes.json().catch(() => ({}));
+          if (!dRes.ok) {
+            alert(`⚠️ ${dData.error || "Stock update failed"}`);
+            setStockReducing(false);
+            return false;
+          }
+          deductedIndexes.push(idx);
+          continue;
+        }
         const match = (
           dbProductsByBranch[stockBranchOf(invoiceItem)] || []
         ).find((p) => String(p.id) === String(invoiceItem.productId));
@@ -1612,6 +1665,55 @@ export default function TaxInvoice() {
             </div>
           </div>
 
+          {/* Consignee */}
+          <div className="at-card">
+            <div className="at-card__head">
+              <i className="bi bi-truck"></i>
+              <span>Consignee (Ship To)</span>
+            </div>
+            <div className="at-form-grid">
+              <div className="at-fg at-fg--span2">
+                <label className="at-label">Name</label>
+                <ClientNameInput
+                  className="at-input"
+                  name="consigneeName"
+                  value={form.consigneeName}
+                  onChange={handleForm}
+                  onPick={pickConsignee}
+                  clients={clientsList}
+                  placeholder="Type to search customers, or leave blank to copy from Buyer"
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">Address</label>
+                <input
+                  className="at-input"
+                  name="consigneeAddress"
+                  value={form.consigneeAddress}
+                  onChange={handleForm}
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">State</label>
+                <input
+                  className="at-input"
+                  name="consigneeState"
+                  value={form.consigneeState}
+                  onChange={handleForm}
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">State Code</label>
+                <input
+                  className="at-input"
+                  name="consigneeStateCode"
+                  value={form.consigneeStateCode}
+                  onChange={handleForm}
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Buyer */}
           <div className="at-card">
             <div className="at-card__head">
@@ -1730,55 +1832,6 @@ export default function TaxInvoice() {
             </div>
           </div>
 
-          {/* Consignee */}
-          <div className="at-card">
-            <div className="at-card__head">
-              <i className="bi bi-truck"></i>
-              <span>Consignee (Ship To)</span>
-            </div>
-            <div className="at-form-grid">
-              <div className="at-fg at-fg--span2">
-                <label className="at-label">Name</label>
-                <ClientNameInput
-                  className="at-input"
-                  name="consigneeName"
-                  value={form.consigneeName}
-                  onChange={handleForm}
-                  onPick={pickConsignee}
-                  clients={clientsList}
-                  placeholder="Type to search customers, or leave blank to copy from Buyer"
-                />
-              </div>
-              <div className="at-fg">
-                <label className="at-label">Address</label>
-                <input
-                  className="at-input"
-                  name="consigneeAddress"
-                  value={form.consigneeAddress}
-                  onChange={handleForm}
-                />
-              </div>
-              <div className="at-fg">
-                <label className="at-label">State</label>
-                <input
-                  className="at-input"
-                  name="consigneeState"
-                  value={form.consigneeState}
-                  onChange={handleForm}
-                />
-              </div>
-              <div className="at-fg">
-                <label className="at-label">State Code</label>
-                <input
-                  className="at-input"
-                  name="consigneeStateCode"
-                  value={form.consigneeStateCode}
-                  onChange={handleForm}
-                />
-              </div>
-            </div>
-          </div>
-
           {/* Products */}
           <div className="at-card">
             <div className="at-card__head">
@@ -1789,7 +1842,7 @@ export default function TaxInvoice() {
               <i className="bi bi-info-circle-fill"></i>
               <div>
                 Pick a <strong>Branch</strong> for each row first — items can
-                come from Vallioor, Nanguneri and kadambankulam on the same
+                come from Valioor, Naguneri and Kadambakulam on the same
                 invoice. Once a branch is chosen, its product list appears in
                 Description.
               </div>
@@ -1830,6 +1883,25 @@ export default function TaxInvoice() {
                           optionValue: sp.id,
                           label: sp.productName,
                         }));
+                    // Product Catalog / Purchase Catalog shown as two groups
+                    const pickerGroups = [
+                      {
+                        label: "Product Catalog",
+                        options: branchProducts.filter((sp) => !sp.isPurchase),
+                      },
+                      {
+                        label: "Purchase Catalog",
+                        options: branchProducts.filter((sp) => sp.isPurchase),
+                      },
+                    ]
+                      .filter((g) => g.options.length)
+                      .map((g) => ({
+                        label: g.label,
+                        options: g.options.map((sp) => ({
+                          value: String(sp.optionValue),
+                          label: sp.label,
+                        })),
+                      }));
                     const selectedValue = !p.productId
                       ? ""
                       : isAllBranch
@@ -1866,10 +1938,7 @@ export default function TaxInvoice() {
                           {p.branchId ? (
                             <Select
                               inputId={`product_${i}`}
-                              options={branchProducts.map((sp) => ({
-                                value: String(sp.optionValue),
-                                label: sp.label,
-                              }))}
+                              options={pickerGroups}
                               value={
                                 selectedValue
                                   ? {

@@ -182,6 +182,15 @@ export default function Sidebar() {
             <i className="bi bi-box-seam"></i>
             <span>Products</span>
           </NavLink>
+          <NavLink
+            to="/purchase-catalog"
+            className={({ isActive }) =>
+              `nav-item-link nav-sub${isActive ? " active" : ""}`
+            }
+          >
+            <i className="bi bi-bag-check"></i>
+            <span>Purchase Catalog</span>
+          </NavLink>
         </DropdownItem>
 
         <div className="sb-section">HR</div>

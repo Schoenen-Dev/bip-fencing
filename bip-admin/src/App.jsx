@@ -64,7 +64,11 @@ function AppRoutes() {
 
         {/* Stock Management */}
         <Route path="purchase-inventory" element={<PurchaseInventory />} />
-        <Route path="products" element={<Products />} />
+        <Route path="products" element={<Products key="own" />} />
+        <Route
+          path="purchase-catalog"
+          element={<Products key="purchase" mode="purchase" />}
+        />
 
         {/* Staff Management */}
         {/* <Route path="admin-features" element={<AdminFeatures />} /> */}

@@ -1,4 +1,5 @@
 import { useState, useEffect, Fragment } from "react";
+import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../utils/api";
 import { branchLabel } from "../utils/branchNames";
 
@@ -26,6 +27,9 @@ const emptyForm = {
   stockQty: "",
   minStock: "",
   description: "",
+  supplier: "",
+  sku: "",
+  reference: "",
 };
 
 const STOCK_META = {
@@ -97,6 +101,8 @@ function mapFromDB(p) {
     minStock: p.min_stock,
     description: p.description,
     branchId: p.branch_id,
+    supplier: p.supplier || "",
+    sku: p.sku || "",
   };
 }
 
@@ -110,7 +116,13 @@ function mapDamageFromDB(d) {
   };
 }
 
-export default function Products() {
+// mode="own"      -> Product Catalog  (/products.php)          unchanged
+// mode="purchase" -> Purchase Catalog (/purchase_products.php) same page, same logic
+export default function Products({ mode = "own" }) {
+  const isPurchase = mode === "purchase";
+  const API = isPurchase ? "/purchase_products.php" : "/products.php";
+  const navigate = useNavigate();
+
   const [form, setForm] = useState(emptyForm);
   const [products, setProducts] = useState([]);
   const [editingId, setEditingId] = useState(null);
@@ -144,6 +156,7 @@ export default function Products() {
 
   useEffect(() => {
     fetchProducts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -174,7 +187,7 @@ export default function Products() {
     setLoading(true);
     setError("");
     try {
-      const res = await apiFetch("/products.php");
+      const res = await apiFetch(API);
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const data = await res.json();
       const loaded = data.map(mapFromDB);
@@ -216,7 +229,7 @@ export default function Products() {
     setDamageLoading(true);
     setError("");
     try {
-      const res = await apiFetch("/products.php?damage=1");
+      const res = await apiFetch(`${API}?damage=1`);
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const data = await res.json();
       setDamageLog(data.map(mapDamageFromDB));
@@ -258,7 +271,7 @@ export default function Products() {
       return;
     }
     try {
-      const res = await apiFetch(`/products.php?damage=1&id=${id}`, {
+      const res = await apiFetch(`${API}?damage=1&id=${id}`, {
         method: "PUT",
         body: JSON.stringify({
           qty,
@@ -282,7 +295,7 @@ export default function Products() {
     if (!deleteConfirmDamage) return;
     const id = deleteConfirmDamage.id;
     try {
-      const res = await apiFetch(`/products.php?damage=1&id=${id}`, {
+      const res = await apiFetch(`${API}?damage=1&id=${id}`, {
         method: "DELETE",
       });
       if (!res.ok) {
@@ -318,7 +331,7 @@ export default function Products() {
       return;
     }
     try {
-      const res = await apiFetch(`/products.php?action=stock-in&id=${id}`, {
+      const res = await apiFetch(`${API}?action=stock-in&id=${id}`, {
         method: "POST",
         body: JSON.stringify({ qty }),
       });
@@ -359,7 +372,7 @@ export default function Products() {
     }
     setError("");
     try {
-      const res = await apiFetch(`/products.php?action=stock-out&id=${p.id}`, {
+      const res = await apiFetch(`${API}?action=stock-out&id=${p.id}`, {
         method: "POST",
         body: JSON.stringify({ qty }),
       });
@@ -404,7 +417,7 @@ export default function Products() {
       if (editingId !== null) {
         const extra = Number(addStockQty) || 0;
         const finalQty = Number(form.stockQty) + extra;
-        res = await apiFetch(`/products.php?id=${editingId}`, {
+        res = await apiFetch(`${API}?id=${editingId}`, {
           method: "PUT",
           body: JSON.stringify({
             ...form,
@@ -412,7 +425,7 @@ export default function Products() {
           }),
         });
       } else {
-        res = await apiFetch("/products.php", {
+        res = await apiFetch(API, {
           method: "POST",
           body: JSON.stringify(form),
         });
@@ -457,6 +470,9 @@ export default function Products() {
       stockQty: p.stockQty,
       minStock: p.minStock,
       description: p.description,
+      supplier: p.supplier || "",
+      sku: p.sku || "",
+      reference: "",
     });
     setEditingId(p.id);
     setAddStockQty("");
@@ -468,7 +484,7 @@ export default function Products() {
     if (!deleteConfirmProduct) return;
     const id = deleteConfirmProduct.id;
     try {
-      const res = await apiFetch(`/products.php?id=${id}`, {
+      const res = await apiFetch(`${API}?id=${id}`, {
         method: "DELETE",
       });
       if (!res.ok) throw new Error("Delete failed");
@@ -652,9 +668,13 @@ export default function Products() {
               <i className="bi bi-box-seam-fill"></i>
             </div>
             <div>
-              <h1 className="at-header__title">Products</h1>
+              <h1 className="at-header__title">
+                {isPurchase ? "Purchase Catalog" : "Products"}
+              </h1>
               <p className="at-header__sub">
-                Product &amp; Inventory Management
+                {isPurchase
+                  ? "Products purchased from suppliers"
+                  : "Product & Inventory Management"}
               </p>
             </div>
           </div>
@@ -663,11 +683,41 @@ export default function Products() {
               <i className="bi bi-x-lg"></i> Close
             </button>
           ) : (
-            isAdmin && (
-              <button className="at-btn at-btn--primary" onClick={openAddForm}>
-                <i className="bi bi-plus-lg"></i> Add Product
-              </button>
-            )
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              {isPurchase ? (
+                <>
+                  <button
+                    className="at-btn at-btn--ghost"
+                    onClick={() => navigate("/products")}
+                  >
+                    <i className="bi bi-box-seam"></i> Product Catalog
+                  </button>
+                  <button
+                    className="at-btn at-btn--primary"
+                    onClick={openAddForm}
+                  >
+                    <i className="bi bi-cart-plus"></i> Add Purchase
+                  </button>
+                </>
+              ) : (
+                <>
+                  {isAdmin && (
+                    <button
+                      className="at-btn at-btn--primary"
+                      onClick={openAddForm}
+                    >
+                      <i className="bi bi-plus-lg"></i> Add Product
+                    </button>
+                  )}
+                  <button
+                    className="at-btn at-btn--primary"
+                    onClick={() => navigate("/purchase-catalog")}
+                  >
+                    <i className="bi bi-bag-check"></i> Purchase Catalog
+                  </button>
+                </>
+              )}
+            </div>
           )}
         </div>
 
@@ -774,7 +824,13 @@ export default function Products() {
                     className={`bi ${editingId !== null ? "bi-pencil-fill" : "bi-plus-circle-fill"}`}
                   ></i>
                   <span>
-                    {editingId !== null ? "Edit Product" : "Add New Product"}
+                    {editingId !== null
+                      ? isPurchase
+                        ? "Edit Purchase Product"
+                        : "Edit Product"
+                      : isPurchase
+                        ? "Add Purchase"
+                        : "Add New Product"}
                   </span>
                 </div>
               </div>
@@ -809,7 +865,9 @@ export default function Products() {
                   />
                 </div>
                 <div className="at-fg">
-                  <label className="at-label">Date</label>
+                  <label className="at-label">
+                    {isPurchase ? "Purchase Date" : "Date"}
+                  </label>
                   <input
                     type="date"
                     className="at-input"
@@ -818,6 +876,41 @@ export default function Products() {
                     onChange={handleChange}
                   />
                 </div>
+                {isPurchase && (
+                  <>
+                    <div className="at-fg">
+                      <label className="at-label">Supplier</label>
+                      <input
+                        className="at-input"
+                        name="supplier"
+                        value={form.supplier}
+                        onChange={handleChange}
+                      />
+                    </div>
+                    <div className="at-fg">
+                      <label className="at-label">Product Code / SKU</label>
+                      <input
+                        className="at-input"
+                        name="sku"
+                        value={form.sku}
+                        onChange={handleChange}
+                      />
+                    </div>
+                    {editingId === null && (
+                      <div className="at-fg">
+                        <label className="at-label">
+                          Purchase Bill / Reference
+                        </label>
+                        <input
+                          className="at-input"
+                          name="reference"
+                          value={form.reference}
+                          onChange={handleChange}
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
               <div className="at-form-grid at-form-grid--4">
                 <div className="at-fg">
@@ -834,7 +927,11 @@ export default function Products() {
                   </select>
                 </div>
                 <div className="at-fg">
-                  <label className="at-label">Factory Price (INR)</label>
+                  <label className="at-label">
+                    {isPurchase
+                      ? "Purchase Price (INR)"
+                      : "Factory Price (INR)"}
+                  </label>
                   <input
                     type="number"
                     className="at-input"
@@ -876,7 +973,11 @@ export default function Products() {
                 style={{ marginBottom: 20 }}
               >
                 <div className="at-fg">
-                  <label className="at-label">Current Stock Qty</label>
+                  <label className="at-label">
+                    {isPurchase && editingId === null
+                      ? "Quantity Purchased"
+                      : "Current Stock Qty"}
+                  </label>
                   {(() => {
                     const extra = Number(addStockQty) || 0;
                     const base = Number(form.stockQty) || 0;
@@ -976,7 +1077,13 @@ export default function Products() {
                   <i
                     className={`bi ${editingId !== null ? "bi-check-circle" : "bi-check-lg"}`}
                   ></i>
-                  {editingId !== null ? "Update Product" : "Save Product"}
+                  {editingId !== null
+                    ? isPurchase
+                      ? "Update Purchase Product"
+                      : "Update Product"
+                    : isPurchase
+                      ? "Save Purchase"
+                      : "Save Product"}
                 </button>
                 <button
                   type="button"
@@ -1012,7 +1119,9 @@ export default function Products() {
                 <div className="at-card__head">
                   <div className="at-card__head-left">
                     <i className="bi bi-box-seam"></i>
-                    <span>Product Catalog</span>
+                    <span>
+                      {isPurchase ? "Purchase Catalog" : "Product Catalog"}
+                    </span>
                   </div>
                   <span className="at-card__count">
                     {loading
@@ -1087,13 +1196,29 @@ export default function Products() {
                                 {p.unit}
                               </div>
                               <div className="at-bubble-stat">
-                                <b>Factory Price</b>
+                                <b>
+                                  {isPurchase
+                                    ? "Purchase Price"
+                                    : "Factory Price"}
+                                </b>
                                 &#8377;{Number(p.factoryPrice || 0).toFixed(2)}
                               </div>
                               <div className="at-bubble-stat">
                                 <b>Selling Price</b>
                                 &#8377;{Number(p.sellingPrice || 0).toFixed(2)}
                               </div>
+                              {isPurchase && p.supplier && (
+                                <div className="at-bubble-stat">
+                                  <b>Supplier</b>
+                                  {p.supplier}
+                                </div>
+                              )}
+                              {isPurchase && p.sku && (
+                                <div className="at-bubble-stat">
+                                  <b>Code / SKU</b>
+                                  {p.sku}
+                                </div>
+                              )}
                               <div className="at-bubble-stat">
                                 <b>Branch</b>
                                 <span
