@@ -776,7 +776,9 @@ export default function TaxInvoice() {
       // Purchase Catalog items of this branch that have stock (additive)
       let purchased = [];
       try {
-        const pr = await apiFetch("/purchase_products.php", { branchId });
+        const pr = await apiFetch("/products.php?catalog=purchase", {
+          branchId,
+        });
         if (pr.ok) purchased = await pr.json();
       } catch (_) {}
       const ownNames = new Set(
@@ -1122,7 +1124,7 @@ export default function TaxInvoice() {
         const usedQty = parseFloat(invoiceItem.qty);
         if (isPurchaseId(invoiceItem.productId)) {
           const dRes = await apiFetch(
-            `/purchase_products.php?action=sale-deduct&id=${String(invoiceItem.productId).slice(PURCHASE_PREFIX.length)}`,
+            `/products.php?catalog=purchase&action=sale-deduct&id=${String(invoiceItem.productId).slice(PURCHASE_PREFIX.length)}`,
             {
               method: "POST",
               branchId: stockBranchOf(invoiceItem),

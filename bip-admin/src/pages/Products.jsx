@@ -117,10 +117,12 @@ function mapDamageFromDB(d) {
 }
 
 // mode="own"      -> Product Catalog  (/products.php)          unchanged
-// mode="purchase" -> Purchase Catalog (/purchase_products.php) same page, same logic
+// mode="purchase" -> Purchase Catalog (/products.php?catalog=purchase) same page, same logic
 export default function Products({ mode = "own" }) {
   const isPurchase = mode === "purchase";
-  const API = isPurchase ? "/purchase_products.php" : "/products.php";
+  const API = "/products.php";
+  const Q = isPurchase ? "catalog=purchase&" : ""; // Purchase Catalog uses the same endpoint
+  const LIST = isPurchase ? `${API}?catalog=purchase` : API;
   const navigate = useNavigate();
 
   const [form, setForm] = useState(emptyForm);
@@ -187,7 +189,7 @@ export default function Products({ mode = "own" }) {
     setLoading(true);
     setError("");
     try {
-      const res = await apiFetch(API);
+      const res = await apiFetch(LIST);
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const data = await res.json();
       const loaded = data.map(mapFromDB);
@@ -229,7 +231,7 @@ export default function Products({ mode = "own" }) {
     setDamageLoading(true);
     setError("");
     try {
-      const res = await apiFetch(`${API}?damage=1`);
+      const res = await apiFetch(`${API}?${Q}damage=1`);
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const data = await res.json();
       setDamageLog(data.map(mapDamageFromDB));
@@ -271,7 +273,7 @@ export default function Products({ mode = "own" }) {
       return;
     }
     try {
-      const res = await apiFetch(`${API}?damage=1&id=${id}`, {
+      const res = await apiFetch(`${API}?${Q}damage=1&id=${id}`, {
         method: "PUT",
         body: JSON.stringify({
           qty,
@@ -295,7 +297,7 @@ export default function Products({ mode = "own" }) {
     if (!deleteConfirmDamage) return;
     const id = deleteConfirmDamage.id;
     try {
-      const res = await apiFetch(`${API}?damage=1&id=${id}`, {
+      const res = await apiFetch(`${API}?${Q}damage=1&id=${id}`, {
         method: "DELETE",
       });
       if (!res.ok) {
@@ -331,7 +333,7 @@ export default function Products({ mode = "own" }) {
       return;
     }
     try {
-      const res = await apiFetch(`${API}?action=stock-in&id=${id}`, {
+      const res = await apiFetch(`${API}?${Q}action=stock-in&id=${id}`, {
         method: "POST",
         body: JSON.stringify({ qty }),
       });
@@ -372,7 +374,7 @@ export default function Products({ mode = "own" }) {
     }
     setError("");
     try {
-      const res = await apiFetch(`${API}?action=stock-out&id=${p.id}`, {
+      const res = await apiFetch(`${API}?${Q}action=stock-out&id=${p.id}`, {
         method: "POST",
         body: JSON.stringify({ qty }),
       });
@@ -417,7 +419,7 @@ export default function Products({ mode = "own" }) {
       if (editingId !== null) {
         const extra = Number(addStockQty) || 0;
         const finalQty = Number(form.stockQty) + extra;
-        res = await apiFetch(`${API}?id=${editingId}`, {
+        res = await apiFetch(`${API}?${Q}id=${editingId}`, {
           method: "PUT",
           body: JSON.stringify({
             ...form,
@@ -425,7 +427,7 @@ export default function Products({ mode = "own" }) {
           }),
         });
       } else {
-        res = await apiFetch(API, {
+        res = await apiFetch(LIST, {
           method: "POST",
           body: JSON.stringify(form),
         });
@@ -484,7 +486,7 @@ export default function Products({ mode = "own" }) {
     if (!deleteConfirmProduct) return;
     const id = deleteConfirmProduct.id;
     try {
-      const res = await apiFetch(`${API}?id=${id}`, {
+      const res = await apiFetch(`${API}?${Q}id=${id}`, {
         method: "DELETE",
       });
       if (!res.ok) throw new Error("Delete failed");
