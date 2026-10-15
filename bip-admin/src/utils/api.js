@@ -20,7 +20,7 @@ function getApiBase() {
   //
   //  For bipbilling.co.in the PHP files are at backend.bipbilling.co.in
   // Production backend
-  return "https://backend.bipfencing.in/backend";
+  return "https://api.bipbilling.co.in";
 }
 
 const API_BASE = getApiBase();
