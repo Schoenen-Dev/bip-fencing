@@ -5,17 +5,7 @@ import { branchLabel } from "../utils/branchNames";
 
 const todayDate = () => new Date().toISOString().slice(0, 10);
 
-const UNITS = [
-  "Pcs",
-  "Kg",
-  "Meter",
-  "Roll",
-  "Box",
-  "Set",
-  "Liter",
-  "Ton",
-  "Nos",
-];
+const UNITS = ["Pcs", "Kg", "Meter", "Roll", "Box", "Set", "Liter", "Ton", "Nos"];
 
 const emptyForm = {
   productName: "",
@@ -63,23 +53,12 @@ const getStockStatus = (qty, min) => {
 
 // Display only: branches that carry a product with this name (from the loaded list)
 function branchesForName(list, name) {
-  const key = String(name || "")
-    .trim()
-    .toLowerCase();
+  const key = String(name || "").trim().toLowerCase();
   const ids = [
     ...new Set(
       list
-        .filter(
-          (x) =>
-            String(x.productName || "")
-              .trim()
-              .toLowerCase() === key,
-        )
-        .map((x) =>
-          x.branchId === null || x.branchId === undefined
-            ? ""
-            : String(x.branchId),
-        ),
+        .filter((x) => String(x.productName || "").trim().toLowerCase() === key)
+        .map((x) => (x.branchId === null || x.branchId === undefined ? "" : String(x.branchId))),
     ),
   ];
   return ids
@@ -135,6 +114,7 @@ export default function Products({ mode = "own" }) {
   const [showForm, setShowForm] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
   const [activeView, setActiveView] = useState("products"); // "products" | "damage"
+  const [searchTerm, setSearchTerm] = useState("");
   const [damageLog, setDamageLog] = useState([]);
   const [damageLoading, setDamageLoading] = useState(false);
   const [stockInOpenId, setStockInOpenId] = useState(null);
@@ -512,6 +492,12 @@ export default function Products({ mode = "own" }) {
     setShowForm(false);
   };
 
+  // Search box: display filter only (by product name) — products, stock and API are untouched
+  const searchKey = searchTerm.trim().toLowerCase();
+  const visibleProducts = searchKey
+    ? products.filter((p) => String(p.productName || "").toLowerCase().includes(searchKey))
+    : products;
+
   const totalProducts = products.length;
   const inStockCount = products.filter(
     (p) => getStockStatus(p.stockQty, p.minStock) === "ok",
@@ -622,6 +608,12 @@ export default function Products({ mode = "own" }) {
         .at-chip--out { color: #c2410c; border-color: #fed7aa; }
         .at-chip--out:hover { background: #fff7ed; }
 
+        .at-search { position: relative; margin-bottom: 18px; max-width: 420px; }
+        .at-search > i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; pointer-events: none; }
+        .at-search .at-input { padding-left: 36px; padding-right: 34px; }
+        .at-search__clear { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 28px; height: 28px; border: none; background: transparent; color: #64748b; cursor: pointer; border-radius: 6px; }
+        .at-search__clear:hover { background: #f1f5f9; }
+        @media (max-width: 600px) { .at-search { max-width: 100%; } }
         .at-empty { display: flex; flex-direction: column; align-items: center; padding: 52px 20px; color: #94a3b8; }
         .at-empty i { font-size: 40px; margin-bottom: 10px; }
         .at-empty p { margin: 0 0 4px; font-weight: 600; color: #64748b; font-size: 14px; }
@@ -670,13 +662,9 @@ export default function Products({ mode = "own" }) {
               <i className="bi bi-box-seam-fill"></i>
             </div>
             <div>
-              <h1 className="at-header__title">
-                {isPurchase ? "Purchase Catalog" : "Products"}
-              </h1>
+              <h1 className="at-header__title">{isPurchase ? "Purchase Catalog" : "Products"}</h1>
               <p className="at-header__sub">
-                {isPurchase
-                  ? "Products purchased from suppliers"
-                  : "Product & Inventory Management"}
+                {isPurchase ? "Products purchased from suppliers" : "Product & Inventory Management"}
               </p>
             </div>
           </div>
@@ -688,33 +676,21 @@ export default function Products({ mode = "own" }) {
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               {isPurchase ? (
                 <>
-                  <button
-                    className="at-btn at-btn--ghost"
-                    onClick={() => navigate("/products")}
-                  >
+                  <button className="at-btn at-btn--ghost" onClick={() => navigate("/products")}>
                     <i className="bi bi-box-seam"></i> Product Catalog
                   </button>
-                  <button
-                    className="at-btn at-btn--primary"
-                    onClick={openAddForm}
-                  >
+                  <button className="at-btn at-btn--primary" onClick={openAddForm}>
                     <i className="bi bi-cart-plus"></i> Add Purchase
                   </button>
                 </>
               ) : (
                 <>
                   {isAdmin && (
-                    <button
-                      className="at-btn at-btn--primary"
-                      onClick={openAddForm}
-                    >
+                    <button className="at-btn at-btn--primary" onClick={openAddForm}>
                       <i className="bi bi-plus-lg"></i> Add Product
                     </button>
                   )}
-                  <button
-                    className="at-btn at-btn--primary"
-                    onClick={() => navigate("/purchase-catalog")}
-                  >
+                  <button className="at-btn at-btn--primary" onClick={() => navigate("/purchase-catalog")}>
                     <i className="bi bi-bag-check"></i> Purchase Catalog
                   </button>
                 </>
@@ -827,12 +803,8 @@ export default function Products({ mode = "own" }) {
                   ></i>
                   <span>
                     {editingId !== null
-                      ? isPurchase
-                        ? "Edit Purchase Product"
-                        : "Edit Product"
-                      : isPurchase
-                        ? "Add Purchase"
-                        : "Add New Product"}
+                      ? isPurchase ? "Edit Purchase Product" : "Edit Product"
+                      : isPurchase ? "Add Purchase" : "Add New Product"}
                   </span>
                 </div>
               </div>
@@ -867,9 +839,7 @@ export default function Products({ mode = "own" }) {
                   />
                 </div>
                 <div className="at-fg">
-                  <label className="at-label">
-                    {isPurchase ? "Purchase Date" : "Date"}
-                  </label>
+                  <label className="at-label">{isPurchase ? "Purchase Date" : "Date"}</label>
                   <input
                     type="date"
                     className="at-input"
@@ -882,33 +852,16 @@ export default function Products({ mode = "own" }) {
                   <>
                     <div className="at-fg">
                       <label className="at-label">Supplier</label>
-                      <input
-                        className="at-input"
-                        name="supplier"
-                        value={form.supplier}
-                        onChange={handleChange}
-                      />
+                      <input className="at-input" name="supplier" value={form.supplier} onChange={handleChange} />
                     </div>
                     <div className="at-fg">
                       <label className="at-label">Product Code / SKU</label>
-                      <input
-                        className="at-input"
-                        name="sku"
-                        value={form.sku}
-                        onChange={handleChange}
-                      />
+                      <input className="at-input" name="sku" value={form.sku} onChange={handleChange} />
                     </div>
                     {editingId === null && (
                       <div className="at-fg">
-                        <label className="at-label">
-                          Purchase Bill / Reference
-                        </label>
-                        <input
-                          className="at-input"
-                          name="reference"
-                          value={form.reference}
-                          onChange={handleChange}
-                        />
+                        <label className="at-label">Purchase Bill / Reference</label>
+                        <input className="at-input" name="reference" value={form.reference} onChange={handleChange} />
                       </div>
                     )}
                   </>
@@ -929,11 +882,7 @@ export default function Products({ mode = "own" }) {
                   </select>
                 </div>
                 <div className="at-fg">
-                  <label className="at-label">
-                    {isPurchase
-                      ? "Purchase Price (INR)"
-                      : "Factory Price (INR)"}
-                  </label>
+                  <label className="at-label">{isPurchase ? "Purchase Price (INR)" : "Factory Price (INR)"}</label>
                   <input
                     type="number"
                     className="at-input"
@@ -975,11 +924,7 @@ export default function Products({ mode = "own" }) {
                 style={{ marginBottom: 20 }}
               >
                 <div className="at-fg">
-                  <label className="at-label">
-                    {isPurchase && editingId === null
-                      ? "Quantity Purchased"
-                      : "Current Stock Qty"}
-                  </label>
+                  <label className="at-label">{isPurchase && editingId === null ? "Quantity Purchased" : "Current Stock Qty"}</label>
                   {(() => {
                     const extra = Number(addStockQty) || 0;
                     const base = Number(form.stockQty) || 0;
@@ -1080,12 +1025,8 @@ export default function Products({ mode = "own" }) {
                     className={`bi ${editingId !== null ? "bi-check-circle" : "bi-check-lg"}`}
                   ></i>
                   {editingId !== null
-                    ? isPurchase
-                      ? "Update Purchase Product"
-                      : "Update Product"
-                    : isPurchase
-                      ? "Save Purchase"
-                      : "Save Product"}
+                    ? isPurchase ? "Update Purchase Product" : "Update Product"
+                    : isPurchase ? "Save Purchase" : "Save Product"}
                 </button>
                 <button
                   type="button"
@@ -1121,15 +1062,32 @@ export default function Products({ mode = "own" }) {
                 <div className="at-card__head">
                   <div className="at-card__head-left">
                     <i className="bi bi-box-seam"></i>
-                    <span>
-                      {isPurchase ? "Purchase Catalog" : "Product Catalog"}
-                    </span>
+                    <span>{isPurchase ? "Purchase Catalog" : "Product Catalog"}</span>
                   </div>
                   <span className="at-card__count">
                     {loading
                       ? "Loading…"
-                      : `${products.length} product${products.length !== 1 ? "s" : ""}`}
+                      : searchKey
+                        ? `${visibleProducts.length} of ${products.length} product${products.length !== 1 ? "s" : ""}`
+                        : `${products.length} product${products.length !== 1 ? "s" : ""}`}
                   </span>
+                </div>
+
+                <div className="at-search">
+                  <i className="bi bi-search"></i>
+                  <input
+                    type="search"
+                    className="at-input"
+                    placeholder="Search by product name…"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    aria-label="Search products by name"
+                  />
+                  {searchTerm && (
+                    <button type="button" className="at-search__clear" onClick={() => setSearchTerm("")} aria-label="Clear search">
+                      <i className="bi bi-x-lg"></i>
+                    </button>
+                  )}
                 </div>
 
                 {loading ? (
@@ -1143,9 +1101,15 @@ export default function Products({ mode = "own" }) {
                     <p>No products yet</p>
                     <span>Add your first product to get started.</span>
                   </div>
+                ) : visibleProducts.length === 0 ? (
+                  <div className="at-empty">
+                    <i className="bi bi-search"></i>
+                    <p>No matching product</p>
+                    <span>Try a different name.</span>
+                  </div>
                 ) : (
                   <div className="at-timeline">
-                    {products.map((p) => {
+                    {visibleProducts.map((p) => {
                       const status = getStockStatus(p.stockQty, p.minStock);
                       const meta = STOCK_META[status];
                       return (
@@ -1198,11 +1162,7 @@ export default function Products({ mode = "own" }) {
                                 {p.unit}
                               </div>
                               <div className="at-bubble-stat">
-                                <b>
-                                  {isPurchase
-                                    ? "Purchase Price"
-                                    : "Factory Price"}
-                                </b>
+                                <b>{isPurchase ? "Purchase Price" : "Factory Price"}</b>
                                 &#8377;{Number(p.factoryPrice || 0).toFixed(2)}
                               </div>
                               <div className="at-bubble-stat">
@@ -1223,22 +1183,13 @@ export default function Products({ mode = "own" }) {
                               )}
                               <div className="at-bubble-stat">
                                 <b>Branch</b>
-                                <span
-                                  style={{ color: "#047857", fontWeight: 700 }}
-                                >
-                                  {p.branchId
-                                    ? branchLabel(p.branchId)
-                                    : "All Branches"}
+                                <span style={{ color: "#047857", fontWeight: 700 }}>
+                                  {p.branchId ? branchLabel(p.branchId) : "All Branches"}
                                 </span>
                               </div>
                               {(() => {
-                                const all = branchesForName(
-                                  products,
-                                  p.productName,
-                                );
-                                const own = p.branchId
-                                  ? branchLabel(p.branchId)
-                                  : "All Branches";
+                                const all = branchesForName(products, p.productName);
+                                const own = p.branchId ? branchLabel(p.branchId) : "All Branches";
                                 return all && all !== own ? (
                                   <div className="at-bubble-stat">
                                     <b>Available In</b>
@@ -1270,8 +1221,7 @@ export default function Products({ mode = "own" }) {
                                           : openStockOut(p.id)
                                       }
                                     >
-                                      <i className="bi bi-dash-lg"></i> Stock
-                                      Out
+                                      <i className="bi bi-dash-lg"></i> Stock Out
                                     </button>
                                     <button
                                       className="at-act-btn at-act-btn--edit"
