@@ -26,10 +26,13 @@ const fmt = (n) =>
 
 const inr = (v) => `₹ ${fmt(v)}`;
 
-const getStatusBadge = (pending, totalBilled) => {
+const getStatusBadge = (pending, totalBilled, purchased = 0) => {
   const net = Number(pending);
-  // Negative net = the purchase bills outweigh the invoices, so WE owe them.
-  if (net < 0) return { label: "You Owe", cls: "cl-tag--unpaid" };
+  // negative: purchase bills → we owe them; otherwise their advance is with us
+  if (net < 0)
+    return Number(purchased) > 0
+      ? { label: "You Owe", cls: "cl-tag--unpaid" }
+      : { label: "Advance Bal", cls: "cl-tag--paid" };
   if (net === 0) return { label: "Settled", cls: "cl-tag--paid" };
   if (net >= Number(totalBilled))
     return { label: "Unpaid", cls: "cl-tag--unpaid" };
@@ -37,15 +40,22 @@ const getStatusBadge = (pending, totalBilled) => {
 };
 
 // Net balance shown as a positive number plus a direction label.
-const balanceView = (net) => {
+const balanceView = (net, purchased = 0) => {
   const v = Number(net) || 0;
   return v < 0
-    ? {
-        label: "You Owe",
-        amount: Math.abs(v),
-        cls: "cl-amount--red",
-        weOwe: true,
-      }
+    ? Number(purchased) > 0
+      ? {
+          label: "You Owe",
+          amount: Math.abs(v),
+          cls: "cl-amount--red",
+          weOwe: true,
+        }
+      : {
+          label: "Advance Bal",
+          amount: Math.abs(v),
+          cls: "cl-amount--green",
+          weOwe: true,
+        }
     : { label: "Balance Due", amount: v, cls: "cl-amount--red", weOwe: false };
 };
 
@@ -198,7 +208,13 @@ function TaxInvoiceView({ inv, onBack }) {
   const dynFont =
     itemCount <= 10 ? 11 : itemCount <= 20 ? 12 : itemCount <= 30 ? 11 : 10;
   const dynPad = itemCount <= 20 ? "3px 6px" : "2px 5px";
-  const MIN_ROWS = itemCount >= 15 ? 0 : Math.max(0, 15 - itemCount);
+  // ⬇ ONE-PAGE CONTROL: blank rows under the items. Bill goes to 2nd page → make smaller (12, 11…).
+  //   Too much empty space at the bottom → make bigger (14, 15…).
+  const PAGE_FILL_ROWS = 8;
+  // ⬇ Size of the AMOUNT numbers in the tax table (Taxable / CGST / SGST / Total). Bigger = 14, 15…
+  const AMT_FONT = 14;
+  const MIN_ROWS =
+    itemCount >= PAGE_FILL_ROWS ? 0 : Math.max(0, PAGE_FILL_ROWS - itemCount);
 
   const dc = (extra = {}) => ({
     border: "none",
@@ -228,7 +244,15 @@ function TaxInvoiceView({ inv, onBack }) {
   const netAmount = Number(inv.net_amount || 0);
   const totalQty = rows.reduce((s, r) => s + r.qty, 0);
   const openBalance = Number(inv.open_balance || 0);
-  const closingBalance = openBalance + netAmount;
+  const paidAmt = Number(inv.paid_amount || 0);
+  const closingBalance = openBalance + netAmount - paidAmt;
+  // same 4 lines as the Sales bill
+  const balLines = {
+    open: Math.max(openBalance, 0),
+    advance: Math.max(-openBalance, 0) + paidAmt,
+    recBal: Math.max(-closingBalance, 0),
+    closing: Math.max(closingBalance, 0),
+  };
 
   const hsnGroups = {};
   rows.forEach((r) => {
@@ -528,10 +552,12 @@ function TaxInvoiceView({ inv, onBack }) {
           </table>
 
           {/* PRODUCT TABLE */}
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
             <table
               style={{
                 width: "100%",
+                height: "100%",
+                flex: 1,
                 borderCollapse: "collapse",
                 tableLayout: "fixed",
                 borderTop: B,
@@ -609,6 +635,14 @@ function TaxInvoiceView({ inv, onBack }) {
                       ))}
                   </tr>
                 ))}
+                {/* stretch row: takes the leftover page height so there is no gap */}
+                <tr style={{ height: "100%" }}>
+                  {Array(8)
+                    .fill(null)
+                    .map((__, j) => (
+                      <td key={j} style={dc()}></td>
+                    ))}
+                </tr>
 
                 {(openBalance !== 0 || netAmount !== 0) && (
                   <tr>
@@ -620,14 +654,28 @@ function TaxInvoiceView({ inv, onBack }) {
                       })}
                     >
                       <div
-                        style={{ fontWeight: "bold", fontSize: dynFont + 2 }}
+                        style={{
+                          display: "flex",
+                          fontWeight: "bold",
+                          fontSize: dynFont + 2,
+                        }}
                       >
-                        Open Balance: ₹ {fmt2(openBalance)}
-                      </div>
-                      <div
-                        style={{ fontWeight: "bold", fontSize: dynFont + 2 }}
-                      >
-                        Closing Balance: ₹ {fmt2(closingBalance)}
+                        <div style={{ flex: 1, paddingRight: 10 }}>
+                          <div>Open Balance: ₹ {fmt2(balLines.open)}</div>
+                          <div>Closing Balance: ₹ {fmt2(balLines.closing)}</div>
+                        </div>
+                        <div
+                          style={{
+                            flex: 1,
+                            paddingLeft: 10,
+                            borderLeft: "1px solid #000",
+                          }}
+                        >
+                          <div>
+                            Advance Received: ₹ {fmt2(balLines.advance)}
+                          </div>
+                          <div>Received Balance: ₹ {fmt2(balLines.recBal)}</div>
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -751,7 +799,7 @@ function TaxInvoiceView({ inv, onBack }) {
                     borderRight: B,
                     padding: "3px 7px",
                     verticalAlign: "middle",
-                    fontSize: 10,
+                    fontSize: 12,
                   }}
                 >
                   <span style={{ fontWeight: "bold" }}>
@@ -768,7 +816,7 @@ function TaxInvoiceView({ inv, onBack }) {
                     textAlign: "right",
                   }}
                 >
-                  <div style={{ fontSize: 10 }}>E. &amp; O.E</div>
+                  <div style={{ fontSize: 12 }}>E. &amp; O.E</div>
                 </td>
               </tr>
             </tbody>
@@ -810,7 +858,7 @@ function TaxInvoiceView({ inv, onBack }) {
                       textAlign: align,
                       whiteSpace: "pre-line",
                       padding: "2px 6px",
-                      fontSize: 10,
+                      fontSize: 12,
                     })}
                   >
                     {label}
@@ -821,31 +869,37 @@ function TaxInvoiceView({ inv, onBack }) {
             <tbody>
               {Object.entries(hsnGroups).map(([hsn, d]) => (
                 <tr key={hsn}>
-                  <td style={dc({ textAlign: "center", fontSize: 11 })}>
+                  <td style={dc({ textAlign: "center", fontSize: AMT_FONT })}>
                     {hsn}
                   </td>
-                  <td style={dc({ textAlign: "right", fontSize: 11 })}>
+                  <td style={dc({ textAlign: "right", fontSize: AMT_FONT })}>
                     {fmt2(d.taxableValue)}
                   </td>
-                  <td style={dc({ textAlign: "center", fontSize: 10 })}>
+                  <td style={dc({ textAlign: "center", fontSize: AMT_FONT })}>
                     {cgstRate}%
                   </td>
-                  <td style={dc({ textAlign: "right", fontSize: 10 })}>
+                  <td style={dc({ textAlign: "right", fontSize: AMT_FONT })}>
                     {fmt2(d.cgst)}
                   </td>
-                  <td style={dc({ textAlign: "center", fontSize: 10 })}>
+                  <td style={dc({ textAlign: "center", fontSize: AMT_FONT })}>
                     {sgstRate}%
                   </td>
-                  <td style={dc({ textAlign: "right", fontSize: 10 })}>
+                  <td style={dc({ textAlign: "right", fontSize: AMT_FONT })}>
                     {fmt2(d.sgst)}
                   </td>
-                  <td style={dc({ textAlign: "right", fontSize: 10 })}>
+                  <td style={dc({ textAlign: "right", fontSize: AMT_FONT })}>
                     {fmt2(d.cgst + d.sgst)}
                   </td>
                 </tr>
               ))}
               <tr style={{ background: "#f5f5f5", fontWeight: "bold" }}>
-                <td style={dc({ borderTop: B, borderBottom: B, fontSize: 10 })}>
+                <td
+                  style={dc({
+                    borderTop: B,
+                    borderBottom: B,
+                    fontSize: AMT_FONT,
+                  })}
+                >
                   Total
                 </td>
                 <td
@@ -853,7 +907,7 @@ function TaxInvoiceView({ inv, onBack }) {
                     textAlign: "right",
                     borderTop: B,
                     borderBottom: B,
-                    fontSize: 10,
+                    fontSize: AMT_FONT,
                   })}
                 >
                   {fmt2(subtotal)}
@@ -864,7 +918,7 @@ function TaxInvoiceView({ inv, onBack }) {
                     textAlign: "right",
                     borderTop: B,
                     borderBottom: B,
-                    fontSize: 10,
+                    fontSize: AMT_FONT,
                   })}
                 >
                   {fmt2(cgstAmt)}
@@ -875,7 +929,7 @@ function TaxInvoiceView({ inv, onBack }) {
                     textAlign: "right",
                     borderTop: B,
                     borderBottom: B,
-                    fontSize: 10,
+                    fontSize: AMT_FONT,
                   })}
                 >
                   {fmt2(sgstAmt)}
@@ -885,7 +939,7 @@ function TaxInvoiceView({ inv, onBack }) {
                     textAlign: "right",
                     borderTop: B,
                     borderBottom: B,
-                    fontSize: 10,
+                    fontSize: AMT_FONT,
                   })}
                 >
                   {fmt2(totalTax)}
@@ -894,7 +948,7 @@ function TaxInvoiceView({ inv, onBack }) {
             </tbody>
           </table>
 
-          <div style={{ padding: "2px 7px", borderBottom: B, fontSize: 10 }}>
+          <div style={{ padding: "2px 7px", borderBottom: B, fontSize: 14 }}>
             <strong>Tax Amount (in words):</strong>&nbsp;
             <em style={{ fontWeight: "bold" }}>{numberToWords(totalTax)}</em>
           </div>
@@ -913,14 +967,14 @@ function TaxInvoiceView({ inv, onBack }) {
                       borderRight: B,
                       padding: "4px 7px",
                       verticalAlign: "top",
-                      fontSize: 10,
+                      fontSize: 12,
                     }}
                   >
                     <div
                       style={{
                         fontWeight: "bold",
                         marginBottom: 2,
-                        fontSize: 15,
+                        fontSize: 17,
                       }}
                     >
                       Company's Bank Details
@@ -934,20 +988,20 @@ function TaxInvoiceView({ inv, onBack }) {
                         `${inv.bank_branch || ""} & ${inv.bank_ifsc || ""}`,
                       ],
                     ].map(([k, v]) => (
-                      <div key={k} style={{ marginBottom: 2, fontSize: 12 }}>
+                      <div key={k} style={{ marginBottom: 2, fontSize: 14 }}>
                         <strong>{k}</strong>: {v}
                       </div>
                     ))}
                   </td>
                   <td style={{ padding: "4px 7px", verticalAlign: "top" }}>
-                    <div style={{ fontSize: 9, marginBottom: 4 }}>
+                    <div style={{ fontSize: 11, marginBottom: 4 }}>
                       <strong>Declaration:</strong> {DECLARATION}
                     </div>
                     <div
                       style={{
                         textAlign: "right",
                         fontWeight: "bold",
-                        fontSize: 10,
+                        fontSize: 12,
                         marginBottom: 2,
                       }}
                     >
@@ -962,14 +1016,14 @@ function TaxInvoiceView({ inv, onBack }) {
                     >
                       <div style={{ textAlign: "center", width: "42%" }}>
                         <div
-                          style={{ borderTop: B, paddingTop: 2, fontSize: 10 }}
+                          style={{ borderTop: B, paddingTop: 2, fontSize: 12 }}
                         >
                           Receiver's Signature
                         </div>
                       </div>
                       <div style={{ textAlign: "center", width: "42%" }}>
                         <div
-                          style={{ borderTop: B, paddingTop: 2, fontSize: 10 }}
+                          style={{ borderTop: B, paddingTop: 2, fontSize: 12 }}
                         >
                           Authorised Signatory
                         </div>
@@ -979,7 +1033,7 @@ function TaxInvoiceView({ inv, onBack }) {
                       style={{
                         textAlign: "center",
                         marginTop: 4,
-                        fontSize: 9,
+                        fontSize: 11,
                         color: "#666",
                       }}
                     >
@@ -1500,7 +1554,7 @@ function QuotationView({ data, onBack }) {
               <div>Bank Name : CANARA BANK</div>
               <div>A/C No. : 120017946948</div>
               <div>
-                Branch &amp; IFS Code: THERKU VALLIOOR &amp; CNRB0003657
+                Branch &amp; IFS Code: THERKU Kadambankulam &amp; CNRB0003657
               </div>
             </div>
             <div style={{ flex: 1, padding: "8px", fontSize: "11px" }}>
@@ -1665,6 +1719,17 @@ export default function Clients() {
     note: "",
   });
   const [payLoading, setPayLoading] = useState(false);
+  // Record Payment: customer picker (defaults to the opened customer)
+  const [payClient, setPayClient] = useState(null);
+  const [payName, setPayName] = useState("");
+  const [payNameOpen, setPayNameOpen] = useState(false);
+  useEffect(() => {
+    if (showPayModal && selected) {
+      setPayClient(null);
+      setPayName("");
+      setPayForm((p) => ({ ...p, note: p.note || "Cash" }));
+    }
+  }, [showPayModal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [viewInvoice, setViewInvoice] = useState(null);
   const [pendingShare, setPendingShare] = useState(null); // WhatsApp share waiting for a tap
@@ -1825,11 +1890,17 @@ export default function Clients() {
     if (Number(inv.round_off)) L.push(`Round Off: ${m(inv.round_off)}`);
     L.push(`*Invoice Total: ${m(inv.net_amount)}*`);
     if (inv.payment_mode) L.push(`Payment: ${inv.payment_mode}`);
-    if (Number(inv.open_balance))
-      L.push(`Open Balance: ${m(inv.open_balance)}`);
-    if (Number(inv.paid_amount)) L.push(`Paid Amount: ${m(inv.paid_amount)}`);
-    if (Number(inv.open_balance) || Number(inv.paid_amount))
-      L.push(`Closing Balance: ${m(inv.closing_balance)}`);
+    {
+      const ob = Number(inv.open_balance || 0);
+      const pd = Number(inv.paid_amount || 0);
+      const cb = ob + Number(inv.net_amount || 0) - pd;
+      L.push(
+        `Open Balance: ${m(Math.max(ob, 0))}`,
+        `Closing Balance: ${m(Math.max(cb, 0))}`,
+        `Advance Received: ${m(Math.max(-ob, 0) + pd)}`,
+        `Received Balance: ${m(Math.max(-cb, 0))}`,
+      );
+    }
     L.push("");
     L.push("Thank you,");
     L.push("BIP Fencing");
@@ -1959,20 +2030,88 @@ export default function Clients() {
       showToast("Amount and date required", "error");
       return;
     }
+    // Typed name (no click needed): match a customer by name, ignoring case/spaces
+    const norm = (v) =>
+      String(v || "")
+        .toLowerCase()
+        .replace(/\s+/g, "");
+    const typed = norm(payName);
+    const picked =
+      payClient || (typed ? clients.find((c) => norm(c.name) === typed) : null);
+    const moveTo = picked && picked.id !== selected.id ? picked : null;
+    // Safety: can't hand over more than this customer owes (stops 50000 vs 5000 typos)
+    const pendingNow = Number(clientDetail?.pending ?? selected?.pending ?? 0);
+    const amt = Number(payForm.amount) || 0;
+    if (amt <= 0) {
+      showToast("Enter a valid amount", "error");
+      return;
+    }
+    if (moveTo && amt > pendingNow) {
+      showToast(
+        `${selected.name} owes only ${inr(pendingNow)} — amount is more than that`,
+        "error",
+      );
+      return;
+    }
+    const isAdvance = String(payForm.note || "").startsWith("Advance");
+    if (
+      !moveTo &&
+      !isAdvance &&
+      amt > pendingNow &&
+      !window.confirm(
+        `${selected.name} owes only ${inr(pendingNow)}. Save ${inr(amt)} anyway?`,
+      )
+    ) {
+      return;
+    }
+    // own name typed = normal payment
+    if (typed && !moveTo && typed !== norm(selected.name)) {
+      showToast("Pick the customer from the list (or clear the box)", "error");
+      return;
+    }
+
     setPayLoading(true);
     try {
       const res = await apiFetch("/client.php", {
         method: "POST",
         body: JSON.stringify({
-          client_id: selected.id,
           ...payForm,
+          // Reduces the opened customer's balance. If a customer is picked in
+          // "Move balance to", the same amount is added to that customer's pending.
+          client_id: selected.id,
+          note: [
+            payForm.note || "Cash",
+            moveTo ? `Collected by ${moveTo.name}` : "",
+          ]
+            .filter(Boolean)
+            .join(" · "),
         }),
       });
       const data = await res.json();
+      if (data.success && moveTo) {
+        // Collected by driver: driver now holds the cash → amount becomes pending on the driver
+        // add the same amount as pending on the picked customer (negative receipt = they owe)
+        const r2 = await apiFetch("/client.php", {
+          method: "POST",
+          body: JSON.stringify({
+            client_id: moveTo.id,
+            amount: -Math.abs(Number(payForm.amount)),
+            payment_date: payForm.payment_date,
+            note: `Collected from ${selected.name} (to hand over)`,
+          }),
+        });
+        const d2 = await r2.json();
+        if (!d2.success)
+          showToast(d2.message || `Could not add to ${moveTo.name}`, "error");
+      }
       if (data.success) {
         setShowPayModal(false);
         setPayForm({ amount: "", payment_date: "", note: "" });
-        showToast("Payment recorded successfully");
+        showToast(
+          moveTo
+            ? `₹${payForm.amount}: ${selected?.name} paid → ${moveTo.name} has to hand it over`
+            : `Payment recorded for ${selected?.name || "customer"}`,
+        );
         fetchClients();
         setSelected((prev) => ({ ...prev }));
       } else {
@@ -1985,6 +2124,19 @@ export default function Clients() {
       setPayLoading(false);
     }
   };
+
+  // ✏️ button used on every Overview row
+  const EditBtn = ({ onClick, title }) => (
+    <button
+      className="cl-btn cl-btn--tiny cl-btn--ghost"
+      style={{ marginLeft: 8 }}
+      onClick={onClick}
+      title={title}
+    >
+      ✏️ Edit
+    </button>
+  );
+  const goTab = (t) => () => setActiveTab(t);
 
   const openEditModal = (e, client) => {
     e.stopPropagation();
@@ -2163,6 +2315,7 @@ export default function Clients() {
     const status = getStatusBadge(
       c.pending,
       c.total_billed,
+      c.total_purchased,
     ).label.toLowerCase();
     const matchStatus = statusFilter
       ? status.includes(statusFilter.toLowerCase())
@@ -2487,6 +2640,7 @@ export default function Clients() {
                       const status = getStatusBadge(
                         client.net_balance ?? client.pending,
                         client.total_billed,
+                        client.total_purchased,
                       );
                       return (
                         <tr
@@ -2542,7 +2696,10 @@ export default function Clients() {
                           </td>
                           <td>
                             {(() => {
-                              const b = balanceView(client.net_balance);
+                              const b = balanceView(
+                                client.net_balance,
+                                client.total_purchased,
+                              );
                               return (
                                 <span
                                   className="cl-amount cl-amount--red"
@@ -2556,7 +2713,7 @@ export default function Clients() {
                                         fontSize: 11,
                                       }}
                                     >
-                                      You Owe
+                                      {b.label}
                                     </small>
                                   )}
                                   {inr(b.amount)}
@@ -2627,12 +2784,13 @@ export default function Clients() {
                 <h3>{selected.name}</h3>
                 <p>{selected.phone ? showPhone(selected.phone) : "—"}</p>
                 <span
-                  className={`cl-tag ${getStatusBadge(selected.net_balance ?? selected.pending, selected.total_billed).cls}`}
+                  className={`cl-tag ${getStatusBadge(selected.net_balance ?? selected.pending, selected.total_billed, selected.total_purchased).cls}`}
                 >
                   {
                     getStatusBadge(
                       selected.net_balance ?? selected.pending,
                       selected.total_billed,
+                      selected.total_purchased,
                     ).label
                   }
                 </span>
@@ -2706,12 +2864,30 @@ export default function Clients() {
                   <div className="cl-detail-rows">
                     <div className="cl-detail-row">
                       <span>Total Invoiced</span>
-                      <strong>{inr(clientDetail.total_billed)}</strong>
+                      <strong>
+                        {inr(clientDetail.total_billed)}
+                        <button
+                          className="cl-btn cl-btn--tiny cl-btn--ghost"
+                          style={{ marginLeft: 8 }}
+                          onClick={() => setActiveTab("invoices")}
+                          title="Edit / delete bills"
+                        >
+                          ✏️ Edit
+                        </button>
+                      </strong>
                     </div>
                     <div className="cl-detail-row">
                       <span>Received from them</span>
                       <strong style={{ color: "#16a34a" }}>
                         {inr(clientDetail.total_paid)}
+                        <button
+                          className="cl-btn cl-btn--tiny cl-btn--ghost"
+                          style={{ marginLeft: 8 }}
+                          onClick={() => setActiveTab("payments")}
+                          title="Edit / delete payments"
+                        >
+                          ✏️ Edit
+                        </button>
                       </strong>
                     </div>
                     <div className="cl-detail-row cl-detail-row--sum">
@@ -2728,18 +2904,32 @@ export default function Clients() {
                   <div className="cl-detail-rows">
                     <div className="cl-detail-row">
                       <span>Total Purchased</span>
-                      <strong>{inr(clientDetail.total_purchased)}</strong>
+                      <strong>
+                        {inr(clientDetail.total_purchased)}
+                        <EditBtn
+                          onClick={goTab("purchases")}
+                          title="Edit purchase bills"
+                        />
+                      </strong>
                     </div>
                     <div className="cl-detail-row">
                       <span>Paid to them</span>
                       <strong style={{ color: "#16a34a" }}>
                         {inr(clientDetail.purchase_paid)}
+                        <EditBtn
+                          onClick={goTab("purchases")}
+                          title="Edit purchase payments"
+                        />
                       </strong>
                     </div>
                     <div className="cl-detail-row">
                       <span>Settled (cash / product)</span>
                       <strong style={{ color: "#16a34a" }}>
                         {inr(clientDetail.settled)}
+                        <EditBtn
+                          onClick={goTab("purchases")}
+                          title="Edit settlements"
+                        />
                       </strong>
                     </div>
                     <div className="cl-detail-row cl-detail-row--sum">
@@ -2750,10 +2940,19 @@ export default function Clients() {
 
                   {/* ── NET TOTAL ── */}
                   {(() => {
-                    const b = balanceView(clientDetail.net_balance);
+                    const b = balanceView(
+                      clientDetail.net_balance,
+                      clientDetail.total_purchased,
+                    );
                     return (
                       <div
-                        className={`cl-net-total${b.weOwe ? " cl-net-total--owe" : ""}`}
+                        className={`cl-net-total${
+                          // 🟢 advance with us / settled   🔴 balance due or we owe (purchases)
+                          (!b.weOwe && b.amount > 0) ||
+                          (b.weOwe && Number(clientDetail.total_purchased) > 0)
+                            ? " cl-net-total--owe"
+                            : ""
+                        }`}
                       >
                         <span className="cl-net-total__label">{b.label}</span>
                         <span className="cl-net-total__value">
@@ -2761,8 +2960,10 @@ export default function Clients() {
                         </span>
                         <span className="cl-net-total__hint">
                           {b.weOwe
-                            ? "Purchases exceed invoices — settle in cash or product"
-                            : "Invoices exceed purchases — collect from the party"}
+                            ? Number(clientDetail.total_purchased) > 0
+                              ? "Purchases exceed invoices — settle in cash or product"
+                              : "Customer's advance with us — used in the next bill"
+                            : "Amount to collect from the customer"}
                         </span>
                       </div>
                     );
@@ -2792,7 +2993,24 @@ export default function Clients() {
                     ].map(([key, value]) => (
                       <div key={key} className="cl-detail-row">
                         <span>{key}</span>
-                        <strong>{value}</strong>
+                        <strong>
+                          {value}
+                          {[
+                            "Total Billed",
+                            "Last Invoice",
+                            "Last Invoice Date",
+                          ].includes(key) ? (
+                            <EditBtn
+                              onClick={goTab("invoices")}
+                              title="Edit bills"
+                            />
+                          ) : (
+                            <EditBtn
+                              onClick={(e) => openEditModal(e, selected)}
+                              title="Edit customer details"
+                            />
+                          )}
+                        </strong>
                       </div>
                     ))}
                   </div>
@@ -2801,23 +3019,24 @@ export default function Clients() {
                     className="cl-btn cl-btn--primary cl-btn--block"
                     onClick={() => setShowPayModal(true)}
                   >
-                    <i className="bi bi-plus-circle"></i> Received Payment
+                    <i className="bi bi-plus-circle"></i> Recieve Payment
                   </button>
 
-                  {Number(clientDetail.net_balance) < 0 && (
-                    <button
-                      className="cl-btn cl-btn--block"
-                      style={{
-                        background: "#dc2626",
-                        color: "#fff",
-                        marginTop: 8,
-                      }}
-                      onClick={openSettleModal}
-                    >
-                      <i className="bi bi-arrow-left-right"></i> Settle What You
-                      Owe
-                    </button>
-                  )}
+                  {Number(clientDetail.net_balance) < 0 &&
+                    Number(clientDetail.total_purchased) > 0 && (
+                      <button
+                        className="cl-btn cl-btn--block"
+                        style={{
+                          background: "#dc2626",
+                          color: "#fff",
+                          marginTop: 8,
+                        }}
+                        onClick={openSettleModal}
+                      >
+                        <i className="bi bi-arrow-left-right"></i> Settle What
+                        You Owe
+                      </button>
+                    )}
                 </div>
               )}
 
@@ -2941,6 +3160,17 @@ export default function Clients() {
                         <div className="cl-actions">
                           <button
                             className="cl-btn cl-btn--tiny cl-btn--ghost"
+                            title="Statement of this invoice"
+                            onClick={() =>
+                              navigate(
+                                `/statements?type=sales&invoice_no=${encodeURIComponent(inv.invoice_no)}`,
+                              )
+                            }
+                          >
+                            📒 Statement
+                          </button>
+                          <button
+                            className="cl-btn cl-btn--tiny cl-btn--ghost"
                             onClick={() => handleViewInvoice(inv.invoice_no)}
                             disabled={viewLoading}
                           >
@@ -2956,6 +3186,45 @@ export default function Clients() {
                             title="Add items from another branch to this same bill"
                           >
                             ➕ Continue
+                          </button>
+                          <button
+                            className="cl-btn cl-btn--tiny cl-btn--ghost"
+                            onClick={() =>
+                              navigate("/tax-invoice", {
+                                state: { continueInvoiceNo: inv.invoice_no },
+                              })
+                            }
+                            title="Open this bill to change items / amounts, then save again"
+                          >
+                            ✏️ Edit
+                          </button>
+                          <button
+                            className="cl-btn cl-btn--tiny cl-btn--ghost"
+                            style={{ color: "#dc2626" }}
+                            onClick={async () => {
+                              if (
+                                !window.confirm(
+                                  `Delete bill ${inv.invoice_no} (${inr(inv.net_amount)})?\nStock will NOT be added back automatically.`,
+                                )
+                              )
+                                return;
+                              try {
+                                const res = await apiFetch(
+                                  `/client.php?invoice_id=${inv.id}`,
+                                  { method: "DELETE" },
+                                );
+                                const d = await res.json();
+                                if (!d.success)
+                                  throw new Error(d.message || "Delete failed");
+                                showToast(`Bill ${inv.invoice_no} deleted`);
+                                fetchClients();
+                                setSelected((prev) => ({ ...prev }));
+                              } catch (err) {
+                                showToast(err.message, "error");
+                              }
+                            }}
+                          >
+                            🗑 Delete
                           </button>
                           <button
                             className="cl-btn cl-btn--tiny cl-btn--ghost"
@@ -2984,16 +3253,98 @@ export default function Clients() {
                     </div>
                   )}
                   {(clientDetail.payments || []).map((pay) => (
-                    <div key={pay.id} className="cl-list-item">
+                    <div
+                      key={pay.id}
+                      className="cl-list-item"
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
                       <div>
-                        <p className="cl-amount cl-amount--green">
-                          {inr(pay.amount)}
+                        <p
+                          className={`cl-amount ${Number(pay.amount) < 0 ? "cl-amount--red" : "cl-amount--green"}`}
+                        >
+                          {Number(pay.amount) < 0
+                            ? `+${inr(-pay.amount)} pending`
+                            : inr(pay.amount)}
                         </p>
                         <p className="cl-list-item__sub">{pay.payment_date}</p>
                         {pay.note && (
                           <p className="cl-list-item__sub">{pay.note}</p>
                         )}
                       </div>
+                      <button
+                        className="cl-btn cl-btn--ghost"
+                        title="Edit this entry"
+                        onClick={async () => {
+                          const a = window.prompt("Amount (₹):", pay.amount);
+                          if (a === null) return;
+                          const dt = window.prompt(
+                            "Date (YYYY-MM-DD):",
+                            pay.payment_date,
+                          );
+                          if (dt === null) return;
+                          const nt = window.prompt(
+                            "Note (GPay / Cash / Cheque…):",
+                            pay.note || "",
+                          );
+                          if (nt === null) return;
+                          try {
+                            const res = await apiFetch(
+                              `/client.php?payment_id=${pay.id}`,
+                              {
+                                method: "PUT",
+                                body: JSON.stringify({
+                                  amount: Number(a),
+                                  payment_date: dt,
+                                  note: nt,
+                                }),
+                              },
+                            );
+                            const d = await res.json();
+                            if (!d.success)
+                              throw new Error(d.message || "Update failed");
+                            showToast("Entry updated");
+                            fetchClients();
+                            setSelected((prev) => ({ ...prev }));
+                          } catch (err) {
+                            showToast(err.message, "error");
+                          }
+                        }}
+                      >
+                        <i className="bi bi-pencil"></i>
+                      </button>
+                      <button
+                        className="cl-btn cl-btn--ghost"
+                        title="Delete this entry"
+                        style={{ color: "#dc2626" }}
+                        onClick={async () => {
+                          if (
+                            !window.confirm(
+                              `Delete this entry of ${inr(pay.amount)}?`,
+                            )
+                          )
+                            return;
+                          try {
+                            const res = await apiFetch(
+                              `/client.php?payment_id=${pay.id}`,
+                              { method: "DELETE" },
+                            );
+                            const d = await res.json();
+                            if (!d.success)
+                              throw new Error(d.message || "Delete failed");
+                            showToast("Entry deleted");
+                            fetchClients();
+                            setSelected((prev) => ({ ...prev }));
+                          } catch (err) {
+                            showToast(err.message, "error");
+                          }
+                        }}
+                      >
+                        <i className="bi bi-trash"></i>
+                      </button>
                     </div>
                   ))}
                   <button
@@ -3224,6 +3575,82 @@ export default function Clients() {
                   }
                 />
               </div>
+              <div className="cl-fg" style={{ position: "relative" }}>
+                <label className="cl-label">
+                  Collected By (optional — e.g. driver)
+                </label>
+                <input
+                  className="cl-input"
+                  type="text"
+                  placeholder="Empty = normal payment"
+                  autoComplete="off"
+                  value={payName}
+                  onFocus={() => setPayNameOpen(true)}
+                  onBlur={() => setTimeout(() => setPayNameOpen(false), 150)}
+                  onChange={(e) => {
+                    setPayName(e.target.value);
+                    setPayClient(null);
+                    setPayNameOpen(true);
+                  }}
+                />
+                {payNameOpen && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "100%",
+                      left: 0,
+                      right: 0,
+                      zIndex: 20,
+                      background: "#fff",
+                      border: "1px solid #e2e8f0",
+                      borderRadius: 10,
+                      boxShadow: "0 8px 24px rgba(0,0,0,.12)",
+                      maxHeight: 220,
+                      overflowY: "auto",
+                    }}
+                  >
+                    {clients
+                      .filter((c) =>
+                        `${c.name || ""} ${c.phone || ""}`
+                          .toLowerCase()
+                          .includes(payName.trim().toLowerCase()),
+                      )
+                      .slice(0, 15)
+                      .map((c) => (
+                        <div
+                          key={c.id}
+                          onMouseDown={() => {
+                            setPayClient(c);
+                            setPayName(c.name || "");
+                            setPayNameOpen(false);
+                          }}
+                          style={{
+                            padding: "9px 12px",
+                            cursor: "pointer",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            borderBottom: "1px solid #f1f5f9",
+                          }}
+                        >
+                          <span>
+                            <b>{c.name}</b>{" "}
+                            <small style={{ color: "#64748b" }}>
+                              {c.phone}
+                            </small>
+                          </span>
+                          <small
+                            style={{
+                              color:
+                                Number(c.pending) > 0 ? "#dc2626" : "#16a34a",
+                            }}
+                          >
+                            {inr(c.pending || 0)}
+                          </small>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
               <div className="cl-fg">
                 <label className="cl-label">
                   Payment Date <span className="cl-req">*</span>
@@ -3238,25 +3665,40 @@ export default function Clients() {
                 />
               </div>
               <div className="cl-fg">
-                <label className="cl-label">Note (optional)</label>
-                <input
+                <label className="cl-label">Payment Mode</label>
+                <select
                   className="cl-input"
-                  type="text"
-                  placeholder="e.g. UPI payment"
-                  value={payForm.note}
+                  value={payForm.note || "Cash"}
                   onChange={(e) =>
                     setPayForm({ ...payForm, note: e.target.value })
                   }
-                />
+                >
+                  <option value="GPay">GPay</option>
+                  <option value="Cash">Cash</option>
+                  <option value="Cheque">Cheque</option>
+                  <option value="Advance · GPay">Advance — GPay</option>
+                  <option value="Advance · Cash">Advance — Cash</option>
+                  <option value="Advance · Cheque">Advance — Cheque</option>
+                </select>
               </div>
-              {clientDetail && (
-                <div className="cl-note-box">
-                  Pending:{" "}
-                  <strong className="cl-amount--red">
-                    {inr(clientDetail.pending)}
-                  </strong>
-                </div>
-              )}
+              <div className="cl-note-box">
+                Payment for: <b>{selected?.name}</b>
+                {clientDetail && (
+                  <>
+                    {" "}
+                    — Pending:{" "}
+                    <strong className="cl-amount--red">
+                      {inr(clientDetail.pending)}
+                    </strong>
+                  </>
+                )}
+                {payClient && payClient.id !== selected?.id && (
+                  <div style={{ fontSize: 12, color: "#b45309", marginTop: 4 }}>
+                    {selected?.name} −₹{payForm.amount || 0} · {payClient.name}{" "}
+                    +₹{payForm.amount || 0} pending (to hand over)
+                  </div>
+                )}
+              </div>
             </div>
             <div className="cl-modal__footer">
               <button

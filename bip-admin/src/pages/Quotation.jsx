@@ -21,7 +21,7 @@ const DEFAULT_BANK = {
   bankName: "CANARA BANK",
   accountNo: "120017946948",
   ifsc: "CNRB0003657",
-  branch: "THERKU VALLIOOR",
+  branch: "THERKU Kadambankulam",
 };
 
 const DECLARATION =
@@ -1774,6 +1774,18 @@ export default function Quotation() {
                               onClick={() => handleViewBill(rec)}
                             >
                               <i className="bi bi-eye"></i> View
+                            </button>
+                            <button
+                              className="at-btn at-btn--ghost"
+                              style={{ padding: "6px 12px", fontSize: 12 }}
+                              title="Statement of this quotation"
+                              onClick={() =>
+                                navigate(
+                                  `/statements?type=quotation&quotation_id=${rec.id}`,
+                                )
+                              }
+                            >
+                              <i className="bi bi-journal-text"></i> Statement
                             </button>
                             <button
                               className="at-btn at-btn--ghost"

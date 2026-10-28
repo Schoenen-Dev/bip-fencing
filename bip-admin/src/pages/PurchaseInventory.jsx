@@ -386,6 +386,14 @@ export default function PurchaseInventory() {
               </p>
             </div>
           </div>
+          <button
+            type="button"
+            className="at-btn at-btn--ghost"
+            title="View stock movements and balance"
+            onClick={() => navigate("/statements?type=inventory")}
+          >
+            <i className="bi bi-journal-text"></i> View Statement
+          </button>
         </div>
 
         <div className="at-stats">
@@ -512,7 +520,7 @@ export default function PurchaseInventory() {
                   <i className="bi bi-building"></i>
                   <div>
                     Viewing all branches. Select a specific branch from the
-                    topbar (Vallioor, Nanguneri or Kadambankulam) to deduct
+                    topbar (Kadambankulam, Nanguneri or Kadambankulam) to deduct
                     stock.
                   </div>
                 </div>
@@ -718,7 +726,7 @@ export default function PurchaseInventory() {
                               className="at-act-btn"
                               onClick={() =>
                                 navigate(
-                                  `/statements?type=product&product=${encodeURIComponent(p.product_name)}`,
+                                  `/statements?type=product&product_id=${p.product_id}&src=purchase&product=${encodeURIComponent(p.product_name)}${p.branch_id ? `&branch=${p.branch_id}` : ""}`,
                                 )
                               }
                             >

@@ -29,6 +29,18 @@ const TYPES = [
   { key: "purchase", label: "Purchase", icon: "bi-bag-check" },
   { key: "product", label: "Product", icon: "bi-box-seam", needs: "product" },
   { key: "inventory", label: "Inventory", icon: "bi-boxes" },
+  {
+    key: "quotation",
+    label: "Quotation",
+    icon: "bi-file-earmark-text",
+    needs: "quotation",
+  },
+  {
+    key: "employee",
+    label: "Employee Salary",
+    icon: "bi-person-badge",
+    needs: "employee",
+  },
 ];
 
 const PERIODS = [
@@ -166,6 +178,26 @@ const COLUMNS = {
     { key: "qty_out", label: "Out", kind: "qtyz" },
     { key: "balance", label: "Balance", kind: "qty" },
   ],
+  quotation: [
+    { key: "date", label: "Date", kind: "date" },
+    { key: "reference", label: "Quote No", kind: "text" },
+    { key: "description", label: "Product / Service", kind: "text" },
+    { key: "hsn", label: "HSN", kind: "text" },
+    { key: "unit", label: "Unit", kind: "text" },
+    { key: "qty", label: "Qty", kind: "qty" },
+    { key: "rate", label: "Rate", kind: "money" },
+    { key: "amount", label: "Amount", kind: "money" },
+  ],
+  employee: [
+    { key: "date", label: "Date", kind: "date" },
+    { key: "particulars", label: "Particulars", kind: "text" },
+    { key: "reference", label: "Reference", kind: "text" },
+    { key: "details", label: "Details", kind: "text" },
+    { key: "advance", label: "Advance (deducted)", kind: "moneyz" },
+    { key: "debit", label: "Earned", kind: "moneyz" },
+    { key: "credit", label: "Paid", kind: "moneyz" },
+    { key: "balance", label: "Pending", kind: "money" },
+  ],
   inventory: [
     { key: "date", label: "Date", kind: "date" },
     { key: "product", label: "Product", kind: "text" },
@@ -252,6 +284,37 @@ function summaryItems(type, d) {
           ? [["Current Stock (Products)", qty(d.product_stock)]]
           : []),
       ];
+    case "quotation":
+      return [
+        ["Items", String(t.items || 0)],
+        ["Sub Total", money(t.subtotal)],
+        [
+          `Discount${d.quotation?.discount_percent ? ` (${d.quotation.discount_percent}%)` : ""}`,
+          money(t.discount),
+        ],
+        [
+          `Tax${d.quotation?.tax_percent ? ` (${d.quotation.tax_percent}%)` : ""}`,
+          money(t.tax),
+        ],
+        ["Round Off", money(t.round_off)],
+        ["Grand Total", money(t.grand_total)],
+      ];
+    case "employee":
+      return [
+        [
+          "Salary Period",
+          t.first_date ? `${dmy(t.first_date)} to ${dmy(t.last_date)}` : "-",
+        ],
+        [
+          "Salary Days",
+          `${t.salary_days || 0} (P ${t.present || 0} · H ${t.half_day || 0} · A ${t.absent || 0})`,
+        ],
+        ["Opening Pending", money(d.opening)],
+        ["Total Earned", money(t.earned)],
+        ["Advance Deducted", money(t.advance)],
+        ["Total Paid", money(t.paid)],
+        ["Pending Balance", money(d.closing)],
+      ];
     case "inventory":
       return [
         ["Products", String((d.summary || []).length)],
@@ -265,7 +328,9 @@ function summaryItems(type, d) {
 
 // Whether the table gets Opening / Closing rows
 const hasLedgerRows = (type) =>
-  ["customer", "payment", "sales", "purchase", "product"].includes(type);
+  ["customer", "payment", "sales", "purchase", "product", "employee"].includes(
+    type,
+  );
 
 const BRANCH_OPTIONS = [
   { value: "all", label: "All Branches" },
@@ -282,22 +347,79 @@ const TITLES = {
   purchase: "Purchase Statement",
   product: "Product Statement",
   inventory: "Inventory Statement",
+  quotation: "Quotation Statement",
+  employee: "Employee Salary Statement",
 };
 
 export default function Statements() {
   const [params] = useSearchParams();
   const today = iso(new Date());
 
-  const [type, setType] = useState(params.get("type") || "customer");
-  const [period, setPeriod] = useState("monthly");
+  const [type, setType] = useState(
+    params.get("type") ||
+      (params.get("invoice_no")
+        ? "sales"
+        : params.get("bill_id")
+          ? "purchase"
+          : params.get("quotation_id")
+            ? "quotation"
+            : params.get("employee_id")
+              ? "employee"
+              : "customer"),
+  );
+  // Opened from a record's "Statement" button → show that record's COMPLETE history
+  const openedForRecord = !!(
+    params.get("client_id") ||
+    params.get("product") ||
+    params.get("product_id") ||
+    params.get("invoice_no") ||
+    params.get("bill_id") ||
+    params.get("quotation_id") ||
+    params.get("employee_id")
+  );
+  const [period, setPeriod] = useState(openedForRecord ? "custom" : "monthly");
   const [anchor, setAnchor] = useState(today);
-  const [from, setFrom] = useState(periodRange("monthly", today)[0]);
-  const [to, setTo] = useState(periodRange("monthly", today)[1]);
-  const [stmtBranch, setStmtBranch] = useState("all"); // "all" or branch id "1"/"2"/"3"
+  const [from, setFrom] = useState(
+    openedForRecord ? "2000-01-01" : periodRange("monthly", today)[0],
+  );
+  const [to, setTo] = useState(
+    openedForRecord ? today : periodRange("monthly", today)[1],
+  );
+  // Selected single record (invoice / purchase bill) — null = normal view
+  const [record, setRecord] = useState(
+    params.get("invoice_no")
+      ? {
+          kind: "invoice",
+          value: params.get("invoice_no"),
+          label: `Invoice ${params.get("invoice_no")}`,
+        }
+      : params.get("bill_id")
+        ? {
+            kind: "bill",
+            value: params.get("bill_id"),
+            label: `Purchase Bill ${params.get("ref") || "#" + params.get("bill_id")}`,
+          }
+        : null,
+  );
+  const [pinned, setPinned] = useState(openedForRecord); // customer / product opened from a button
+  const [stmtBranch, setStmtBranch] = useState(
+    ["1", "2", "3"].includes(params.get("branch") || "")
+      ? params.get("branch")
+      : "all",
+  ); // "all" or branch id "1"/"2"/"3"
   const [clientId, setClientId] = useState(params.get("client_id") || "");
   const [product, setProduct] = useState(params.get("product") || "");
+  // unique product record (id + which catalog) — resolves the exact product on the server
+  const [productId, setProductId] = useState(params.get("product_id") || "");
+  const productSrc = params.get("src") === "purchase" ? "purchase" : "product";
   const [search, setSearch] = useState("");
 
+  const [quotationId, setQuotationId] = useState(
+    params.get("quotation_id") || "",
+  );
+  const [employeeId, setEmployeeId] = useState(params.get("employee_id") || "");
+  const [quotations, setQuotations] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [products, setProducts] = useState([]);
   const [data, setData] = useState(null);
@@ -325,6 +447,12 @@ export default function Statements() {
         ]);
         if (c.success) setCustomers(c.customers || []);
         if (p.success) setProducts(p.products || []);
+        const [qs, es] = await Promise.all([
+          apiFetch("/statements.php?type=quotations").then((r) => r.json()),
+          apiFetch("/statements.php?type=employees").then((r) => r.json()),
+        ]);
+        if (qs.success) setQuotations(qs.quotations || []);
+        if (es.success) setEmployees(es.employees || []);
       } catch {
         /* pickers stay empty */
       }
@@ -351,10 +479,13 @@ export default function Statements() {
     to &&
     from <= to &&
     (typeInfo.needs !== "customer" || clientId) &&
-    (typeInfo.needs !== "product" || product);
+    (typeInfo.needs !== "product" || product || productId) &&
+    (typeInfo.needs !== "quotation" || quotationId) &&
+    (typeInfo.needs !== "employee" || employeeId);
 
-  const loadStatement = async () => {
+  const loadStatement = async (recOverride) => {
     if (!canView) return;
+    const rec = recOverride === undefined ? record : recOverride;
     setLoading(true);
     setError("");
     try {
@@ -363,11 +494,26 @@ export default function Statements() {
       q.set("branch", stmtBranch === "all" ? "all" : stmtBranch);
       if (type === "customer" || (type === "payment" && clientId))
         q.set("client_id", clientId);
-      if (type === "product") q.set("product", product);
+      if (type === "product") {
+        q.set("product", product);
+        if (productId) {
+          q.set("product_id", productId);
+          q.set("src", productSrc);
+        }
+      }
+      if (type === "quotation") q.set("quotation_id", quotationId);
+      if (type === "employee") q.set("employee_id", employeeId);
+      if (rec && type === "sales" && rec.kind === "invoice")
+        q.set("invoice_no", rec.value);
+      if (rec && type === "purchase" && rec.kind === "bill")
+        q.set("bill_id", rec.value);
       const res = await apiFetch(`/statements.php?${q.toString()}`);
       const d = await res.json();
-      if (d.success) setData(d);
-      else {
+      if (d.success) {
+        setData(d);
+        // show the exact product the server resolved from its ID in the picker
+        if (type === "product" && productId && d.product) setProduct(d.product);
+      } else {
         setData(null);
         setError(d.message || "Could not load the statement");
       }
@@ -382,7 +528,16 @@ export default function Statements() {
   // Auto-load when opened from a Customer / Product "Statement" button
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (params.get("type") && canView) loadStatement();
+    if (
+      (params.get("type") ||
+        params.get("product_id") ||
+        params.get("invoice_no") ||
+        params.get("bill_id") ||
+        params.get("quotation_id") ||
+        params.get("employee_id")) &&
+      canView
+    )
+      loadStatement();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -398,12 +553,44 @@ export default function Statements() {
 
   const summary = summaryItems(type, data);
   const customer = data?.customer;
+  const quotation = data?.quotation;
+  const employee = data?.employee;
   const subject =
     type === "customer"
       ? customer?.name
       : type === "product"
         ? data?.product
-        : "";
+        : type === "quotation"
+          ? quotation
+            ? `Quotation ${quotation.quote_no} — ${quotation.client_name}`
+            : ""
+          : type === "employee"
+            ? employee?.name
+            : record
+              ? record.label
+              : "";
+  // Back to the normal Statements view
+  const clearRecord = () => {
+    setRecord(null);
+    setPinned(false);
+    setData(null);
+    setError("");
+    if (type === "customer") setClientId("");
+    if (type === "product") {
+      setProduct("");
+      setProductId("");
+    }
+    if (type === "quotation") setQuotationId("");
+    if (type === "employee") setEmployeeId("");
+    if (type === "sales" || type === "purchase") {
+      // same statement type, all records, normal monthly range
+      const r = periodRange("monthly", today);
+      setPeriod("monthly");
+      setAnchor(today);
+      setFrom(r[0]);
+      setTo(r[1]);
+    }
+  };
   const periodText = `${dmy(from)} to ${dmy(to)}`;
 
   // Rows including Opening / Closing lines (for the table and the files)
@@ -478,6 +665,65 @@ export default function Statements() {
     } else if (type === "product" && data?.product) {
       doc.setFont("helvetica", "bold");
       doc.text(`Product: ${data.product}`, 40, y);
+      doc.setFont("helvetica", "normal");
+      y += 14;
+    } else if (type === "quotation" && quotation) {
+      doc.setFont("helvetica", "bold");
+      doc.text(
+        `Quotation: ${quotation.quote_no}  (${dmy(quotation.date)})`,
+        40,
+        y,
+      );
+      doc.setFont("helvetica", "normal");
+      y += 14;
+      doc.text(`Customer: ${quotation.client_name}`, 40, y);
+      y += 14;
+      if (quotation.client_phone) {
+        doc.text(`Phone: ${quotation.client_phone}`, 40, y);
+        y += 14;
+      }
+      if (quotation.client_address) {
+        doc.text(`Address: ${quotation.client_address}`, 40, y);
+        y += 14;
+      }
+      if (quotation.client_gst) {
+        doc.text(`GST: ${quotation.client_gst}`, 40, y);
+        y += 14;
+      }
+      if (quotation.po_no) {
+        doc.text(`PO No: ${quotation.po_no}`, 40, y);
+        y += 14;
+      }
+      if (quotation.branch) {
+        doc.text(`Branch: ${quotation.branch}`, 40, y);
+        y += 14;
+      }
+      if (quotation.notes) {
+        doc.text(`Notes: ${quotation.notes}`, 40, y, { maxWidth: W - 80 });
+        y += 14;
+      }
+    } else if (type === "employee" && employee) {
+      doc.setFont("helvetica", "bold");
+      doc.text(
+        `Employee: ${employee.name}${employee.emp_id ? "  (ID: " + employee.emp_id + ")" : ""}`,
+        40,
+        y,
+      );
+      doc.setFont("helvetica", "normal");
+      y += 14;
+      if (employee.phone) {
+        doc.text(`Phone: ${employee.phone}`, 40, y);
+        y += 14;
+      }
+      doc.text(
+        `Branch: ${employee.branch}${employee.salary_type ? "   Type: " + employee.salary_type : ""}`,
+        40,
+        y,
+      );
+      y += 14;
+    } else if (record && (type === "sales" || type === "purchase")) {
+      doc.setFont("helvetica", "bold");
+      doc.text(record.label, 40, y);
       doc.setFont("helvetica", "normal");
       y += 14;
     } else {
@@ -607,12 +853,31 @@ export default function Statements() {
             [
               type === "customer"
                 ? `Customer: ${subject}`
-                : `Product: ${subject}`,
+                : type === "product"
+                  ? `Product: ${subject}`
+                  : type === "employee"
+                    ? `Employee: ${subject}`
+                    : subject,
             ],
           ]
         : []),
       ...(type === "customer" && customer?.phone
         ? [[`Phone: ${customer.phone}`]]
+        : []),
+      ...(type === "quotation" && quotation
+        ? [
+            [`Date: ${dmy(quotation.date)}`],
+            ...(quotation.client_phone
+              ? [[`Phone: ${quotation.client_phone}`]]
+              : []),
+            ...(quotation.client_gst ? [[`GST: ${quotation.client_gst}`]] : []),
+          ]
+        : []),
+      ...(type === "employee" && employee
+        ? [
+            [`Branch: ${employee.branch}`],
+            ...(employee.phone ? [[`Phone: ${employee.phone}`]] : []),
+          ]
         : []),
       [`Period: ${periodText}`],
       ...(branchName ? [[`Branch: ${branchName}`]] : []),
@@ -678,7 +943,16 @@ export default function Statements() {
       if (customer.phone) L.push(`Phone: ${customer.phone}`);
     }
     if (type === "product" && data?.product) L.push(`Product: ${data.product}`);
-    if (branchName) L.push(`Branch: ${branchName}`);
+    if (type === "quotation" && quotation) {
+      L.push(`Quotation: ${quotation.quote_no} (${dmy(quotation.date)})`);
+      L.push(`Customer: ${quotation.client_name}`);
+      if (quotation.client_phone) L.push(`Phone: ${quotation.client_phone}`);
+    }
+    if (type === "employee" && employee) {
+      L.push(`Employee: ${employee.name}`);
+      L.push(`Branch: ${employee.branch}`);
+    }
+    if (branchName && type !== "employee") L.push(`Branch: ${branchName}`);
     L.push(`Statement Period: ${periodText}`);
     L.push("");
 
@@ -720,6 +994,19 @@ export default function Statements() {
           `${dmy(r.date)} – ${r.particulars} – ${r.party || "-"} – ${r.reference} – ${r.received ? "Received " + money(r.received) : "Paid " + money(r.paid_out)}`,
         ),
       );
+    } else if (type === "quotation") {
+      rows.forEach((r) =>
+        L.push(
+          `${r.description} – ${qty(r.qty)} ${r.unit || ""} × ${money(r.rate)} = ${money(r.amount)}`,
+        ),
+      );
+    } else if (type === "employee") {
+      L.push(`${dmy(from)} – Opening Pending – ${money(data.opening)}`);
+      rows.forEach((r) =>
+        L.push(
+          `${dmy(r.date)} – ${r.particulars}${r.details ? " (" + r.details + ")" : ""}${r.advance ? " – Advance " + money(r.advance) : ""} – ${r.debit ? "Earned " + money(r.debit) : "Paid " + money(r.credit)} – Pending ${money(r.balance)}`,
+        ),
+      );
     } else if (type === "sales" || type === "purchase") {
       rows.forEach((r) =>
         L.push(
@@ -744,7 +1031,16 @@ export default function Statements() {
   const sendWhatsApp = () => {
     // customer statement → the customer's chat with +91; others → pick a contact
     window.open(
-      waLink(type === "customer" ? customer?.phone : "", whatsappText()),
+      waLink(
+        type === "customer"
+          ? customer?.phone
+          : type === "quotation"
+            ? quotation?.client_phone
+            : type === "employee"
+              ? employee?.phone
+              : "",
+        whatsappText(),
+      ),
       "_blank",
     );
   };
@@ -780,6 +1076,8 @@ export default function Statements() {
               setType(t.key);
               setData(null);
               setError("");
+              setRecord(null);
+              setPinned(false);
             }}
           >
             <i className={`bi ${t.icon}`}></i> {t.label}
@@ -830,12 +1128,48 @@ export default function Statements() {
               </select>
             </div>
           )}
+          {type === "quotation" && (
+            <div className="st-fg st-fg--wide">
+              <label>Quotation</label>
+              <select
+                value={quotationId}
+                onChange={(e) => setQuotationId(e.target.value)}
+              >
+                <option value="">— Select quotation —</option>
+                {quotations.map((q) => (
+                  <option key={q.id} value={q.id}>
+                    {q.quote_no} — {q.client_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {type === "employee" && (
+            <div className="st-fg st-fg--wide">
+              <label>Employee</label>
+              <select
+                value={employeeId}
+                onChange={(e) => setEmployeeId(e.target.value)}
+              >
+                <option value="">— Select employee —</option>
+                {employees.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.employee_name}
+                    {e.branch_id ? ` (${branchLabel(e.branch_id)})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           {type === "product" && (
             <div className="st-fg st-fg--wide">
               <label>Product</label>
               <select
                 value={product}
-                onChange={(e) => setProduct(e.target.value)}
+                onChange={(e) => {
+                  setProduct(e.target.value);
+                  setProductId("");
+                }}
               >
                 <option value="">— Select product —</option>
                 {products.map((p) => (
@@ -873,7 +1207,7 @@ export default function Statements() {
               type="button"
               className="st-btn st-btn--primary"
               disabled={!canView || loading}
-              onClick={loadStatement}
+              onClick={() => loadStatement()}
             >
               <i className="bi bi-search"></i>{" "}
               {loading ? "Loading…" : "View Statement"}
@@ -917,6 +1251,30 @@ export default function Statements() {
         )}
       </div>
 
+      {(record || pinned) && (
+        <div className="st-record-bar">
+          <span>
+            <i className="bi bi-funnel-fill"></i> Showing only:{" "}
+            <b>
+              {record
+                ? record.label
+                : type === "customer"
+                  ? customer?.name || "selected customer"
+                  : type === "product"
+                    ? product || "selected product"
+                    : type === "quotation"
+                      ? quotation?.quote_no || "selected quotation"
+                      : type === "employee"
+                        ? employee?.name || "selected employee"
+                        : "selected record"}
+            </b>
+          </span>
+          <button type="button" onClick={clearRecord}>
+            <i className="bi bi-x-circle"></i> Clear filter
+          </button>
+        </div>
+      )}
+
       {error && <div className="st-error st-error--box">{error}</div>}
 
       {data && (
@@ -929,7 +1287,92 @@ export default function Statements() {
               {type === "customer" && customer?.phone && (
                 <div className="st-muted">Phone: {customer.phone}</div>
               )}
-              {branchName && (
+              {type === "quotation" && quotation && (
+                <>
+                  <div className="st-muted">
+                    Date: {dmy(quotation.date)}
+                    {quotation.valid_until
+                      ? ` · Valid until ${dmy(quotation.valid_until)}`
+                      : ""}
+                  </div>
+                  {quotation.client_phone && (
+                    <div className="st-muted">
+                      Phone: {quotation.client_phone}
+                    </div>
+                  )}
+                  {quotation.client_address && (
+                    <div className="st-muted">
+                      Address: {quotation.client_address}
+                    </div>
+                  )}
+                  {quotation.client_gst && (
+                    <div className="st-muted">GST: {quotation.client_gst}</div>
+                  )}
+                  {quotation.client_email && (
+                    <div className="st-muted">
+                      Email: {quotation.client_email}
+                    </div>
+                  )}
+                  {quotation.po_no && (
+                    <div className="st-muted">PO No: {quotation.po_no}</div>
+                  )}
+                  {quotation.vehicle_no && (
+                    <div className="st-muted">
+                      Vehicle: {quotation.vehicle_no}
+                    </div>
+                  )}
+                  {quotation.dispatched_through && (
+                    <div className="st-muted">
+                      Dispatched through: {quotation.dispatched_through}
+                    </div>
+                  )}
+                  {quotation.ship_name && (
+                    <div className="st-muted">
+                      Ship to: {quotation.ship_name}
+                      {quotation.ship_address
+                        ? `, ${quotation.ship_address}`
+                        : ""}
+                    </div>
+                  )}
+                  {quotation.branch && (
+                    <div className="st-muted">Branch: {quotation.branch}</div>
+                  )}
+                  {quotation.notes && (
+                    <div className="st-muted">Notes: {quotation.notes}</div>
+                  )}
+                </>
+              )}
+              {type === "employee" && employee && (
+                <>
+                  {employee.emp_id && (
+                    <div className="st-muted">
+                      Employee ID: {employee.emp_id}
+                    </div>
+                  )}
+                  {employee.phone && (
+                    <div className="st-muted">Phone: {employee.phone}</div>
+                  )}
+                  {employee.gender && (
+                    <div className="st-muted">Gender: {employee.gender}</div>
+                  )}
+                  {employee.address && (
+                    <div className="st-muted">Address: {employee.address}</div>
+                  )}
+                  <div className="st-muted">
+                    Branch: {employee.branch}
+                    {employee.salary_type ? ` · ${employee.salary_type}` : ""}
+                    {employee.salary_amount
+                      ? ` · Salary ${money(employee.salary_amount)}`
+                      : ""}
+                  </div>
+                  {employee.date_of_joining && (
+                    <div className="st-muted">
+                      Joined: {dmy(employee.date_of_joining)}
+                    </div>
+                  )}
+                </>
+              )}
+              {branchName && type !== "employee" && type !== "quotation" && (
                 <div className="st-muted">Branch: {branchName}</div>
               )}
             </div>
@@ -1129,6 +1572,8 @@ const CSS = `
 .st-error--box { background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 10px 14px; margin-bottom: 14px; }
 .st-shead { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-bottom: 2px solid #008b3e; padding-bottom: 12px; margin-bottom: 14px; }
 .st-shead__title { font-size: 18px; font-weight: 800; color: #0f172a; }
+.st-record-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; background: #ecfdf5; border: 1.5px solid #86efac; border-radius: 10px; padding: 10px 14px; margin-bottom: 14px; font-size: 13.5px; color: #14532d; }
+.st-record-bar button { border: 1.5px solid #86efac; background: #fff; color: #b91c1c; border-radius: 8px; padding: 6px 12px; font-weight: 700; cursor: pointer; }
 .st-shead__subject { font-size: 15px; font-weight: 700; color: #008b3e; margin-top: 2px; }
 .st-shead__period { text-align: right; }
 .st-shead__period span { display: block; font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700; }
