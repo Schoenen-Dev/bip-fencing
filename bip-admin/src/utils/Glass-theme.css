@@ -77,4 +77,4 @@ body .quote-summary {
   backdrop-filter: blur(16px) saturate(160%);
 }
 body .section-header { border-bottom-color: rgba(255,255,255,.7); }
-body .section-badge { background: rgba(255,255,255,.6); }
+body .section-badge { background: rgba(255,255,255,.6);  }
