@@ -6,7 +6,7 @@ import logo from "../assets/logo.jpeg";
 import loginBg from "../assets/login-bg.jpg";
 
 const LOGO_SRC = "/logo.jpeg";
-const API_BASE = "http://localhost:8000";
+const API_BASE = "https://api.bipbilling.co.in";
 
 export default function Login() {
   const [username, setUsername] = useState("");
