@@ -1913,7 +1913,7 @@ export default function TaxInvoice() {
               <i className="bi bi-info-circle-fill"></i>
               <div>
                 Pick a <strong>Branch</strong> for each row first — items can
-                come from Valioor, Naguneri and Kadambakulam on the same
+                come from Kadambankulam, Naguneri and Kadambakulam on the same
                 invoice. Once a branch is chosen, its product list appears in
                 Description.
               </div>
