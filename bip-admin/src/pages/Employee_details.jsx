@@ -3,16 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { apiFetch } from "../utils/api";
 
-const BRANCH_OPTIONS = ["Kadambankulam", "Panagudi", "Nanguneri"];
+const BRANCH_OPTIONS = ["Vallioor", "Panagudi", "Nanguneri"];
 const money = (v) => `₹${Number(v || 0).toLocaleString("en-IN")}`;
 
 // Rate fields shown per branch
 const BRANCH_RATES = {
   vallioor: [
-    ["kambi_kattu_rate", "Kambi Kattu Rate (₹)"],
-    ["others_rate", "Others Rate (₹)"],
-  ],
-  kadambankulam: [
     ["kambi_kattu_rate", "Kambi Kattu Rate (₹)"],
     ["others_rate", "Others Rate (₹)"],
   ],
@@ -43,14 +39,8 @@ const topbarBranch = () => {
     localStorage.getItem("admin_view_branch_name") || ""
   ).toLowerCase();
   const id = (localStorage.getItem("admin_view_branch") || "").trim();
-  const byId = { 1: "Kadambankulam", 2: "Nanguneri", 3: "Panagudi" }[id];
-  return (
-    BRANCH_OPTIONS.find(
-      (b) => b.toLowerCase() === (n === "vallioor" ? "kadambankulam" : n),
-    ) ||
-    byId ||
-    ""
-  );
+  const byId = { 1: "Vallioor", 2: "Nanguneri", 3: "Panagudi" }[id];
+  return BRANCH_OPTIONS.find((b) => b.toLowerCase() === n) || byId || "";
 };
 import PhoneInput from "../components/PhoneInput";
 
@@ -70,8 +60,19 @@ const getHeaders = () => {
 };
 
 const Employee_details = () => {
-  const navigate = useNavigate();
   const { logout } = useAuth();
+  const navigate = useNavigate(); // eslint-disable-line no-unused-vars
+  // Employee details statement (printable list of saved employee details)
+  const [empStmt, setEmpStmt] = useState(null);
+  const openAllStatement = async () => {
+    try {
+      const res = await apiFetch("/employees/get_employees.php?simple=1");
+      const data = await res.json();
+      setEmpStmt(Array.isArray(data) ? data : data.employees || []);
+    } catch {
+      setEmpStmt(employees);
+    }
+  };
   const userRole = localStorage.getItem("role");
   const isBranchSelected =
     userRole === "admin" ? !!localStorage.getItem("admin_view_branch") : true;
@@ -334,11 +335,7 @@ const Employee_details = () => {
       address: emp.address || "",
       branch_name:
         BRANCH_OPTIONS.find(
-          (b) =>
-            b.toLowerCase() ===
-            ((emp.branch_name || "").toLowerCase() === "vallioor"
-              ? "kadambankulam"
-              : (emp.branch_name || "").toLowerCase()),
+          (b) => b.toLowerCase() === (emp.branch_name || "").toLowerCase(),
         ) || "",
       salary_type: emp.salary_type,
       salary_amount: emp.salary_amount ?? "",
@@ -720,6 +717,9 @@ const Employee_details = () => {
             <i className="bi bi-table"></i>
             <span>Employee Records</span>
             <span className="ep-records-count">{pagination.total} total</span>
+            <button className="ep-stmt-btn" onClick={openAllStatement}>
+              <i className="bi bi-file-earmark-text"></i> Statement
+            </button>
           </div>
 
           {/* Filter Bar */}
@@ -924,15 +924,11 @@ const Employee_details = () => {
                             <td>
                               <div className="ep-actions">
                                 <button
-                                  className="ep-action-btn ep-action-btn--stmt"
-                                  onClick={() =>
-                                    navigate(
-                                      `/statements?type=employee&employee_id=${emp.id}`,
-                                    )
-                                  }
+                                  className="ep-action-btn ep-action-btn--edit"
+                                  onClick={() => setEmpStmt([emp])}
                                   title="Statement"
                                 >
-                                  <i className="bi bi-journal-text"></i>
+                                  <i className="bi bi-file-earmark-text"></i>
                                 </button>
                                 <button
                                   className="ep-action-btn ep-action-btn--edit"
@@ -1196,7 +1192,111 @@ const Employee_details = () => {
         </div>
       )}
 
+      {empStmt && (
+        <div className="ep-stmt-overlay" onClick={() => setEmpStmt(null)}>
+          <div className="ep-stmt" onClick={(e) => e.stopPropagation()}>
+            <div className="ep-stmt__bar ep-no-print">
+              <b>Employee Statement</b>
+              <span style={{ flex: 1 }}></span>
+              <button className="ep-stmt-btn" onClick={() => window.print()}>
+                <i className="bi bi-printer"></i> Print / PDF
+              </button>
+              <button
+                className="ep-stmt-btn ep-stmt-btn--ghost"
+                onClick={() => setEmpStmt(null)}
+              >
+                Close
+              </button>
+            </div>
+            <div id="emp-stmt-print">
+              <div className="ep-stmt__head">
+                <h2>BIP FENCING — Employee Details</h2>
+                <div>
+                  {new Date().toLocaleDateString("en-GB").replace(/\//g, "-")} ·{" "}
+                  {empStmt.length} employee{empStmt.length === 1 ? "" : "s"}
+                </div>
+              </div>
+              <table className="ep-stmt__table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Name</th>
+                    <th>Gender</th>
+                    <th>WhatsApp</th>
+                    <th>Branch</th>
+                    <th>Salary Type</th>
+                    <th>Salary</th>
+                    <th>Price / Pack</th>
+                    <th>Rates</th>
+                    <th>Petrol</th>
+                    <th>Tea</th>
+                    <th>Joined</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {empStmt.map((e, i) => (
+                    <tr key={e.id || i}>
+                      <td>{i + 1}</td>
+                      <td>
+                        <b>{e.employee_name}</b>
+                      </td>
+                      <td>{e.gender || "—"}</td>
+                      <td>{e.whatsapp_number || e.phone_number || "—"}</td>
+                      <td>{e.branch_name || "—"}</td>
+                      <td style={{ textTransform: "capitalize" }}>
+                        {e.salary_type || "—"}
+                      </td>
+                      <td>
+                        {Number(e.salary_amount) > 0
+                          ? money(e.salary_amount)
+                          : "—"}
+                      </td>
+                      <td>
+                        {e.price_per_bags != null && e.price_per_bags !== ""
+                          ? `₹${Number(e.price_per_bags).toLocaleString("en-IN", { maximumFractionDigits: 15 })}`
+                          : "—"}
+                      </td>
+                      <td style={{ whiteSpace: "normal" }}>
+                        {ratesFor(e.branch_name).length
+                          ? ratesFor(e.branch_name)
+                              .map(
+                                ([k, label]) =>
+                                  `${label.replace(/ Rate| \(.*\)/g, "")}: ${money(e[k])}`,
+                              )
+                              .join(", ")
+                          : "—"}
+                      </td>
+                      <td>{money(e.petrol_allowance)}</td>
+                      <td>{money(e.tea_allowance)}</td>
+                      <td>{e.date_of_joining || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
+        .ep-stmt-btn { margin-left: auto; display: inline-flex; gap: 6px; align-items: center; padding: 7px 14px; border-radius: 8px; border: none; background: #16a34a; color: #fff; font-weight: 700; cursor: pointer; font-size: 13px; }
+        .ep-stmt__bar .ep-stmt-btn { margin-left: 0; }
+        .ep-stmt-btn--ghost { background: #f1f5f9; color: #334155; }
+        .ep-stmt-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 1000; display: flex; justify-content: center; align-items: flex-start; padding: 30px 12px; overflow-y: auto; }
+        .ep-stmt { background: #fff; border-radius: 14px; width: 100%; max-width: 1150px; padding: 18px; }
+        .ep-stmt__bar { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; }
+        .ep-stmt__head { text-align: center; margin-bottom: 10px; }
+        .ep-stmt__head h2 { margin: 0 0 4px; font-size: 20px; }
+        .ep-stmt__table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+        .ep-stmt__table th, .ep-stmt__table td { border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; white-space: nowrap; }
+        .ep-stmt__table thead th { background: #f1f5f9; }
+        @media print {
+          body * { visibility: hidden !important; }
+          #emp-stmt-print, #emp-stmt-print * { visibility: visible !important; }
+          #emp-stmt-print { position: absolute; top: 0; left: 0; width: 100%; }
+          .ep-no-print { display: none !important; }
+          @page { size: A4 landscape; margin: 8mm; }
+        }
         /* NEW: hide the native scrollbar (and its up/down arrow buttons) everywhere,
            matching the same fix applied on the Admin Features page.
            Scrolling still works via mouse wheel, trackpad, touch, and keyboard —
@@ -1577,8 +1677,6 @@ const Employee_details = () => {
           transition: transform .12s, box-shadow .12s;
         }
         .ep-action-btn:hover { transform: scale(1.08); }
-        .ep-action-btn--stmt { background: #ecfdf5; color: #008b3e; }
-        .ep-action-btn--stmt:hover { background: #d1fae5; box-shadow: 0 2px 8px rgba(0,139,62,.18); }
         .ep-action-btn--edit { background: #eff6ff; color: #2563eb; }
         .ep-action-btn--edit:hover { background: #dbeafe; box-shadow: 0 2px 8px rgba(37,99,235,.18); }
         .ep-action-btn--delete { background: #fef2f2; color: #dc2626; }

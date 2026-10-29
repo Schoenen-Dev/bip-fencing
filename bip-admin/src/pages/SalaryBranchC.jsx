@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { apiFetch } from "../utils/api";
+import { useLocation, useNavigate } from "react-router-dom";
 
 /* =========================================================
    Salary — single entry page (Branch A, B and C)
@@ -193,6 +194,87 @@ export default function SalaryBranchC({ variant = "C" }) {
       setEmployees(Array.isArray(data) ? data : data.employees || []);
     } catch {
       setEmployees([]);
+    }
+  };
+
+  // ── Employee statement ──────────────────────────────────────
+  const monthStart = () => {
+    const d = new Date();
+    return toYMD(new Date(d.getFullYear(), d.getMonth(), 1));
+  };
+  const [stmt, setStmt] = useState(null); // { employee_id, name }
+  const [stmtFrom, setStmtFrom] = useState(monthStart());
+  const [stmtTo, setStmtTo] = useState(toYMD(new Date()));
+  const [stmtPays, setStmtPays] = useState([]);
+  const [stmtPay, setStmtPay] = useState({
+    amount: "",
+    date: toYMD(new Date()),
+    note: "Cash",
+  });
+
+  const loadStmtPays = async () => {
+    try {
+      const res = await apiFetch("/salary/salary_daily.php?action=payments");
+      const data = await res.json();
+      setStmtPays(Array.isArray(data) ? data : []);
+    } catch {
+      setStmtPays([]);
+    }
+  };
+  // Opened from Employee page → open that employee's statement once
+  const location = useLocation();
+  const navigate = useNavigate();
+  useEffect(() => {
+    const st = location.state;
+    if (st?.stmtEmp) {
+      setStmt({ employee_id: st.stmtEmp, name: st.stmtName || "" });
+      loadStmtPays();
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const openStatement = (r) => {
+    setStmt({ employee_id: r.employee_id, name: r.employee_name });
+    loadStmtPays();
+  };
+  const savePayment = async () => {
+    if (!(Number(stmtPay.amount) > 0))
+      return showToast("Enter the amount paid", "error");
+    try {
+      const res = await apiFetch(
+        "/salary/salary_daily.php?action=add_payment",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            employee_id: stmt.employee_id,
+            amount: Number(stmtPay.amount),
+            payment_date: stmtPay.date,
+            note: stmtPay.note,
+          }),
+        },
+      );
+      const d = await res.json();
+      if (d.error) throw new Error(d.error);
+      showToast("Salary payment saved");
+      setStmtPay((p) => ({ ...p, amount: "" }));
+      loadStmtPays();
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  };
+  const deletePayment = async (id) => {
+    if (!window.confirm("Delete this payment?")) return;
+    try {
+      const res = await apiFetch(
+        `/salary/salary_daily.php?action=delete_payment&id=${id}`,
+        { method: "DELETE" },
+      );
+      const d = await res.json();
+      if (d.error) throw new Error(d.error);
+      loadStmtPays();
+    } catch (err) {
+      showToast(err.message, "error");
     }
   };
 
@@ -492,18 +574,6 @@ export default function SalaryBranchC({ variant = "C" }) {
                   </li>
                 ))}
               </ul>
-            )}
-            {selectedEmp && selectedEmp.id && (
-              <small className="sp-hint">
-                <a
-                  href={`/statements?type=employee&employee_id=${selectedEmp.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ color: "#008b3e", fontWeight: 700 }}
-                >
-                  <i className="bi bi-journal-text"></i> View Statement
-                </a>
-              </small>
             )}
             {selectedEmp && cfg.packs && (
               <small className="sp-hint">
@@ -809,30 +879,7 @@ export default function SalaryBranchC({ variant = "C" }) {
                   return (
                     <tr key={r.id}>
                       <td>{r.date}</td>
-                      <td className="sp-strong">
-                        {r.employee_name}
-                        {(() => {
-                          const eid = employees.find(
-                            (e) => e.emp_id === r.employee_id,
-                          )?.id;
-                          return eid ? (
-                            <button
-                              className="sp-icon-btn"
-                              style={{ marginLeft: 8, verticalAlign: "middle" }}
-                              onClick={() =>
-                                window.open(
-                                  `/statements?type=employee&employee_id=${eid}`,
-                                  "_blank",
-                                  "noopener",
-                                )
-                              }
-                              title="Salary statement of this employee"
-                            >
-                              <i className="bi bi-journal-text"></i>
-                            </button>
-                          ) : null;
-                        })()}
-                      </td>
+                      <td className="sp-strong">{r.employee_name}</td>
                       <td>
                         <span
                           className={`sp-badge sp-badge--${r.attendance_status === "Absent" ? "absent" : r.attendance_status === "Present" ? "present" : r.attendance_status === "Half Day" ? "half" : "other"}`}
@@ -875,6 +922,13 @@ export default function SalaryBranchC({ variant = "C" }) {
                         <div className="sp-row-actions">
                           <button
                             className="sp-icon-btn"
+                            onClick={() => openStatement(r)}
+                            title="Statement"
+                          >
+                            <i className="bi bi-file-earmark-text"></i>
+                          </button>
+                          <button
+                            className="sp-icon-btn"
                             onClick={() => handleEdit(r)}
                             title="Edit"
                           >
@@ -899,6 +953,198 @@ export default function SalaryBranchC({ variant = "C" }) {
           </table>
         </div>
       </div>
+
+      {stmt &&
+        (() => {
+          const inRange = (dt) =>
+            (!stmtFrom || dt >= stmtFrom) && (!stmtTo || dt <= stmtTo);
+          const rows = records
+            .filter(
+              (x) => x.employee_id === stmt.employee_id && inRange(x.date),
+            )
+            .sort((a, b) => (a.date < b.date ? -1 : 1));
+          const pays = stmtPays.filter(
+            (p) =>
+              p.employee_id === stmt.employee_id && inRange(p.payment_date),
+          );
+          const calc = rows.map((x) => ({ x, c: calcRow(x) }));
+          const sum = (f) =>
+            calc.reduce((t, { c }) => t + (Number(f(c)) || 0), 0);
+          const net = sum((c) => c.total); // after advance
+          const advance = sum((c) => c.advance);
+          const earned = net + advance; // before advance
+          const paid = pays.reduce((t, p) => t + (Number(p.amount) || 0), 0);
+          const balance = net - paid;
+          const days = {
+            P: rows.filter((x) => x.attendance_status === "Present").length,
+            H: rows.filter((x) => x.attendance_status === "Half Day").length,
+            A: rows.filter((x) => x.attendance_status === "Absent").length,
+          };
+          return (
+            <div
+              className="sp-overlay no-print-bg"
+              onClick={() => setStmt(null)}
+            >
+              <div className="sp-stmt" onClick={(e) => e.stopPropagation()}>
+                <div className="sp-stmt__bar no-print">
+                  <b>Salary Statement</b>
+                  <input
+                    type="date"
+                    className="sp-input"
+                    value={stmtFrom}
+                    onChange={(e) => setStmtFrom(e.target.value)}
+                  />
+                  <span>to</span>
+                  <input
+                    type="date"
+                    className="sp-input"
+                    value={stmtTo}
+                    onChange={(e) => setStmtTo(e.target.value)}
+                  />
+                  <button className="sp-btn" onClick={() => window.print()}>
+                    <i className="bi bi-printer"></i> Print / PDF
+                  </button>
+                  <button
+                    className="sp-btn sp-btn--ghost"
+                    onClick={() => setStmt(null)}
+                  >
+                    Close
+                  </button>
+                </div>
+
+                <div id="sal-stmt-print">
+                  <div className="sp-stmt__head">
+                    <h2>BIP FENCING — Salary Statement</h2>
+                    <div>
+                      <b>{stmt.name}</b> · {cfg.title.replace("Salary — ", "")}
+                    </div>
+                    <div>
+                      {new Date()
+                        .toLocaleDateString("en-GB")
+                        .replace(/\//g, "-")}
+                      {[
+                        ["Present", days.P],
+                        ["Half Day", days.H],
+                        ["Absent", days.A],
+                      ]
+                        .filter(([, n]) => n > 0)
+                        .map(([l, n]) => ` · ${l} ${n}`)
+                        .join("")}
+                    </div>
+                  </div>
+                  <table className="sp-stmt__table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Attendance</th>
+                        <th>Salary</th>
+                        {cfg.packs && <th>Packs</th>}
+                        {ITEMS.map((it) => (
+                          <th key={it.key}>{it.label}</th>
+                        ))}
+                        {(cfg.extra || cfg.yesNo) && <th>Extra</th>}
+                        {cfg.foodOt && <th>Food</th>}
+                        {cfg.foodOt && <th>OT</th>}
+                        {cfg.petrolTea && <th>Petrol</th>}
+                        {cfg.petrolTea && <th>Tea</th>}
+                        <th>Advance</th>
+                        <th>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {calc.length === 0 && (
+                        <tr>
+                          <td
+                            colSpan={20}
+                            style={{ textAlign: "center", padding: 16 }}
+                          >
+                            No entries in this period
+                          </td>
+                        </tr>
+                      )}
+                      {calc.map(({ x, c }) => (
+                        <tr key={x.id}>
+                          <td>{x.date}</td>
+                          <td>{x.attendance_status || "—"}</td>
+                          <td>{inr(c.salary)}</td>
+                          {cfg.packs && (
+                            <td>
+                              {Number(x.pack_count) || 0} · {inr(c.packAmt)}
+                            </td>
+                          )}
+                          {ITEMS.map((it) => (
+                            <td key={it.key}>{inr(c.items[it.key])}</td>
+                          ))}
+                          {(cfg.extra || cfg.yesNo) && <td>{inr(c.extra)}</td>}
+                          {cfg.foodOt && <td>{inr(c.food)}</td>}
+                          {cfg.foodOt && <td>{inr(c.ot)}</td>}
+                          {cfg.petrolTea && <td>{inr(c.petrol)}</td>}
+                          {cfg.petrolTea && <td>{inr(c.tea)}</td>}
+                          <td className="sp-neg">
+                            {c.advance ? `−${inr(c.advance)}` : "—"}
+                          </td>
+                          <td>
+                            <b>{inr(c.total)}</b>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  <div className="sp-stmt__sum">
+                    <div>
+                      <span>Total Earned</span>
+                      <b>{inr(earned)}</b>
+                    </div>
+                    <div>
+                      <span>Advance taken</span>
+                      <b className="sp-neg">−{inr(advance)}</b>
+                    </div>
+                    <div>
+                      <span>Paid</span>
+                      <b className="sp-neg">−{inr(paid)}</b>
+                    </div>
+                    <div className="sp-stmt__bal">
+                      <span>Balance to pay</span>
+                      <b>{inr(balance)}</b>
+                    </div>
+                  </div>
+
+                  {pays.length > 0 && (
+                    <table className="sp-stmt__table" style={{ marginTop: 10 }}>
+                      <thead>
+                        <tr>
+                          <th>Paid on</th>
+                          <th>Amount</th>
+                          <th>Note</th>
+                          <th className="no-print"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pays.map((p) => (
+                          <tr key={p.id}>
+                            <td>{p.payment_date}</td>
+                            <td>{inr(p.amount)}</td>
+                            <td>{p.note || ""}</td>
+                            <td className="no-print">
+                              <button
+                                className="sp-icon-btn sp-icon-btn--del"
+                                onClick={() => deletePayment(p.id)}
+                                title="Delete"
+                              >
+                                <i className="bi bi-trash-fill"></i>
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
       {deleteTarget && (
         <div className="sp-overlay" onClick={() => setDeleteTarget(null)}>
@@ -1010,6 +1256,29 @@ export default function SalaryBranchC({ variant = "C" }) {
         .sp-badge--absent { background: #fee2e2; color: #dc2626; }
         .sp-badge--other { background: #f1f5f9; color: #475569; }
         .sp-row-actions { display: flex; gap: 6px; }
+        .sp-overlay.no-print-bg { position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 1000; display: flex; align-items: flex-start; justify-content: center; padding: 30px 12px; overflow-y: auto; }
+        .sp-stmt { background: #fff; border-radius: 14px; width: 100%; max-width: 1100px; padding: 18px; box-shadow: 0 20px 50px rgba(0,0,0,.25); }
+        .sp-stmt__bar, .sp-stmt__pay { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+        .sp-stmt__bar .sp-input, .sp-stmt__pay .sp-input { width: auto; min-width: 140px; }
+        .sp-stmt__pay { margin: 16px 0 0; padding-top: 14px; border-top: 1px dashed #cbd5e1; }
+        .sp-btn { padding: 9px 16px; border-radius: 8px; border: none; background: #16a34a; color: #fff; font-weight: 700; cursor: pointer; }
+        .sp-btn--ghost { background: #f1f5f9; color: #334155; }
+        .sp-stmt__head { text-align: center; margin-bottom: 10px; }
+        .sp-stmt__head h2 { margin: 0 0 4px; font-size: 20px; }
+        .sp-stmt__table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .sp-stmt__table th, .sp-stmt__table td { border: 1px solid #cbd5e1; padding: 6px 8px; text-align: right; white-space: nowrap; }
+        .sp-stmt__table th:first-child, .sp-stmt__table td:first-child, .sp-stmt__table td:nth-child(2) { text-align: left; }
+        .sp-stmt__table thead th { background: #f1f5f9; }
+        .sp-stmt__sum { margin: 12px 0 0 auto; max-width: 360px; font-size: 14px; }
+        .sp-stmt__sum div { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #e2e8f0; }
+        .sp-stmt__bal { font-size: 16px; color: #15803d; border-bottom: none !important; }
+        @media print {
+          body * { visibility: hidden !important; }
+          #sal-stmt-print, #sal-stmt-print * { visibility: visible !important; }
+          #sal-stmt-print { position: absolute; top: 0; left: 0; width: 100%; }
+          .no-print { display: none !important; }
+          @page { size: A4 landscape; margin: 8mm; }
+        }
         .sp-icon-btn { width: 32px; height: 32px; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; cursor: pointer; color: #334155; }
         .sp-icon-btn--del { color: #dc2626; border-color: #fecaca; background: #fef2f2; }
 

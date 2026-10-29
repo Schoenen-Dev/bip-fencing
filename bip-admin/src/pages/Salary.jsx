@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { useLocation } from "react-router-dom";
 import SalaryOld from "./SalaryOld";
 import SalaryBranchC from "./SalaryBranchC";
 
@@ -20,7 +22,10 @@ const currentBranchId = () => {
 };
 
 export default function Salary() {
-  const b = currentBranchId();
+  const location = useLocation();
+  // Opened from Employee page "Statement" → stay on that employee's branch page
+  const [stmtBranch] = useState(() => location.state?.stmtBranch);
+  const b = stmtBranch ? String(stmtBranch) : currentBranchId();
   if (b === "1") return <SalaryBranchC variant="A" />;
   if (b === "2") return <SalaryBranchC variant="B" />;
   if (b === "3") return <SalaryBranchC variant="C" />;
