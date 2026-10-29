@@ -1,61 +1,52 @@
 import { useEffect, useState } from "react";
+import { apiFetch } from "../utils/api";
 
 const inr = (v) =>
   `₹${Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
 
 export default function Dashboard() {
-  const [data, setData] = useState({
-    invoices: [],
-    purchases: [],
-    quotations: [],
-    employees: [],
-    attendance: [],
-    clients: [],
-    products: [],
-  });
-
-  const [quoteSummary, setQuoteSummary] = useState({
+  // Real numbers from the database (/get_dashboard_stats.php), follows the topbar branch
+  const [d, setD] = useState({
+    revenue: 0,
+    expense: 0,
+    profit: 0,
+    totalEmployees: 0,
+    presentToday: 0,
+    absentToday: 0,
+    totalClients: 0,
+    lowStock: [],
+    recentInvoices: [],
+    recentPurchases: [],
+    recentQuotations: [],
     totalQuotes: 0,
-    totalSubtotal: 0,
-    totalDiscount: 0,
-    totalRevenue: 0,
+    monthly: [],
   });
 
   useEffect(() => {
-    setData({
-      invoices: JSON.parse(localStorage.getItem("invoices")) || [],
-      purchases: JSON.parse(localStorage.getItem("purchaseBills")) || [],
-      quotations: JSON.parse(localStorage.getItem("quotes")) || [],
-      employees: JSON.parse(localStorage.getItem("employees")) || [],
-      attendance:
-        JSON.parse(localStorage.getItem("bip_attendance_records")) || [],
-      clients: JSON.parse(localStorage.getItem("bip_clients")) || [],
-      products: JSON.parse(localStorage.getItem("products")) || [],
-    });
-
-    const saved = localStorage.getItem("quotes_summary");
-    if (saved) {
+    (async () => {
       try {
-        setQuoteSummary(JSON.parse(saved));
-      } catch (_) {}
-    }
+        const res = await apiFetch("/get_dashboard_stats.php");
+        const j = await res.json();
+        if (!j.error) setD((p) => ({ ...p, ...j }));
+      } catch (_) {
+        /* keep zeros */
+      }
+    })();
   }, []);
 
-  const totalRevenue = data.invoices.reduce((s, i) => s + (i.total || 0), 0);
-  const totalExpense = data.purchases.reduce(
-    (s, p) => s + (p.grandTotal || 0),
-    0,
-  );
+  const totalRevenue = Number(d.revenue) || 0;
+  const totalExpense = Number(d.expense) || 0;
   const profit = totalRevenue - totalExpense;
-
-  const today = new Date().toISOString().split("T")[0];
-  const todayAttendance = data.attendance.filter((a) => a.date === today);
-  const uniqueEmployees = [
-    ...new Set(data.attendance.map((a) => a.employeeId || a.employeeName)),
-  ];
-  const totalEmployees = uniqueEmployees.length;
-  const present = todayAttendance.filter((a) => a.status === "Present").length;
-  const lowStock = data.products.filter((p) => (p.stock || 0) < 10);
+  const totalEmployees = Number(d.totalEmployees) || 0;
+  const present = Number(d.presentToday) || 0;
+  const absent = Number(d.absentToday) || 0;
+  const lowStock = d.lowStock || [];
+  const data = {
+    invoices: d.recentInvoices || [],
+    purchases: d.recentPurchases || [],
+    quotations: d.recentQuotations || [],
+  };
+  const quoteSummary = { totalQuotes: 0 }; // quotation amounts are not stored as a total
 
   const statCards = [
     {
@@ -93,7 +84,7 @@ export default function Dashboard() {
     },
     {
       label: "Clients",
-      value: data.clients.length,
+      value: Number(d.totalClients) || 0,
       icon: "bi-briefcase",
       color: "pink",
     },
@@ -109,9 +100,9 @@ export default function Dashboard() {
   };
 
   // Monthly chart data
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
-  const revenueData = [65000, 78000, 85000, 92000, 108000, totalRevenue];
-  const expenseData = [42000, 51000, 58000, 67000, 75000, totalExpense];
+  const months = (d.monthly || []).map((m) => m.month);
+  const revenueData = (d.monthly || []).map((m) => Number(m.revenue) || 0);
+  const expenseData = (d.monthly || []).map((m) => Number(m.expense) || 0);
   const maxValue = Math.max(...revenueData, ...expenseData, 1);
 
   return (
@@ -206,22 +197,19 @@ export default function Dashboard() {
             {data.invoices.length === 0 ? (
               <div className="empty-state">No invoices yet</div>
             ) : (
-              data.invoices
-                .slice(-4)
-                .reverse()
-                .map((inv, idx) => (
-                  <div key={idx} className="recent-item">
-                    <div className="recent-info">
-                      <div className="recent-title">{inv.invoiceNo}</div>
-                      <div className="recent-meta">
-                        {inv.clientName || "Walk-in"}
-                      </div>
-                    </div>
-                    <div className="recent-amount revenue">
-                      {inr(inv.total || 0)}
+              data.invoices.map((inv, idx) => (
+                <div key={idx} className="recent-item">
+                  <div className="recent-info">
+                    <div className="recent-title">{inv.invoice_no}</div>
+                    <div className="recent-meta">
+                      {inv.buyer_name || "Walk-in"}
                     </div>
                   </div>
-                ))
+                  <div className="recent-amount revenue">
+                    {inr(inv.net_amount || 0)}
+                  </div>
+                </div>
+              ))
             )}
           </div>
         </div>
@@ -243,22 +231,19 @@ export default function Dashboard() {
             {data.purchases.length === 0 ? (
               <div className="empty-state">No purchases yet</div>
             ) : (
-              data.purchases
-                .slice(-4)
-                .reverse()
-                .map((pur, idx) => (
-                  <div key={idx} className="recent-item">
-                    <div className="recent-info">
-                      <div className="recent-title">{pur.billNo}</div>
-                      <div className="recent-meta">
-                        {pur.company_name || "Supplier"}
-                      </div>
-                    </div>
-                    <div className="recent-amount expense">
-                      {inr(pur.grandTotal || 0)}
+              data.purchases.map((pur, idx) => (
+                <div key={idx} className="recent-item">
+                  <div className="recent-info">
+                    <div className="recent-title">{pur.invoice_no}</div>
+                    <div className="recent-meta">
+                      {pur.company_name || "Supplier"}
                     </div>
                   </div>
-                ))
+                  <div className="recent-amount expense">
+                    {inr(pur.total_amount || 0)}
+                  </div>
+                </div>
+              ))
             )}
           </div>
         </div>
@@ -307,20 +292,17 @@ export default function Dashboard() {
             {data.quotations.length === 0 ? (
               <div className="empty-state">No quotations yet</div>
             ) : (
-              data.quotations
-                .slice(-3)
-                .reverse()
-                .map((q, idx) => (
-                  <div key={idx} className="recent-item">
-                    <div className="recent-info">
-                      <div className="recent-title">{q.quoteNo}</div>
-                      <div className="recent-meta">
-                        {q.clientName || "New quote"}
-                      </div>
+              data.quotations.map((q, idx) => (
+                <div key={idx} className="recent-item">
+                  <div className="recent-info">
+                    <div className="recent-title">{q.quote_no}</div>
+                    <div className="recent-meta">
+                      {q.client_name || "New quote"}
                     </div>
-                    <div className="recent-amount">{inr(q.total || 0)}</div>
                   </div>
-                ))
+                  <div className="recent-amount">{q.quote_date || ""}</div>
+                </div>
+              ))
             )}
           </div>
         </div>
@@ -341,7 +323,7 @@ export default function Dashboard() {
               <div className="employee-label">Present</div>
             </div>
             <div className="employee-stat absent">
-              <div className="employee-value">{totalEmployees - present}</div>
+              <div className="employee-value">{absent}</div>
               <div className="employee-label">Absent</div>
             </div>
             <div className="employee-stat total">
@@ -363,7 +345,7 @@ export default function Dashboard() {
             <div className="stock-list">
               {lowStock.slice(0, 5).map((p, idx) => (
                 <div key={idx} className="stock-item">
-                  <span>{p.name || p.productName}</span>
+                  <span>{p.name}</span>
                   <span className="stock-badge">{p.stock} left</span>
                 </div>
               ))}
