@@ -263,11 +263,15 @@ const MIN_ROWS = itemCount >= PAGE_FILL_ROWS ? 0 : Math.max(0, PAGE_FILL_ROWS - 
   const sgstAmt = Number(inv.sgst_amount || 0);
   const igstAmt = isIgst ? Number(inv.total_tax || 0) : 0;
   const totalTax = isIgst ? igstAmt : cgstAmt + sgstAmt;
-  const netAmount = Number(inv.net_amount || 0);
+  // Extra expenses are included in the stored invoice total and closing balance,
+  // but are shown separately from the printed goods/bill net amount.
+  const extraSum = (inv.extras || []).reduce((t, x) => t + (Number(x.amount) || 0), 0);
+  const fullNet = Number(inv.net_amount || 0);
+  const netAmount = fullNet - extraSum;
   const totalQty = rows.reduce((s, r) => s + r.qty, 0);
   const openBalance = Number(inv.open_balance || 0);
   const paidAmt = Number(inv.paid_amount || 0);
-  const closingBalance = openBalance + netAmount - paidAmt;
+  const closingBalance = openBalance + fullNet - paidAmt;
   // same 4 lines as the Sales bill
   const balLines = {
     open: Math.max(openBalance, 0),
@@ -1874,7 +1878,10 @@ export default function Clients() {
       const inv = [...(d.invoices || [])].reverse();
       if (inv.length) {
         L.push("*Bills*");
-        inv.forEach((i) => L.push(`• ${i.invoice_date}  ${i.invoice_no}  ${m(i.net_amount)}`));
+        inv.forEach((i) => {
+          const ex = Number(i.extra_total) || 0;
+          L.push(`• ${i.invoice_date}  ${i.invoice_no}  Bill ${m(Number(i.net_amount) - ex)}${ex ? `  + Extra ${m(ex)} (${i.extra_text})  = ${m(i.net_amount)}` : ""}`);
+        });
         L.push("");
       }
       const pays = [...(d.payments || [])].reverse();
@@ -3063,6 +3070,11 @@ export default function Clients() {
                         <p className="cl-list-item__sub">{inv.invoice_date}</p>
                         {inv.motor_vehicle_no && (
                           <p className="cl-list-item__sub">🚚 {inv.motor_vehicle_no}</p>
+                        )}
+                        {inv.extra_text && (
+                          <p className="cl-list-item__sub" style={{ color: "#b45309" }}>
+                            Bill {inr(Number(inv.net_amount) - Number(inv.extra_total || 0))} + Extra {inr(inv.extra_total)} ({inv.extra_text})
+                          </p>
                         )}
                         {inv.payment_mode && (
                           <span className="cl-tag cl-tag--neutral">
