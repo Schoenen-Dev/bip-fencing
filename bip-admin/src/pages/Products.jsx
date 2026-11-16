@@ -18,6 +18,10 @@ const emptyForm = {
   stockQty: "",
   minStock: "",
   kambiQty: "",
+  kambiAmt: "200",
+  tmtProduct: "",
+  isCement: false,
+  postsPerCement: "",
   description: "",
 };
 
@@ -78,6 +82,10 @@ function mapFromDB(p) {
     stockQty: p.stock_qty,
     minStock: p.min_stock,
     kambiQty: Number(p.kambi_qty) || "",
+    kambiAmt: Number(p.kambi_amt) || "200",
+    tmtProduct: p.tmt_product || "",
+    isCement: Number(p.is_cement) === 1,
+    postsPerCement: Number(p.posts_per_cement) || "",
     description: p.description,
     branchId: p.branch_id,
   };
@@ -99,6 +107,7 @@ export default function Products() {
 
   const [form, setForm] = useState(emptyForm);
   const [products, setProducts] = useState([]);
+  const [prodSearch, setProdSearch] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -454,6 +463,10 @@ export default function Products() {
       stockQty: p.stockQty,
       minStock: p.minStock,
       kambiQty: p.kambiQty,
+      kambiAmt: p.kambiAmt,
+      tmtProduct: p.tmtProduct,
+      isCement: p.isCement ? 1 : 0,
+      postsPerCement: p.postsPerCement,
       description: p.description,
     });
     setEditingId(p.id);
@@ -471,6 +484,7 @@ export default function Products() {
       });
       if (!res.ok) throw new Error("Delete failed");
       setProducts((prev) => prev.filter((p) => p.id !== id));
+      await fetchProducts(); // refresh any other branch copies of an All Branch product
       if (editingId === id) {
         setEditingId(null);
         setForm(emptyForm);
@@ -996,6 +1010,71 @@ export default function Products() {
                     Salary page: pick this product → Kambi Kattu qty fills with this number
                   </span>
                 </div>
+                <div className="at-fg at-fg--2">
+                  <label className="at-label">Kambi Kattu Amount (₹)</label>
+                  <input
+                    type="number"
+                    className="at-input"
+                    name="kambiAmt"
+                    value={form.kambiAmt}
+                    onChange={handleChange}
+                    onWheel={(e) => e.target.blur()}
+                    placeholder="e.g. 200"
+                    min="0"
+                    step="any"
+                  />
+                  <span className="at-hint" style={{ fontWeight: 600, color: "#15803d" }}>
+                    {Number(form.kambiQty) > 0 && Number(form.kambiAmt) > 0
+                      ? `₹${Number(form.kambiAmt)} ÷ ${Number(form.kambiQty)} = ₹${(Number(form.kambiAmt) / Number(form.kambiQty)).toFixed(4)} per piece`
+                      : "Enter qty + amount → per piece rate shows here"}
+                  </span>
+                </div>
+                <div className="at-fg at-fg--2">
+                  <label className="at-label">Uses TMT (for posts)</label>
+                  <select
+                    className="at-select"
+                    name="tmtProduct"
+                    value={form.tmtProduct}
+                    onChange={handleChange}
+                  >
+                    <option value="">— not a post —</option>
+                    {[...new Set(products.map((x) => x.productName || x.product_name).filter(Boolean))]
+                      .filter((n) => n !== form.productName)
+                      .map((n) => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                  </select>
+                  <span className="at-hint">
+                    Salary page: post qty typed → this post stock +qty, selected TMT stock −qty
+                  </span>
+                </div>
+                <div className="at-fg at-fg--2">
+                  <label className="at-label">Posts per 1 cement (for posts)</label>
+                  <input
+                    type="number"
+                    className="at-input"
+                    name="postsPerCement"
+                    value={form.postsPerCement}
+                    onChange={handleChange}
+                    onWheel={(e) => e.target.blur()}
+                    placeholder="e.g. 10"
+                    min="0"
+                    step="any"
+                  />
+                  <span className="at-hint">Daily Production: 30 posts ÷ 10 = 3 cement = 3 packs</span>
+                </div>
+                <div className="at-fg at-fg--2">
+                  <label className="at-label">Cement for packs</label>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={!!form.isCement}
+                      onChange={(e) => setForm((f) => ({ ...f, isCement: e.target.checked }))}
+                    />
+                    This is the cement used for packs
+                  </label>
+                  <span className="at-hint">Salary page: No of Pack 3 → this stock −3</span>
+                </div>
               </div>
               <div className="at-fg" style={{ marginBottom: 20 }}>
                 <label className="at-label">Description</label>
@@ -1053,6 +1132,13 @@ export default function Products() {
                     <i className="bi bi-box-seam"></i>
                     <span>Product Catalog</span>
                   </div>
+                  <input
+                    className="at-input"
+                    style={{ maxWidth: 280, marginLeft: "auto", marginRight: 12 }}
+                    placeholder="🔍 Search product / HSN…"
+                    value={prodSearch}
+                    onChange={(e) => setProdSearch(e.target.value)}
+                  />
                   <span className="at-card__count">
                     {loading
                       ? "Loading…"
@@ -1073,7 +1159,12 @@ export default function Products() {
                   </div>
                 ) : (
                   <div className="at-timeline">
-                    {products.map((p) => {
+                    {products
+                      .filter((p) => {
+                        const q = prodSearch.trim().toLowerCase();
+                        return !q || `${p.productName || ""} ${p.hsn || ""}`.toLowerCase().includes(q);
+                      })
+                      .map((p) => {
                       const status = getStockStatus(p.stockQty, p.minStock);
                       const meta = STOCK_META[status];
                       return (
