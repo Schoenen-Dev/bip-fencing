@@ -5,9 +5,26 @@ import PhoneInput from "../components/PhoneInput";
 import { branchLabel } from "../utils/branchNames";
 
 // ── Helpers ─────────────────────────────────────────────────
+// Branch a purchased product goes to: "all" = All Branch, else a branch id.
+// Default follows the branch already selected in the top bar (same as before).
+const BRANCH_CHOICES = [1, 2, 3];
+const defaultItemBranch = () => {
+  try {
+    if (localStorage.getItem("role") === "admin") {
+      return localStorage.getItem("admin_view_branch") || "all";
+    }
+    return localStorage.getItem("branch_id") || "all";
+  } catch {
+    return "all";
+  }
+};
+
 const emptyItem = () => ({
-  product_id: "",
+  product_id: "", // internal id (kept when editing a saved bill; assigned by the server for new products)
   product_name: "",
+  hsn: "", // HSN Code: optional. Only products WITH an HSN appear in Tax Invoice
+
+  branch_id: defaultItemBranch(),
   quantity: "",
   rate: "",
   amount: "0.00",
@@ -21,6 +38,7 @@ const emptyForm = () => ({
   notes: "",
   gst_enabled: false,
   gst_rate: "18",
+  gst_type: "cgst_sgst", // "cgst_sgst" | "igst"
   round_off_mode: "auto", // "none" | "auto" | "manual"
   round_off: "", // manual round-off value (+ or −)
   opening_balance: "",
@@ -33,13 +51,10 @@ const r2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 
 // Signed rupee amount for round off: +₹0.40 / −₹0.60
 const signed = (n) =>
-  `${n > 0 ? "+" : n < 0 ? "−" : ""}₹${Math.abs(Number(n) || 0).toLocaleString(
-    "en-IN",
-    {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    },
-  )}`;
+  `${n > 0 ? "+" : n < 0 ? "−" : ""}₹${Math.abs(Number(n) || 0).toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 
 const ROUND_OFF_MODES = [
   { value: "none", label: "Off" },
@@ -48,10 +63,7 @@ const ROUND_OFF_MODES = [
 ];
 
 // Phone key used to identify the same party: last 10 digits only.
-const phoneKey = (p) =>
-  String(p || "")
-    .replace(/\D/g, "")
-    .slice(-10);
+const phoneKey = (p) => String(p || "").replace(/\D/g, "").slice(-10);
 
 // Read the logged-in user saved at login time.
 // NOTE: change "user" if your app stores it under a different key.
@@ -220,9 +232,7 @@ export default function PurchaseBill() {
     };
     parties.forEach((p) => add(p.name, p.phone));
     bills.forEach((b) => add(b.company_name, b.supplier_phone));
-    return Array.from(map.values()).sort((a, b) =>
-      a.name.localeCompare(b.name),
-    );
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [parties, bills]);
 
   const companyMatches = React.useMemo(() => {
@@ -336,6 +346,7 @@ export default function PurchaseBill() {
   const paidAmount = parseFloat(form.paid_amount) || 0;
   const closingBalance = r2(openingBalance + totalAmount - paidAmount);
 
+
   // ── Save (create or admin update) ─────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -348,9 +359,9 @@ export default function PurchaseBill() {
     }
     for (let i = 0; i < form.items.length; i++) {
       const it = form.items[i];
-      if (!it.product_id || !it.product_name || !it.quantity || !it.rate) {
+      if (!it.product_name || !it.quantity || !it.rate) {
         setFormError(
-          `Item #${i + 1}: product ID, name, quantity and rate are required`,
+          `Item #${i + 1}: product name, quantity and rate are required`,
         );
         return;
       }
@@ -372,6 +383,7 @@ export default function PurchaseBill() {
       ...form,
       gst_enabled: form.gst_enabled ? 1 : 0,
       gst_rate: gstRate,
+      gst_type: form.gst_type === "igst" ? "igst" : "cgst_sgst",
       opening_balance: openingBalance,
       paid_amount: paidAmount,
       round_off_mode: form.round_off_mode,
@@ -428,17 +440,18 @@ export default function PurchaseBill() {
       notes: bill.notes || "",
       gst_enabled: Number(bill.gst_enabled) === 1,
       gst_rate: String(parseFloat(bill.gst_rate) || 18),
+      gst_type: bill.gst_type === "igst" ? "igst" : "cgst_sgst",
       // Old bills (saved before round off existed) open with round off "Off"
       round_off_mode: bill.round_off_mode || "none",
       round_off:
-        bill.round_off_mode === "manual"
-          ? String(parseFloat(bill.round_off) || 0)
-          : "",
+        bill.round_off_mode === "manual" ? String(parseFloat(bill.round_off) || 0) : "",
       opening_balance: String(parseFloat(bill.opening_balance) || ""),
       paid_amount: String(parseFloat(bill.paid_amount) || ""),
       items: (bill.items || []).map((it) => ({
         product_id: it.product_id,
         product_name: it.product_name,
+        hsn: it.hsn || "",
+        branch_id: it.branch_id === null || it.branch_id === undefined ? "all" : String(it.branch_id),
         quantity: String(parseFloat(it.quantity)),
         rate: String(parseFloat(it.rate)),
         amount: parseFloat(it.amount).toFixed(2),
@@ -652,7 +665,9 @@ export default function PurchaseBill() {
               </div>
             </div>
             <div className="at-fg">
-              <label className="at-label">Supplier Phone</label>
+              <label className="at-label">
+                Supplier Phone
+              </label>
               <PhoneInput
                 name="supplier_phone"
                 className="at-input"
@@ -660,13 +675,10 @@ export default function PurchaseBill() {
                 onChange={handleHeaderChange}
               />
               {linkedParty ? (
-                <small
-                  style={{ color: "#008b3e", fontSize: 12, fontWeight: 600 }}
-                >
+                <small style={{ color: "#008b3e", fontSize: 12, fontWeight: 600 }}>
                   <i className="bi bi-link-45deg"></i> Linked to existing
-                  customer: {linkedParty.name} (
-                  {linkedParty.total_invoices || 0} invoice
-                  {Number(linkedParty.total_invoices) === 1 ? "" : "s"})
+                  customer: {linkedParty.name} ({linkedParty.total_invoices || 0}{" "}
+                  invoice{Number(linkedParty.total_invoices) === 1 ? "" : "s"})
                 </small>
               ) : supplierKey.length === 10 ? (
                 <small style={{ color: "#6b7280", fontSize: 12 }}>
@@ -696,10 +708,7 @@ export default function PurchaseBill() {
             </div>
             <div className="at-fg">
               <label className="at-label">
-                Invoice No.{" "}
-                <span style={{ color: "#6b7280", fontWeight: 400 }}>
-                  (optional)
-                </span>
+                Invoice No. <span style={{ color: "#6b7280", fontWeight: 400 }}>(optional)</span>
               </label>
               <input
                 type="text"
@@ -741,11 +750,12 @@ export default function PurchaseBill() {
           </div>
 
           <div className="at-table-wrap">
-            <table className="at-table" style={{ minWidth: 780 }}>
+            <table className="at-table" style={{ minWidth: 900 }}>
               <thead>
                 <tr>
-                  <th>Product ID *</th>
                   <th>Product Name *</th>
+                  <th>HSN Code</th>
+                  <th>Branch</th>
                   <th>Quantity *</th>
                   <th>Rate (₹) *</th>
                   <th>Amount (₹)</th>
@@ -755,16 +765,6 @@ export default function PurchaseBill() {
               <tbody>
                 {form.items.map((item, idx) => (
                   <tr key={idx}>
-                    <td data-label="Product ID">
-                      <input
-                        type="text"
-                        name="product_id"
-                        placeholder="Product ID / Code"
-                        className="at-input-t"
-                        value={item.product_id}
-                        onChange={(e) => handleItemChange(idx, e)}
-                      />
-                    </td>
                     <td data-label="Product Name">
                       <input
                         type="text"
@@ -774,6 +774,32 @@ export default function PurchaseBill() {
                         value={item.product_name}
                         onChange={(e) => handleItemChange(idx, e)}
                       />
+                    </td>
+                    <td data-label="HSN Code">
+                      <input
+                        type="text"
+                        name="hsn"
+                        placeholder="HSN Code (optional)"
+                        className="at-input-t"
+                        value={item.hsn}
+                        onChange={(e) => handleItemChange(idx, e)}
+                      />
+                    </td>
+                    <td data-label="Branch">
+                      <select
+                        name="branch_id"
+                        className="at-input-t"
+                        value={item.branch_id}
+                        onChange={(e) => handleItemChange(idx, e)}
+                        disabled={!isAdmin}
+                      >
+                        <option value="all">All Branch</option>
+                        {BRANCH_CHOICES.map((id) => (
+                          <option key={id} value={String(id)}>
+                            {branchLabel(id)}
+                          </option>
+                        ))}
+                      </select>
                     </td>
                     <td data-label="Quantity">
                       <input
@@ -883,6 +909,20 @@ export default function PurchaseBill() {
                 </select>
               </div>
             )}
+            {form.gst_enabled && (
+              <div className="at-fg" style={{ minWidth: 160 }}>
+                <label className="at-label">GST Type</label>
+                <select
+                  name="gst_type"
+                  className="at-select"
+                  value={form.gst_type}
+                  onChange={handleHeaderChange}
+                >
+                  <option value="cgst_sgst">CGST + SGST</option>
+                  <option value="igst">IGST</option>
+                </select>
+              </div>
+            )}
           </div>
 
           {/* ── Round off ───────────────────────────────────── */}
@@ -890,11 +930,7 @@ export default function PurchaseBill() {
             <i className="bi bi-calculator"></i> Round Off
           </div>
           <div className="pb-round-row">
-            <div
-              className="pb-seg"
-              role="radiogroup"
-              aria-label="Round off mode"
-            >
+            <div className="pb-seg" role="radiogroup" aria-label="Round off mode">
               {ROUND_OFF_MODES.map((m) => (
                 <button
                   key={m.value}
@@ -911,11 +947,8 @@ export default function PurchaseBill() {
 
             {form.round_off_mode === "auto" && (
               <div className="pb-round-info">
-                {inr(billAmount.toFixed(2))} →{" "}
-                <b>{inr(totalAmount.toFixed(2))}</b>
-                <span className="pb-round-tag">
-                  Round off {signed(autoRoundOff)}
-                </span>
+                {inr(billAmount.toFixed(2))} → <b>{inr(totalAmount.toFixed(2))}</b>
+                <span className="pb-round-tag">Round off {signed(autoRoundOff)}</span>
               </div>
             )}
 
@@ -946,11 +979,7 @@ export default function PurchaseBill() {
                       setForm({ ...form, round_off: flipped });
                     }}
                   >
-                    {String(form.round_off || "")
-                      .trim()
-                      .startsWith("-")
-                      ? "−"
-                      : "+"}
+                    {String(form.round_off || "").trim().startsWith("-") ? "−" : "+"}
                   </button>
                   <input
                     type="text"
@@ -965,24 +994,19 @@ export default function PurchaseBill() {
                       const neg = v.startsWith("-");
                       v = v.replace(/-/g, "");
                       const parts = v.split(".");
-                      v =
-                        parts.shift() +
-                        (parts.length ? "." + parts.join("") : "");
+                      v = parts.shift() + (parts.length ? "." + parts.join("") : "");
                       setForm({ ...form, round_off: (neg ? "-" : "") + v });
                     }}
                   />
                 </div>
                 <small style={{ color: "#6b7280", fontSize: 12 }}>
-                  Use − to reduce the amount. Auto would be{" "}
-                  {signed(autoRoundOff)}
+                  Use − to reduce the amount. Auto would be {signed(autoRoundOff)}
                 </small>
               </div>
             )}
 
             {form.round_off_mode === "none" && (
-              <div className="pb-round-info">
-                No round off — exact amount is used.
-              </div>
+              <div className="pb-round-info">No round off — exact amount is used.</div>
             )}
           </div>
 
@@ -1032,7 +1056,7 @@ export default function PurchaseBill() {
               </div>
               {form.gst_enabled && (
                 <div className="muted">
-                  GST ({gstRate}%): {inr(gstAmount.toFixed(2))}
+                  {form.gst_type === "igst" ? "IGST" : "GST"} ({gstRate}%): {inr(gstAmount.toFixed(2))}
                 </div>
               )}
               <div
@@ -1043,8 +1067,7 @@ export default function PurchaseBill() {
               </div>
               {form.round_off_mode !== "none" && (
                 <div className="muted">
-                  Round Off (
-                  {form.round_off_mode === "auto" ? "Auto" : "Manual"}):{" "}
+                  Round Off ({form.round_off_mode === "auto" ? "Auto" : "Manual"}):{" "}
                   {signed(roundOff)}
                 </div>
               )}
@@ -1259,7 +1282,7 @@ export default function PurchaseBill() {
                           )}
                           {Number(bill.gst_enabled) === 1 && (
                             <span className="gst-badge">
-                              GST {parseFloat(bill.gst_rate)}%
+                              {bill.gst_type === "igst" ? "IGST" : "GST"} {parseFloat(bill.gst_rate)}%
                             </span>
                           )}
                           <button
@@ -1305,7 +1328,7 @@ export default function PurchaseBill() {
                           </div>
                           {Number(bill.gst_enabled) === 1 && (
                             <div className="pay-chip">
-                              <span>GST</span>
+                              <span>{bill.gst_type === "igst" ? "IGST" : "GST"}</span>
                               <b>{inr(bill.gst_amount)}</b>
                             </div>
                           )}
@@ -1313,9 +1336,7 @@ export default function PurchaseBill() {
                             <div className="pay-chip">
                               <span>
                                 Round Off
-                                {bill.round_off_mode === "manual"
-                                  ? " (M)"
-                                  : " (A)"}
+                                {bill.round_off_mode === "manual" ? " (M)" : " (A)"}
                               </span>
                               <b>{signed(Number(bill.round_off))}</b>
                             </div>
@@ -1420,8 +1441,9 @@ export default function PurchaseBill() {
                           <table className="at-table">
                             <thead>
                               <tr>
-                                <th>Product ID</th>
                                 <th>Product Name</th>
+                                <th>HSN Code</th>
+                                <th>Branch</th>
                                 <th>Quantity</th>
                                 <th>Rate (₹)</th>
                                 <th>Amount (₹)</th>
@@ -1430,11 +1452,14 @@ export default function PurchaseBill() {
                             <tbody>
                               {(bill.items || []).map((it) => (
                                 <tr key={it.id}>
-                                  <td data-label="Product ID">
-                                    {it.product_id}
-                                  </td>
                                   <td data-label="Product Name">
                                     {it.product_name}
+                                  </td>
+                                  <td data-label="HSN Code">
+                                    {it.hsn || "—"}
+                                  </td>
+                                  <td data-label="Branch">
+                                    {it.branch_id ? branchLabel(it.branch_id) : "All Branch"}
                                   </td>
                                   <td data-label="Quantity">{it.quantity}</td>
                                   <td data-label="Rate (₹)">{inr(it.rate)}</td>
