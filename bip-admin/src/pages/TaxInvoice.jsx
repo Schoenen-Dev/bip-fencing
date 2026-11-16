@@ -203,6 +203,7 @@ const DEFAULT_FORM = {
   buyerState: "Tamil Nadu",
   buyerStateCode: "33",
   openBalance: "",
+  extraExpenses: [], // Additional charges tracked separately from printed invoice total
   paidAmount: "",
   closingBalance: "",
   roundOffManual: "",
@@ -247,6 +248,7 @@ const mapInvoiceToForm = (inv) => ({
   buyerState: inv.buyer_state || DEFAULT_FORM.buyerState,
   buyerStateCode: inv.buyer_state_code || DEFAULT_FORM.buyerStateCode,
   openBalance: inv.open_balance != null ? String(inv.open_balance) : "",
+  extraExpenses: (inv.extras || []).map((x) => ({ name: x.name || "", rate: x.rate ? String(x.rate) : "", qty: x.qty ? String(x.qty) : "", amount: String(Number(x.amount) || "") })),
   paidAmount: inv.paid_amount != null ? String(inv.paid_amount) : "",
   closingBalance: inv.closing_balance != null ? String(inv.closing_balance) : "",
   gstRate:
@@ -559,6 +561,16 @@ export default function TaxInvoice() {
       }
     };
     checkUserRole();
+  }, []);
+
+  const [extraNames, setExtraNames] = useState(
+    ["Loading", "Unloading", "Coolie", "Transport", "Jally"].map((name) => ({ name, rate: 0 }))
+  );
+  useEffect(() => {
+    apiFetch("/client.php?extra_names=1")
+      .then((r) => r.json())
+      .then((d) => d.success && Array.isArray(d.names) && setExtraNames(d.names.map((n) => typeof n === "string" ? { name: n, rate: 0 } : { name: n.name, rate: Number(n.rate) || 0 })))
+      .catch(() => {});
   }, []);
 
   // ── Load persisted form from sessionStorage on mount ──────────────────────
@@ -1021,10 +1033,20 @@ export default function TaxInvoice() {
       ? r2(parseFloat(form.roundOffManual))
       : autoRoundOff;
   const netAmount = r2(gross + roundOff);
-  // Open Balance + this invoice − Paid Amount
+  // Extra expenses are tracked in the customer balance, but never printed on the tax invoice.
+  const extraAmt = (x) => (Number(x.rate) > 0 ? r2(Number(x.rate) * (Number(x.qty) || 1)) : Number(x.amount) || 0);
+  const extraTotal = r2((form.extraExpenses || []).reduce((t, x) => t + extraAmt(x), 0));
+  const setExtra = (i, k, v) => setForm((f) => ({ ...f, extraExpenses: (f.extraExpenses || []).map((x, j) => j === i ? { ...x, [k]: v } : x) }));
+  const addExtra = () => setForm((f) => ({ ...f, extraExpenses: [...(f.extraExpenses || []), { name: "", rate: "", qty: "", amount: "" }] }));
+  const pickExtraName = (i, v) => {
+    const known = extraNames.find((n) => n.name.toLowerCase() === v.trim().toLowerCase());
+    setForm((f) => ({ ...f, extraExpenses: (f.extraExpenses || []).map((x, j) => j === i ? { ...x, name: v, rate: known && known.rate > 0 && !x.rate ? String(known.rate) : x.rate } : x) }));
+  };
+  const removeExtra = (i) => setForm((f) => ({ ...f, extraExpenses: (f.extraExpenses || []).filter((_, j) => j !== i) }));
+  // Open Balance + this invoice + extra expenses − Paid Amount
   const paidAmount = parseFloat(form.paidAmount) || 0;
   const closingBalance =
-    (parseFloat(form.openBalance) || 0) + netAmount - paidAmount;
+    (parseFloat(form.openBalance) || 0) + netAmount + extraTotal - paidAmount;
   // Bill balance lines (e.g. advance 50,000, bill 45,000 → Received Balance 5,000, Closing 0)
   const openNum = parseFloat(form.openBalance) || 0;
   const balLines = {
@@ -1234,7 +1256,7 @@ export default function TaxInvoice() {
         sgst_amount: sgstAmt,
         total_tax: totalTax,
         round_off: roundOff,
-        net_amount: netAmount,
+        net_amount: r2(netAmount + extraTotal), // stored customer amount includes extra expenses; printed invoice remains unchanged
         open_balance: form.openBalance,
         paid_amount: paidAmount,
         closing_balance: closingBalance,
@@ -1266,6 +1288,14 @@ export default function TaxInvoice() {
         console.error("Invoice save failed:", result.message);
         alert("⚠️ Bill NOT saved: " + (result.message || "unknown error"));
       } else {
+        try {
+          await apiFetch(`/client.php?invoice_extra=${encodeURIComponent(invoiceNoToUse)}`, {
+            method: "POST",
+            body: JSON.stringify({ items: (form.extraExpenses || []).map((x) => ({ name: (x.name || "").trim(), rate: Number(x.rate) || 0, qty: Number(x.qty) || 0, amount: extraAmt(x) })).filter((x) => x.name && x.amount > 0) }),
+          });
+        } catch (e) {
+          alert("⚠️ Bill saved, but extra expense not saved: " + e.message);
+        }
         fetchClients(); // refresh balances so the NEXT bill gets the correct Open Balance
       }
     } catch (err) {
@@ -1961,6 +1991,30 @@ export default function TaxInvoice() {
                 <div className="net">Net Amount: ₹ {fmt2(netAmount)}</div>
               </div>
             </div>
+          </div>
+
+          {/* Extra expenses affect customer closing balance only; excluded from printed invoice. */}
+          <div className="at-card no-print">
+            <div className="at-card__head">
+              <i className="bi bi-plus-circle"></i>
+              <span>Extra Expense — Loading / Unloading / Coolie… (Closing Balance only)</span>
+            </div>
+            <datalist id="extra-names">
+              {extraNames.map((n) => <option key={n.name} value={n.name} />)}
+            </datalist>
+            {(form.extraExpenses || []).map((x, i) => (
+              <div key={i} style={{ display: "flex", gap: 10, marginBottom: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <input className="at-input" list="extra-names" placeholder="Type or pick: Loading, Unloading, Coolie…" value={x.name} onChange={(e) => pickExtraName(i, e.target.value)} style={{ flex: 2, minWidth: 150 }} />
+                <input className="at-input" type="number" min="0" step="any" placeholder="Rate ₹" value={x.rate || ""} onWheel={(e) => e.target.blur()} onChange={(e) => setExtra(i, "rate", e.target.value)} style={{ flex: 1, minWidth: 90 }} />
+                <span>×</span>
+                <input className="at-input" type="number" min="0" step="any" placeholder="Qty (1)" value={x.qty || ""} onWheel={(e) => e.target.blur()} onChange={(e) => setExtra(i, "qty", e.target.value)} style={{ flex: 1, minWidth: 80 }} />
+                <span>=</span>
+                {Number(x.rate) > 0 ? <b style={{ flex: 1, minWidth: 90 }}>₹{fmt2(extraAmt(x))}</b> : <input className="at-input" type="number" min="0" step="any" placeholder="Amount ₹" value={x.amount || ""} onWheel={(e) => e.target.blur()} onChange={(e) => setExtra(i, "amount", e.target.value)} style={{ flex: 1, minWidth: 90 }} />}
+                <button type="button" className="btn btn-outline-danger btn-sm" onClick={() => removeExtra(i)}>✕</button>
+              </div>
+            ))}
+            <button type="button" className="btn btn-outline-success btn-sm" onClick={addExtra}>+ Add Extra Expense</button>
+            {extraTotal > 0 && <div style={{ marginTop: 10, fontWeight: 600 }}>Invoice Net ₹{fmt2(netAmount)} · Extra ₹{fmt2(extraTotal)} · Customer balance includes both</div>}
           </div>
 
           {/* Balance */}
