@@ -2,7 +2,7 @@
 // ✅ Added role-based access control - Only Admin can access
 // ✅ Client name search + autofill for Consignee & Buyer
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Select from "react-select";
 import { apiFetch } from "../utils/api";
@@ -175,23 +175,30 @@ const emptyProduct = () => ({
   stockDeducted: false,
 });
 
+// today in local (IST) time, yyyy-mm-dd
+const localToday = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
 const DEFAULT_FORM = {
   copyType: "ORIGINAL FOR RECIPIENT",
   invoiceNo: "",
   invoiceNoLocked: false,
-  invoiceDate: new Date().toISOString().split("T")[0],
+  // getters → every new bill gets TODAY (not the day the page was first opened)
+  get invoiceDate() { return localToday(); },
   referenceNo: "",
   buyersOrderNo: "",
-  dated: "",
+  get dated() { return localToday(); },
   dispatchDocNo: "",
-  deliveryNoteDate: "",
+  get deliveryNoteDate() { return localToday(); },
   dispatchedThrough: "",
   destination: "",
   billOfLading: "",
   motorVehicleNo: "",
   ewayRequired: "",
   ewayNumber: "",
-  paymentMode: "", // nothing selected by default ("Select Payment Mode"); saved as Credit if left empty
+  paymentMode: "Credit", // default Credit
   consigneeName: "",
   consigneeAddress: "",
   consigneeState: "Tamil Nadu",
@@ -580,11 +587,46 @@ export default function TaxInvoice() {
       const saved = sessionStorage.getItem(SESSION_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        return { ...DEFAULT_FORM, ...parsed.form };
+        const f = { ...DEFAULT_FORM, ...parsed.form };
+        // new (unsaved) bill left open from an older day → move dates to today
+        if (!f.invoiceNoLocked) {
+          const t = localToday();
+          if (!f.invoiceDate || f.invoiceDate < t) f.invoiceDate = t;
+          if (!f.dated || f.dated < t) f.dated = t;
+          if (!f.deliveryNoteDate || f.deliveryNoteDate < t) f.deliveryNoteDate = t;
+        }
+        return f;
       }
     } catch (_) {}
     return { ...DEFAULT_FORM };
   });
+
+  // page kept open past midnight → new bill's dates roll to the new day
+  //    (a date you picked yourself is left alone)
+  const autoDay = useRef(localToday());
+  useEffect(() => {
+    const roll = () => {
+      const t = localToday();
+      const prev = autoDay.current;
+      if (prev === t) return;
+      autoDay.current = t;
+      setForm((f) => {
+        if (f.invoiceNoLocked) return f;
+        return {
+          ...f,
+          invoiceDate: f.invoiceDate === prev ? t : f.invoiceDate,
+          dated: !f.dated || f.dated === prev ? t : f.dated,
+          deliveryNoteDate: !f.deliveryNoteDate || f.deliveryNoteDate === prev ? t : f.deliveryNoteDate,
+        };
+      });
+    };
+    window.addEventListener("focus", roll);
+    const id = setInterval(roll, 60000);
+    return () => {
+      window.removeEventListener("focus", roll);
+      clearInterval(id);
+    };
+  }, []);
 
   const [products, setProducts] = useState(() => {
     if (continueInvoiceNo || fromQuotationId) return [emptyProduct()];
@@ -1544,11 +1586,9 @@ export default function TaxInvoice() {
                 <select
                   className="at-select"
                   name="paymentMode"
-                  value={form.paymentMode}
+                  value={form.paymentMode || "Credit"}
                   onChange={handleForm}
-                  style={!form.paymentMode ? { color: "#94a3b8" } : undefined}
                 >
-                  <option value="">Select Payment Mode</option>
                   {["Cash", "Credit", "UPI", "Bank Transfer", "Cheque"].map((m) => (
                     <option key={m}>{m}</option>
                   ))}
@@ -2225,6 +2265,22 @@ const MIN_ROWS = itemCount >= PAGE_FILL_ROWS ? 0 : Math.max(0, PAGE_FILL_ROWS - 
     }
     if (roundOff) L.push(`Round Off: ${roundOff > 0 ? "+" : "-"}₹${fmt2(Math.abs(roundOff))}`);
     L.push(`*Invoice Total: ₹${fmt2(netAmount)}*`);
+    // Extra expense (not on the printed bill) — shown in the WhatsApp text
+    const ex = (form.extraExpenses || []).filter((x) => (x.name || "").trim() && extraAmt(x) > 0);
+    if (ex.length) {
+      L.push("");
+      L.push("*Extra Expense*");
+      ex.forEach((x) =>
+        L.push(
+          Number(x.rate) > 0 && Number(x.qty) > 0
+            ? `${x.name.trim()}: ${Number(x.qty)} × ₹${fmt2(Number(x.rate))} = ₹${fmt2(extraAmt(x))}`
+            : `${x.name.trim()}: ₹${fmt2(extraAmt(x))}`
+        )
+      );
+      L.push(`*Extra Total: ₹${fmt2(extraTotal)}*`);
+      L.push(`*Bill + Extra: ₹${fmt2(netAmount + extraTotal)}*`);
+      L.push("");
+    }
     L.push(`Payment: ${form.paymentMode || "Credit"}`);
     L.push(
       `Open Balance: ₹${fmt2(balLines.open)}`,
