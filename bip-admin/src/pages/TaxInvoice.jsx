@@ -211,6 +211,9 @@ const DEFAULT_FORM = {
   buyerStateCode: "33",
   openBalance: "",
   extraExpenses: [], // Additional charges tracked separately from printed invoice total
+  coolieEmp: "",   // employee who did the coolie (emp_id)
+  coolieRate: "",  // ₹ per qty — 0 unless you type it
+  coolieQty: "",   // "" = auto (total qty of HSN 6810 + 2517 items)
   paidAmount: "",
   closingBalance: "",
   roundOffManual: "",
@@ -255,7 +258,10 @@ const mapInvoiceToForm = (inv) => ({
   buyerState: inv.buyer_state || DEFAULT_FORM.buyerState,
   buyerStateCode: inv.buyer_state_code || DEFAULT_FORM.buyerStateCode,
   openBalance: inv.open_balance != null ? String(inv.open_balance) : "",
-  extraExpenses: (inv.extras || []).map((x) => ({ name: x.name || "", rate: x.rate ? String(x.rate) : "", qty: x.qty ? String(x.qty) : "", amount: String(Number(x.amount) || "") })),
+  coolieEmp: inv.coolie?.emp_id || "",
+  coolieRate: inv.coolie ? String(Number(inv.coolie.rate) || "") : "",
+  coolieQty: inv.coolie ? String(Number(inv.coolie.qty) || "") : "",
+  extraExpenses: (inv.extras || []).filter((x) => !(inv.coolie && x.name === "Coolie")).map((x) => ({ name: x.name || "", rate: x.rate ? String(x.rate) : "", qty: x.qty ? String(x.qty) : "", amount: String(Number(x.amount) || "") })),
   paidAmount: inv.paid_amount != null ? String(inv.paid_amount) : "",
   closingBalance: inv.closing_balance != null ? String(inv.closing_balance) : "",
   gstRate:
@@ -570,6 +576,13 @@ export default function TaxInvoice() {
     checkUserRole();
   }, []);
 
+  const [coolieEmployees, setCoolieEmployees] = useState([]);
+  useEffect(() => {
+    apiFetch("/employees/get_employees.php?simple=1")
+      .then((r) => r.json())
+      .then((d) => setCoolieEmployees(Array.isArray(d) ? d : d.employees || []))
+      .catch(() => {});
+  }, []);
   const [extraNames, setExtraNames] = useState(
     ["Loading", "Unloading", "Coolie", "Transport", "Jally"].map((name) => ({ name, rate: 0 }))
   );
@@ -1077,7 +1090,14 @@ export default function TaxInvoice() {
   const netAmount = r2(gross + roundOff);
   // Extra expenses are tracked in the customer balance, but never printed on the tax invoice.
   const extraAmt = (x) => (Number(x.rate) > 0 ? r2(Number(x.rate) * (Number(x.qty) || 1)) : Number(x.amount) || 0);
-  const extraTotal = r2((form.extraExpenses || []).reduce((t, x) => t + extraAmt(x), 0));
+  // Coolie: qty = HSN 6810 + 2517 items (auto, editable) × rate (0 unless typed) → added like an extra
+  const COOLIE_HSN = ["6810", "2517"];
+  const coolieAutoQty = r2(
+    products.reduce((t, p) => t + (COOLIE_HSN.includes(String(p.hsn || "").trim()) ? Number(p.qty) || 0 : 0), 0)
+  );
+  const coolieQtyVal = form.coolieQty !== "" && form.coolieQty != null ? Number(form.coolieQty) || 0 : coolieAutoQty;
+  const coolieAmt = r2((Number(form.coolieRate) || 0) * coolieQtyVal);
+  const extraTotal = r2((form.extraExpenses || []).reduce((t, x) => t + extraAmt(x), 0) + coolieAmt);
   const setExtra = (i, k, v) => setForm((f) => ({ ...f, extraExpenses: (f.extraExpenses || []).map((x, j) => j === i ? { ...x, [k]: v } : x) }));
   const addExtra = () => setForm((f) => ({ ...f, extraExpenses: [...(f.extraExpenses || []), { name: "", rate: "", qty: "", amount: "" }] }));
   const pickExtraName = (i, v) => {
@@ -1333,7 +1353,17 @@ export default function TaxInvoice() {
         try {
           await apiFetch(`/client.php?invoice_extra=${encodeURIComponent(invoiceNoToUse)}`, {
             method: "POST",
-            body: JSON.stringify({ items: (form.extraExpenses || []).map((x) => ({ name: (x.name || "").trim(), rate: Number(x.rate) || 0, qty: Number(x.qty) || 0, amount: extraAmt(x) })).filter((x) => x.name && x.amount > 0) }),
+            body: JSON.stringify({
+              items: [
+                ...(form.extraExpenses || []).map((x) => ({ name: (x.name || "").trim(), rate: Number(x.rate) || 0, qty: Number(x.qty) || 0, amount: extraAmt(x) })),
+                ...(coolieAmt > 0 ? [{ name: "Coolie", rate: Number(form.coolieRate) || 0, qty: coolieQtyVal, amount: coolieAmt }] : []),
+              ].filter((x) => x.name && x.amount > 0),
+            }),
+          });
+          // coolie → that employee's salary
+          await apiFetch(`/client.php?invoice_coolie=${encodeURIComponent(invoiceNoToUse)}`, {
+            method: "POST",
+            body: JSON.stringify({ emp_id: form.coolieEmp, qty: coolieQtyVal, rate: Number(form.coolieRate) || 0, amount: form.coolieEmp ? coolieAmt : 0 }),
           });
         } catch (e) {
           alert("⚠️ Bill saved, but extra expense not saved: " + e.message);
@@ -2033,6 +2063,48 @@ export default function TaxInvoice() {
             </div>
           </div>
 
+          {/* Coolie — employee + qty (HSN 6810 / 2517 auto) × rate → customer closing balance + employee salary */}
+          <div className="at-card no-print">
+            <div className="at-card__head">
+              <i className="bi bi-person-gear"></i>
+              <span>Coolie (Closing Balance + employee salary)</span>
+            </div>
+            <div className="at-form-grid">
+              <div className="at-fg">
+                <label className="at-label">Employee</label>
+                <select className="at-input" name="coolieEmp" value={form.coolieEmp} onChange={handleForm}>
+                  <option value="">— select employee —</option>
+                  {coolieEmployees.map((e) => (
+                    <option key={e.emp_id} value={e.emp_id}>{e.employee_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="at-fg">
+                <label className="at-label">Qty (HSN 6810 + 2517)</label>
+                <input
+                  className="at-input" type="number" min="0" step="any" name="coolieQty"
+                  value={form.coolieQty !== "" ? form.coolieQty : coolieAutoQty || ""}
+                  placeholder="0" onWheel={(e) => e.target.blur()}
+                  onChange={handleForm}
+                />
+                <span className="at-hint">Auto from bill items: {coolieAutoQty}</span>
+              </div>
+              <div className="at-fg">
+                <label className="at-label">Rate (₹)</label>
+                <input
+                  className="at-input" type="number" min="0" step="any" name="coolieRate"
+                  value={form.coolieRate} placeholder="0" onWheel={(e) => e.target.blur()}
+                  onChange={handleForm}
+                />
+              </div>
+              <div className="at-fg">
+                <label className="at-label">Amount</label>
+                <div className="at-input" style={{ background: "#f0fdf4", fontWeight: 700 }}>₹{fmt2(coolieAmt)}</div>
+                {coolieAmt > 0 && !form.coolieEmp && <span className="at-hint" style={{ color: "#b45309" }}>Select employee to add to salary</span>}
+              </div>
+            </div>
+          </div>
+
           {/* Extra expenses affect customer closing balance only; excluded from printed invoice. */}
           <div className="at-card no-print">
             <div className="at-card__head">
@@ -2266,7 +2338,10 @@ const MIN_ROWS = itemCount >= PAGE_FILL_ROWS ? 0 : Math.max(0, PAGE_FILL_ROWS - 
     if (roundOff) L.push(`Round Off: ${roundOff > 0 ? "+" : "-"}₹${fmt2(Math.abs(roundOff))}`);
     L.push(`*Invoice Total: ₹${fmt2(netAmount)}*`);
     // Extra expense (not on the printed bill) — shown in the WhatsApp text
-    const ex = (form.extraExpenses || []).filter((x) => (x.name || "").trim() && extraAmt(x) > 0);
+    const ex = [
+      ...(form.extraExpenses || []),
+      ...(coolieAmt > 0 ? [{ name: "Coolie", rate: form.coolieRate, qty: coolieQtyVal }] : []),
+    ].filter((x) => (x.name || "").trim() && extraAmt(x) > 0);
     if (ex.length) {
       L.push("");
       L.push("*Extra Expense*");
