@@ -5,6 +5,7 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
 import "./index.css";
 import "./glass-theme.css";
+import "./utils/dateFormatFix";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
