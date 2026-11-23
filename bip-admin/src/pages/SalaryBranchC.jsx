@@ -1,6 +1,39 @@
-import { useState, useEffect, useMemo, Fragment } from "react";
+import { useState, useEffect, useMemo, useRef, Fragment } from "react";
 import { apiFetch } from "../utils/api";
 import { useLocation, useNavigate } from "react-router-dom";
+
+// Phone / browser Back closes the screen opened inside this page (not the whole page)
+const stack = [];
+let ignore = 0;
+let bound = false;
+
+function onPop() {
+  if (ignore > 0) { ignore--; return; }
+  const top = stack.pop();
+  if (top) top.close();
+}
+
+function useBackClose(open, close) {
+  const ref = useRef(close);
+  ref.current = close;
+  useEffect(() => {
+    if (!open) return undefined;
+    if (!bound) { window.addEventListener("popstate", onPop); bound = true; }
+    const entry = { close: () => ref.current() };
+    stack.push(entry);
+    window.history.pushState({ bipInner: true }, "");
+    return () => {
+      const i = stack.indexOf(entry);
+      if (i >= 0) {
+        // closed with the on-screen button → drop the extra history step
+        stack.splice(i, 1);
+        ignore++;
+        window.history.back();
+      }
+    };
+  }, [open]);
+}
+
 
 /* =========================================================
    Salary — single entry page (Branch A, B and C)
@@ -128,9 +161,11 @@ export default function SalaryBranchC({ variant = "C", all = false }) {
     const food = cfg.foodOt ? Number(f.food ?? f.food_amount) || 0 : 0;
     const ot = cfg.foodOt ? Number(f.ot ?? f.ot_day_amount) || 0 : 0;
     const itemSum = Object.values(items).reduce((a, b) => a + b, 0);
+    const coolie = Number(f.coolie_amount) || 0; // from Sales bills (Tax Invoice → Coolie)
     return {
       salary, packAmt, items, petrol, tea, food, ot, advance, work, extra,
-      total: salary + packAmt + itemSum + petrol + tea + food + ot + work + extra - advance,
+      coolie,
+      total: salary + packAmt + itemSum + petrol + tea + food + ot + work + extra + coolie - advance,
     };
   };
 
@@ -170,6 +205,30 @@ export default function SalaryBranchC({ variant = "C", all = false }) {
   // ── Employee statement ──────────────────────────────────────
   const monthStart = () => { const d = new Date(); return toYMD(new Date(d.getFullYear(), d.getMonth(), 1)); };
   const [stmt, setStmt] = useState(null); // { employee_id, name }
+  // phone Back → close the statement / employee view instead of leaving the page
+  useBackClose(!!selEmp, () => setSelEmp(null));
+  useBackClose(!!stmt, () => setStmt(null));
+  // page left open past midnight → entry date moves to the new day (a date you picked stays)
+  const autoDay = useRef(toYMD(new Date()));
+  useEffect(() => {
+    const roll = () => {
+      const t = toYMD(new Date());
+      const prev = autoDay.current;
+      if (prev === t) return;
+      autoDay.current = t;
+      setForm((f) => (f.date === prev ? { ...f, date: t } : f));
+      setStmtTo((d) => (d === prev ? t : d));
+      setStmtPay((p) => (p.date === prev ? { ...p, date: t } : p));
+    };
+    window.addEventListener("focus", roll);
+    document.addEventListener("visibilitychange", roll);
+    const id = setInterval(roll, 60000);
+    return () => {
+      window.removeEventListener("focus", roll);
+      document.removeEventListener("visibilitychange", roll);
+      clearInterval(id);
+    };
+  }, []);
   const [stmtFrom, setStmtFrom] = useState(monthStart());
   const [stmtTo, setStmtTo] = useState(toYMD(new Date()));
   const [stmtPays, setStmtPays] = useState([]);
@@ -257,19 +316,26 @@ export default function SalaryBranchC({ variant = "C", all = false }) {
   // one entry per product name (admin "All Branches" returns a copy per branch)
   const kambiProducts = useMemo(() => {
     const seen = {};
+    // every product is listed; one with "Kambi Kattu Qty" set keeps its own rate (amount ÷ qty),
+    // the others use the employee's Kambi Kattu rate
     products.forEach((p) => {
-      if (Number(p.kambi_qty) > 0 && !seen[p.product_name])
-        seen[p.product_name] = { qty: Number(p.kambi_qty), amt: Number(p.kambi_amt) || 200 };
+      const q = Number(p.kambi_qty) || 0;
+      if (!p.product_name) return;
+      if (!seen[p.product_name] || (q > 0 && !seen[p.product_name].qty))
+        seen[p.product_name] = { qty: q, amt: Number(p.kambi_amt) || 200 };
     });
-    return Object.entries(seen).map(([name, v]) => ({ name, qty: v.qty, amt: v.amt, rate: v.amt / v.qty }));
+    return Object.entries(seen)
+      .map(([name, v]) => ({ name, qty: v.qty, amt: v.amt, rate: v.qty > 0 ? v.amt / v.qty : null }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [products]);
   // posts = products linked to a TMT on the Products page
   const postProducts = useMemo(() => {
     const seen = {};
+    // every product can be picked as a post
     products.forEach((p) => {
-      if (p.tmt_product && !seen[p.product_name]) seen[p.product_name] = p.tmt_product;
+      if (p.product_name && !seen[p.product_name]) seen[p.product_name] = p.tmt_product || "";
     });
-    return Object.entries(seen).map(([name, tmt]) => ({ name, tmt }));
+    return Object.entries(seen).map(([name, tmt]) => ({ name, tmt })).sort((a, b) => a.name.localeCompare(b.name));
   }, [products]);
 
   // ── Daily Production: posts → cement → packs split among workers ──
@@ -508,6 +574,7 @@ export default function SalaryBranchC({ variant = "C", all = false }) {
       extra: Number(r.extra_amount) || "",
       extra_note: r.extra_note || "",
       kambi_product: r.kambi_product || "",
+      coolie_amount: Number(r.coolie_amount) || 0, // from Sales bills, kept as is
       post_product: r.post_product || "",
       post_qty: Number(r.post_qty) || "",
       kambi_rate: Number(r.kambi_qty) > 0 ? (Number(r.kambi_amount) || 0) / Number(r.kambi_qty) : 0,
@@ -569,6 +636,24 @@ export default function SalaryBranchC({ variant = "C", all = false }) {
         .sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id),
     [records, filter, selEmp, weekStart, weekEnd],
   );
+  // Records grouped by person (same name together); tap the name → that person's days in date order
+  const [openGroups, setOpenGroups] = useState({});
+  const groups = useMemo(() => {
+    const m = {};
+    filtered.forEach((r) => {
+      const k = r.employee_id;
+      if (!m[k]) m[k] = { key: k, name: r.employee_name, rows: [], total: 0 };
+      m[k].rows.push(r);
+    });
+    return Object.values(m)
+      .map((g) => {
+        g.rows.sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+        g.total = g.rows.reduce((t, r) => t + calcRow(r).total, 0);
+        return g;
+      })
+      .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered]);
 
   // earned / advance / paid → previous pending and balance
   const weekSummary = (empId) => {
@@ -1037,12 +1122,12 @@ export default function SalaryBranchC({ variant = "C", all = false }) {
                   value={form.kambi_product}
                   onChange={(e) => {
                     const p = kambiProducts.find((x) => x.name === e.target.value);
-                    setForm((f) => ({ ...f, kambi_product: e.target.value, kambi_rate: p ? p.rate : 0 }));
+                    setForm((f) => ({ ...f, kambi_product: e.target.value, kambi_rate: p ? (p.rate ?? (Number(selectedEmp?.kambi_kattu_rate) || 0)) : 0 }));
                   }}
                 >
                   <option value="">— select product —</option>
                   {kambiProducts.map((p) => (
-                    <option key={p.name} value={p.name}>{p.name} ({p.qty})</option>
+                    <option key={p.name} value={p.name}>{p.name}{p.qty > 0 ? ` (${p.qty})` : ""}</option>
                   ))}
                 </select>
               </div>
@@ -1075,8 +1160,7 @@ export default function SalaryBranchC({ variant = "C", all = false }) {
                 {numInput("post_qty")}
                 {form.post_product && Number(form.post_qty) > 0 && (
                   <small style={{ color: "#64748b" }}>
-                    {form.post_product} +{Number(form.post_qty)} ·{" "}
-                    {postProducts.find((p) => p.name === form.post_product)?.tmt} −{Number(form.post_qty)}
+                    {form.post_product} stock +{Number(form.post_qty)}
                   </small>
                 )}
               </div>
@@ -1242,7 +1326,19 @@ export default function SalaryBranchC({ variant = "C", all = false }) {
                   </td>
                 </tr>
               ) : (
-                filtered.map((r) => {
+                groups.map((g) => {
+                  const open = openGroups[g.key] ?? groups.length === 1;
+                  return [
+                    <tr key={`g-${g.key}`} onClick={() => setOpenGroups((o) => ({ ...o, [g.key]: !open }))}
+                      style={{ cursor: "pointer", background: "#f0fdf4" }}>
+                      <td colSpan={colCount + 1}>
+                        <b>{open ? "▼" : "▶"} {g.name}</b>
+                        <span style={{ color: "#64748b", marginLeft: 8 }}>
+                          {g.rows.length} records · {g.rows[0].date} → {g.rows[g.rows.length - 1].date} · Total {inr(g.total)}
+                        </span>
+                      </td>
+                    </tr>,
+                  ...(open ? g.rows.map((r) => {
                   const c = calcRow(r);
                   return (
                     <tr key={r.id}>
@@ -1275,6 +1371,7 @@ export default function SalaryBranchC({ variant = "C", all = false }) {
                         <td title={r.extra_note || ""}>
                           {c.extra ? inr(c.extra) : "—"}
                           {r.extra_note && <div style={{ fontSize: 11, color: "#64748b", whiteSpace: "normal" }}>{r.extra_note}</div>}
+                          {c.coolie > 0 && <div style={{ fontSize: 11, color: "#b45309", whiteSpace: "normal" }}>+ {r.coolie_note || `Coolie ${inr(c.coolie)}`}</div>}
                         </td>
                       )}
                       {cfg.foodOt && <td>{c.food ? inr(c.food) : "—"}</td>}
@@ -1308,6 +1405,8 @@ export default function SalaryBranchC({ variant = "C", all = false }) {
                       </td>
                     </tr>
                   );
+                }) : []),
+                  ];
                 })
               )}
             </tbody>
@@ -1385,6 +1484,7 @@ export default function SalaryBranchC({ variant = "C", all = false }) {
                           <td>
                             {inr(c.extra)}
                             {x.extra_note && <div style={{ fontSize: 11, color: "#64748b", whiteSpace: "normal" }}>{x.extra_note}</div>}
+                            {c.coolie > 0 && <div style={{ fontSize: 11, color: "#b45309", whiteSpace: "normal" }}>+ {x.coolie_note || `Coolie ${inr(c.coolie)}`}</div>}
                           </td>
                         )}
                         {cfg.foodOt && <td>{inr(c.food)}</td>}{cfg.foodOt && <td>{inr(c.ot)}</td>}
@@ -1535,7 +1635,15 @@ export default function SalaryBranchC({ variant = "C", all = false }) {
         .sp-badge--other { background: #f1f5f9; color: #475569; }
         .sp-row-actions { display: flex; gap: 6px; }
         .sp-overlay.no-print-bg { position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 1000; display: flex; align-items: flex-start; justify-content: center; padding: 30px 12px; overflow-y: auto; }
-        .sp-stmt { background: #fff; border-radius: 14px; width: 100%; max-width: 1100px; padding: 18px; box-shadow: 0 20px 50px rgba(0,0,0,.25); }
+        .sp-stmt { background: #fff; border-radius: 14px; width: 100%; max-width: 1100px; padding: 18px; box-shadow: 0 20px 50px rgba(0,0,0,.25);
+          box-sizing: border-box; overflow: hidden; }
+        /* wide statement table scrolls inside the white box (phone) instead of spilling out */
+        #sal-stmt-print { overflow-x: auto; -webkit-overflow-scrolling: touch; background: #fff; }
+        @media (max-width: 640px) {
+          .sp-overlay.no-print-bg { padding: 12px 6px; background: rgba(15,23,42,.75); }
+          .sp-stmt { padding: 12px; border-radius: 10px; }
+          .sp-stmt__sum { max-width: none; }
+        }
         .sp-stmt__bar, .sp-stmt__pay { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
         .sp-stmt__bar .sp-input, .sp-stmt__pay .sp-input { width: auto; min-width: 140px; }
         .sp-stmt__pay { margin: 16px 0 0; padding-top: 14px; border-top: 1px dashed #cbd5e1; }
@@ -1553,7 +1661,7 @@ export default function SalaryBranchC({ variant = "C", all = false }) {
         @media print {
           body * { visibility: hidden !important; }
           #sal-stmt-print, #sal-stmt-print * { visibility: visible !important; }
-          #sal-stmt-print { position: absolute; top: 0; left: 0; width: 100%; }
+          #sal-stmt-print { position: absolute; top: 0; left: 0; width: 100%; overflow: visible !important; }
           .no-print { display: none !important; }
           @page { size: A4 landscape; margin: 8mm; }
         }
