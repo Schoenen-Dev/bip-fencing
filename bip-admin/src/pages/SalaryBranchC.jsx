@@ -19,16 +19,19 @@ function useBackClose(open, close) {
   useEffect(() => {
     if (!open) return undefined;
     if (!bound) { window.addEventListener("popstate", onPop); bound = true; }
-    const entry = { close: () => ref.current() };
+    const entry = { close: () => ref.current(), path: window.location.pathname };
     stack.push(entry);
     window.history.pushState({ bipInner: true }, "");
     return () => {
       const i = stack.indexOf(entry);
       if (i >= 0) {
-        // closed with the on-screen button → drop the extra history step
         stack.splice(i, 1);
-        ignore++;
-        window.history.back();
+        // closed with the on-screen button → drop the extra history step.
+        // Moved to another page (e.g. Edit Bill)? then leave history alone.
+        if (window.location.pathname === entry.path && window.history.state && window.history.state.bipInner) {
+          ignore++;
+          window.history.back();
+        }
       }
     };
   }, [open]);
