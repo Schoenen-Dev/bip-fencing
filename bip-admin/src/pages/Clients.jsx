@@ -23,16 +23,19 @@ function useBackClose(open, close) {
   useEffect(() => {
     if (!open) return undefined;
     if (!bound) { window.addEventListener("popstate", onPop); bound = true; }
-    const entry = { close: () => ref.current() };
+    const entry = { close: () => ref.current(), path: window.location.pathname };
     stack.push(entry);
     window.history.pushState({ bipInner: true }, "");
     return () => {
       const i = stack.indexOf(entry);
       if (i >= 0) {
-        // closed with the on-screen button → drop the extra history step
         stack.splice(i, 1);
-        ignore++;
-        window.history.back();
+        // closed with the on-screen button → drop the extra history step.
+        // Moved to another page (e.g. Edit Bill)? then leave history alone.
+        if (window.location.pathname === entry.path && window.history.state && window.history.state.bipInner) {
+          ignore++;
+          window.history.back();
+        }
       }
     };
   }, [open]);
@@ -1917,7 +1920,7 @@ export default function Clients() {
         // discount / "less" given → saved as its own entry so the balance clears and the statement shows it
         await apiFetch("/client.php", {
           method: "POST",
-          body: JSON.stringify({ client_id: selected.id, amount: disc, payment_date: payForm.payment_date, note: "Discount" }),
+          body: JSON.stringify({ client_id: selected.id, amount: disc, payment_date: payForm.payment_date, note: "Discount", invoice_id: payForm.invoice_id || undefined }),
         });
       }
       if (data.success) {
@@ -2689,8 +2692,8 @@ export default function Clients() {
                     <th>Date</th>
                     <th>Customer</th>
                     <th>Net Balance</th>
-                    <th>Status</th>
                     <th>Call</th>
+                    <th>Status</th>
                     <th>WhatsApp</th>
                     <th>Purchases</th>
                     {isAdmin && <th></th>}
@@ -2736,9 +2739,6 @@ export default function Clients() {
                             })()}
                           </td>
                           <td>
-                            <span className={`cl-tag ${payState(client).cls}`}>{payState(client).label}</span>
-                          </td>
-                          <td>
                             {client.phone ? (
                               <a
                                 className="cl-act"
@@ -2752,6 +2752,9 @@ export default function Clients() {
                             ) : (
                               "—"
                             )}
+                          </td>
+                          <td>
+                            <span className={`cl-tag ${payState(client).cls}`}>{payState(client).label}</span>
                           </td>
                           <td>
                             <button
@@ -3667,11 +3670,22 @@ export default function Clients() {
                 <input
                   className="cl-input"
                   type="date"
-                  value={payForm.payment_date}
-                  onChange={(e) =>
-                    setPayForm({ ...payForm, payment_date: e.target.value })
-                  }
+                  value={payForm.payment_date || ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setPayForm((p) => ({ ...p, payment_date: v }));
+                  }}
+                  onInput={(e) => {
+                    const v = e.target.value;
+                    setPayForm((p) => ({ ...p, payment_date: v }));
+                  }}
+                  style={{ minHeight: 44 }}
                 />
+                {payForm.payment_date && (
+                  <small style={{ color: "#64748b" }}>
+                    {payForm.payment_date.split("-").reverse().join("-")} · tap the box to change
+                  </small>
+                )}
               </div>
               <div className="cl-fg">
                 <label className="cl-label">Payment Mode</label>
